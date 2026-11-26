@@ -241,7 +241,6 @@ extension CallTypeChecker {
         if isSetReturningCollectionBinaryMember(memberName, interner: interner) {
             return (isListReceiver || isSetReceiver) && argCount == 1
         }
-        // KUU-1362: same Map/Iterable split as isSupportedCollectionFallbackMember.
         if isMapReceiver, !knownNames.mapMembers.contains(memberName) {
             return false
         }
@@ -360,8 +359,6 @@ extension CallTypeChecker {
         let isBulkMutation = memberName == knownNames.addAll
             || memberName == knownNames.removeAll
             || memberName == knownNames.retainAll
-        // Map.remove takes a key and Map has no add/contains element members;
-        // the entry element type must not be used as their parameter type.
         let isElementMember = !isMapReceiver
             && (memberName == knownNames.add
                 || memberName == knownNames.remove
@@ -373,9 +370,6 @@ extension CallTypeChecker {
             return true
         }
         let argumentExpr = args[0].expr
-        // Predicate overloads (`removeAll { }`, `retainAll { }`) take a
-        // function, not a collection argument; leave them to the existing
-        // lambda paths.
         if ctx.ast.arena.expr(argumentExpr)?.isLambdaOrCallableRef == true {
             return true
         }
@@ -386,9 +380,6 @@ extension CallTypeChecker {
             _ = driver.inferExpr(argumentExpr, ctx: argumentCtx, locals: &locals)
         }
         let inferredArgumentType = sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType
-        // KUU-569: restore the nominal range type for scalar-marked range
-        // expressions so `IntRange`/`ClosedFloatingPointRange` conformance is
-        // checked against the source-level type rather than the runtime handle.
         let argumentType = sourceLevelRangeArgumentType(
             argumentExpr,
             inferredType: inferredArgumentType,
@@ -400,16 +391,9 @@ extension CallTypeChecker {
         else {
             return true
         }
-        // add/remove/contains take the receiver's element type directly.
         if isElementMember {
             return sema.types.isSubtype(argumentType, receiverElementType)
         }
-        // containsAll only has Collection-parameter overloads. The bulk
-        // mutation members additionally accept Iterable/Array/Sequence
-        // arguments through source extensions; those are normally bound by
-        // bindMutableCollectionSourceExtension first, but admitting the shapes
-        // here keeps receivers whose source candidates are unavailable on the
-        // same synthetic path as before.
         var expectedShapeFQNames = [knownNames.kotlinCollectionsCollectionFQName]
         if isBulkMutation {
             expectedShapeFQNames.append(contentsOf: [
@@ -453,11 +437,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         let resolvedName = interner.resolve(memberName)
 
-        // Only members whose parameters are the map's key/value types (or
-        // collections of keys/pairs derived from them) need checking. The
-        // rest take no value arguments or only destination/lambda parameters
-        // the fallback already models. `contains` never reaches this fallback
-        // (tryCollectionMemberFallback rejects the name up front).
         guard [
             "containsKey", "containsValue", "getValue",
             "getOrDefault", "getOrElse", "getOrPut",
@@ -466,9 +445,6 @@ extension CallTypeChecker {
             return true
         }
 
-        // K/V are recovered from the receiver's Map.Entry<K, V> element type.
-        // Star projections or non-map element shapes leave nothing reliable
-        // to check against, so they stay admissible like before.
         guard case let .classType(entryType) = sema.types.kind(
             of: sema.types.makeNonNullable(receiverElementType)
         ), entryType.args.count >= 2 else {
@@ -520,10 +496,6 @@ extension CallTypeChecker {
             nullability: .nonNull
         )))
 
-        // `minus(key:)` / `minus(keys:)` and the `plus` overloads share one
-        // call shape, so an unlabeled argument may conform to any of their
-        // parameter types. Labeled arguments resolve to the matching
-        // overload's parameter instead.
         var minusKeyCollectionShapes: [TypeID] = []
         for fqName in [
             knownNames.kotlinCollectionsIterableFQName,
@@ -599,8 +571,6 @@ extension CallTypeChecker {
 
         for (index, argument) in args.enumerated() {
             guard !argument.isSpread else { continue }
-            // Lambda and callable-reference arguments are typed by the
-            // fallback's lambda expectation paths, not by this check.
             if ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
                 continue
             }
@@ -626,10 +596,6 @@ extension CallTypeChecker {
                     locals: &locals
                 )
             }
-            // KUU-569: restore the nominal range type for scalar-marked range
-            // expressions so `IntRange`/`ClosedFloatingPointRange` conformance
-            // is checked against the source-level type rather than the runtime
-            // handle — `map.getValue(2..4)` must see `IntRange`, not Int.
             let argumentType = sourceLevelRangeArgumentType(
                 argumentExpr,
                 inferredType: inferredArgumentType,
@@ -646,11 +612,6 @@ extension CallTypeChecker {
                 if sema.types.isSubtype(argumentType, expectedType) {
                     return true
                 }
-                // Unsuffixed integer literals keep their Int inference; accept
-                // them when they fit an integer primitive shape like kotlinc's
-                // literal typing, and rebind the literal to that shape so
-                // downstream lowering sees the parameter type (`1` for a `Long`
-                // key).
                 if integerLiteralFitsParameter(
                     argumentExpr,
                     parameterType: expectedType,
@@ -698,9 +659,6 @@ extension CallTypeChecker {
             _ = driver.inferExpr(argumentExpr, ctx: argumentCtx, locals: &locals)
         }
         let inferredArgumentType = sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType
-        // KUU-569: restore the nominal range type for scalar-marked range
-        // expressions so conformance is checked against the source-level
-        // type rather than the runtime handle.
         let argumentType = sourceLevelRangeArgumentType(
             argumentExpr,
             inferredType: inferredArgumentType,

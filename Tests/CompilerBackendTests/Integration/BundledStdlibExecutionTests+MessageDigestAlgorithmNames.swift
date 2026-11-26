@@ -1,16 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.getInstance` must accept exactly the spellings the
-    /// JDK's SUN provider registers for each digest — the service name, its
-    /// KnownOIDs aliases, and the "OID.<oid>" / bare "<oid>" forms, matched
-    /// case-insensitively — and reject dash-folding lookalikes such as
-    /// "SHA3256", "SHA-3-256", "S-H-A-256" and "MD-5" with
-    /// NoSuchAlgorithmException like the JDK. Pins the per-spelling
-    /// algorithm echo, digestLength, and "abc" digest vectors across the
-    /// MD2/MD5, SHA-1, SHA-2, SHA-512/224|256, SHA3 and SHAKE families.
-    /// Expected output was captured from kotlinc on OpenJDK 27.
-    /// Regression for KUU-4315.
     @Test
     func testMessageDigestAlgorithmNameSpellings() throws {
         try compileAndRunKotlin(

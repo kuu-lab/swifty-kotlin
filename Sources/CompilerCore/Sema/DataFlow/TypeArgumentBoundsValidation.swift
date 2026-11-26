@@ -35,9 +35,17 @@ final class TypeArgumentBoundsValidator {
     ) {
         visitedAliases.removeAll(keepingCapacity: true)
         visitedTypes.removeAll(keepingCapacity: true)
+        let ownParameters = types.nominalTypeParameterSymbols(for: symbol)
+        var ownArguments = arguments
+        var enclosingArguments: [TypeArg] = []
+        if types.enclosingTypeParameterSymbols(for: symbol).count > 0, arguments.count > ownParameters.count {
+            enclosingArguments = Array(arguments.prefix(arguments.count - ownParameters.count))
+            ownArguments = Array(arguments.suffix(ownParameters.count))
+        }
         visitNominal(
             symbol,
-            arguments: arguments,
+            arguments: ownArguments,
+            enclosingArguments: enclosingArguments,
             substitutions: [:],
             depth: 0,
             range: range,
@@ -54,6 +62,7 @@ final class TypeArgumentBoundsValidator {
     private func visitNominal(
         _ symbol: SymbolID,
         arguments: [TypeArg],
+        enclosingArguments: [TypeArg] = [],
         substitutions: [SymbolID: TypeArg],
         depth: Int,
         range: SourceRange?,
@@ -76,17 +85,40 @@ final class TypeArgumentBoundsValidator {
         }
 
         let parameters = types.nominalTypeParameterSymbols(for: symbol)
+        let enclosingParameters = types.enclosingTypeParameterSymbols(for: symbol)
         let checkBoundsEnabled = symbols.symbol(symbol)?.flags.contains(.synthetic) != true
         let resolvedArguments = arguments.map { resolve($0, substitutions: substitutions) }
+        let resolvedEnclosingArguments = enclosingArguments.map { resolve($0, substitutions: substitutions) }
         var substitution: [TypeVarID: TypeID] = [:]
-        let typeVarBySymbol = types.makeTypeVarBySymbol(parameters)
-        for (parameter, argument) in zip(parameters, resolvedArguments) {
+        var starParameters: Set<SymbolID> = []
+        let allParameters = enclosingParameters + parameters
+        let typeVarBySymbol = types.makeTypeVarBySymbol(allParameters)
+        let parameterArguments = Array(zip(enclosingParameters, resolvedEnclosingArguments))
+            + Array(zip(parameters, resolvedArguments))
+        for (parameter, argument) in parameterArguments {
             guard let variable = typeVarBySymbol[parameter] else { continue }
             switch argument {
             case let .invariant(type), let .out(type), let .in(type):
                 substitution[variable] = type
             case .star:
                 substitution[variable] = types.anyType
+                starParameters.insert(parameter)
+            }
+        }
+
+        if checkBoundsEnabled {
+            for (parameter, argument) in zip(enclosingParameters, resolvedEnclosingArguments) {
+                let (_, inner) = split(argument)
+                guard let inner else { continue }
+                checkBounds(
+                    argumentType: inner,
+                    parameter: parameter,
+                    substitution: substitution,
+                    starParameters: starParameters,
+                    typeVarBySymbol: typeVarBySymbol,
+                    range: range,
+                    allowsTypeParameterArguments: allowsTypeParameterArguments
+                )
             }
         }
 
@@ -98,6 +130,7 @@ final class TypeArgumentBoundsValidator {
                     argumentType: inner,
                     parameter: parameters[index],
                     substitution: substitution,
+                    starParameters: starParameters,
                     typeVarBySymbol: typeVarBySymbol,
                     range: range,
                     allowsTypeParameterArguments: allowsTypeParameterArguments
@@ -122,6 +155,7 @@ final class TypeArgumentBoundsValidator {
             visitNominal(
                 classType.classSymbol,
                 arguments: classType.args,
+                enclosingArguments: classType.enclosingTypeArgs,
                 substitutions: substitutions,
                 depth: depth,
                 range: range,
@@ -157,6 +191,7 @@ final class TypeArgumentBoundsValidator {
         argumentType: TypeID,
         parameter: SymbolID,
         substitution: [TypeVarID: TypeID],
+        starParameters: Set<SymbolID>,
         typeVarBySymbol: [SymbolID: TypeVarID],
         range: SourceRange?,
         allowsTypeParameterArguments: Bool
@@ -165,7 +200,7 @@ final class TypeArgumentBoundsValidator {
         if allowsTypeParameterArguments, types.typeContainsAnyTypeParam(argumentType) { return }
         for bound in types.declaredUpperBounds(for: parameter) {
             let substitutedBound = types.substituteTypeParameters(
-                in: bound,
+                in: projectingStarArguments(of: bound, starParameters: starParameters),
                 substitution: substitution,
                 typeVarBySymbol: typeVarBySymbol
             )
@@ -177,6 +212,27 @@ final class TypeArgumentBoundsValidator {
                 )
             }
         }
+    }
+
+    // A sibling argument written as `*` leaves its parameter unknown, so a
+    // bound such as `E : Ext<C>` only demands `Ext<*>` from `E`; pinning `C`
+    // to `Any` would make the invariant bound `Ext<Any>` reject `Ext<*>`.
+    private func projectingStarArguments(of bound: TypeID, starParameters: Set<SymbolID>) -> TypeID {
+        guard !starParameters.isEmpty, case let .classType(classType) = types.kind(of: bound) else { return bound }
+        let args = classType.args.map { argument -> TypeArg in
+            guard let inner = split(argument).1,
+                  case let .typeParam(parameter) = types.kind(of: inner),
+                  starParameters.contains(parameter.symbol)
+            else { return argument }
+            return .star
+        }
+        guard args != classType.args else { return bound }
+        return types.make(.classType(ClassType(
+            classSymbol: classType.classSymbol,
+            args: args,
+            enclosingTypeArgs: classType.enclosingTypeArgs,
+            nullability: classType.nullability
+        )))
     }
 
     private func resolve(_ argument: TypeArg, substitutions: [SymbolID: TypeArg], seen: Set<SymbolID> = []) -> TypeArg {

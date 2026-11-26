@@ -7,10 +7,6 @@ package kotlin.concurrent.atomics
 
 import kotlinx.cinterop.NativePtr
 
-// MIGRATION-ATOMIC-003 / KSP-1106
-// AtomicNativePtr update operators are CAS retry loops built on the
-// runtime-backed load and compareAndSet member operations.
-
 public fun AtomicNativePtr.fetchAndUpdate(transform: (NativePtr) -> NativePtr): NativePtr {
     while (true) {
         val old = load()

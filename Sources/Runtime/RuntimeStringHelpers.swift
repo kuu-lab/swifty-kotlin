@@ -8,23 +8,15 @@ func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
     return runtimeKotlinStringUTF16CodeUnits(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
 
-/// Returns Kotlin's UTF-16 code units while decoding the compiler's isolated
-/// surrogate markers back to their original values.
 func runtimeKotlinStringUTF16CodeUnits(_ value: String) -> [UInt16] {
     KotlinStringSurrogateEncoding.utf16CodeUnits(value)
 }
 
-/// Appends `value`'s Kotlin UTF-16 code units to `units` without building an
-/// intermediate array.
 func runtimeAppendKotlinUTF16CodeUnits(of value: String, to units: inout [UInt16]) {
     units.reserveCapacity(units.count + value.utf16.count)
     units.append(contentsOf: KotlinStringSurrogateEncoding.UTF16CodeUnits(value))
 }
 
-/// The Kotlin UTF-16 code unit at `index`, scanning scalars only until the
-/// target is reached instead of materializing the whole code-unit array.
-/// Returns nil when `index` is out of bounds; identical to
-/// `runtimeKotlinStringUTF16CodeUnits(value)[index]` for in-range indexes.
 func runtimeKotlinStringUTF16CodeUnit(_ value: String, at index: Int) -> UInt16? {
     guard index >= 0 else { return nil }
     for (offset, unit) in KotlinStringSurrogateEncoding.UTF16CodeUnits(value).enumerated() {
@@ -33,20 +25,14 @@ func runtimeKotlinStringUTF16CodeUnit(_ value: String, at index: Int) -> UInt16?
     return nil
 }
 
-/// UTF-16 code-unit count without allocating the unit array.
 func runtimeKotlinStringUTF16Length(_ value: String) -> Int {
     KotlinStringSurrogateEncoding.UTF16CodeUnits(value).reduce(0) { count, _ in count + 1 }
 }
 
-/// Reconstructs a Swift String from Kotlin UTF-16 code units, preserving
-/// isolated surrogates through the compiler/runtime marker representation.
 func runtimeKotlinStringFromUTF16CodeUnits(_ units: [UInt16]) -> String {
     KotlinStringSurrogateEncoding.fromUTF16CodeUnits(units)
 }
 
-/// Kotlin String equality compares the underlying UTF-16 code-unit sequence.
-/// Swift String equality uses canonical equivalence, so it cannot be used for
-/// the default Kotlin String equality contract.
 @inline(__always)
 func runtimeStringsEqual(_ lhs: String, _ rhs: String) -> Bool {
     KotlinStringSurrogateEncoding.UTF16CodeUnits(lhs).elementsEqual(KotlinStringSurrogateEncoding.UTF16CodeUnits(rhs))
@@ -62,11 +48,6 @@ func runtimeStringFromRaw(_ raw: Int) -> String? {
     return extractString(from: pointer)
 }
 
-/// Fail-fast variant that panics on invalid string handles instead of returning nil.
-/// Use this instead of `runtimeStringFromRaw(...) ?? ""` to distinguish
-/// invalid handles from legitimately empty strings.
-/// Internal so that other runtime files (e.g. RuntimeSequence.swift) can share
-/// this helper without duplicating the safety check and panic message.
 func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
     if let s = runtimeStringFromRaw(raw) {
         return s
@@ -76,8 +57,6 @@ func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
 
 func runtimeCharacterFromRaw(_ raw: Int) -> String {
     guard let scalar = runtimeUnicodeScalarFromRaw(raw) else {
-        // A lone surrogate half is a valid Kotlin Char; keep it (as the
-        // isolated-surrogate marker) so it can recombine into a pair later.
         var code = raw
         if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
            runtimeIsObjectPointer(pointer),
@@ -109,12 +88,10 @@ func runtimeIsObjectPointer(_ pointer: UnsafeMutableRawPointer) -> Bool {
     }
 }
 
-/// Boxes an internal escaped string. Foreign UTF-8 enters via kk_string_from_utf8.
 func runtimeMakeStringRaw(_ value: String) -> Int {
     registerRuntimeObject(RuntimeStringBox(value))
 }
 
-/// Creates the foreign runtime string representation used by `kk_string_from_utf8`.
 func runtimeMakeUTF8StringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -183,7 +160,6 @@ func runtimeKotlinCaseMapped(_ source: String, mapping: (String) -> String) -> S
         if (0xD800 ... 0xDBFF).contains(unit), index + 1 < units.count,
            (0xDC00 ... 0xDFFF).contains(units[index + 1])
         {
-            // Keep valid pairs together for supplementary-plane case mappings.
             index += 2
             continue
         }
@@ -198,9 +174,6 @@ func runtimeKotlinCaseMapped(_ source: String, mapping: (String) -> String) -> S
     return runtimeKotlinStringFromUTF16CodeUnits(result)
 }
 
-/// `String.lowercase()` with the unconditional Unicode mappings plus the
-/// context-sensitive Final_Sigma rule (Σ -> ς at the end of a word, else σ),
-/// which `String.lowercased()` does not apply.
 func runtimeKotlinLowercased(_ source: String) -> String {
     let scalars = Array(source.unicodeScalars)
     guard scalars.contains(where: { $0.value == 0x3A3 }) else { return source.lowercased() }
@@ -319,9 +292,6 @@ func runtimeSplitStringLimit(
     }
 }
 
-/// Splits at every UTF-16 code-unit boundary, including the boundaries at both
-/// ends of the source. Kotlin treats an empty string delimiter as a zero-width
-/// match at each such position.
 private func runtimeSplitStringOnEmptyDelimiter(_ source: String, limit: Int) -> [String] {
     let codeUnits = runtimeKotlinStringUTF16CodeUnits(source)
     var result: [String] = []

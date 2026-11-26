@@ -1,20 +1,8 @@
-// WasmEmitter+Runtime.swift — wasm-side runtime surface.
-//
-// Two tiers:
-//  * `inlineCalleeNames` — arithmetic/bitwise ops, box/unbox, narrowing:
-//    emitted as a few instructions at the call site.
-//  * `functionCalleeNames` — emitted wasm helper functions (allocation, the
-//    uniform box object model, vtable/itable registration, type-edge walking
-//    for `is`/`as`, flat-string materialization, WASI console output).
-// Anything else falls back to a return-0 stub plus a WASM-0001 diagnostic.
-
 import Foundation
 import CompilerCore
 
 enum WasmRuntimeHelpers {
     private typealias L = WasmModuleContext.WasmLayout
-
-    // MARK: - Inline builtins
 
     static let inlineCalleeNames: Set<String> = [
         "kk_int_narrow",
@@ -32,8 +20,6 @@ enum WasmRuntimeHelpers {
         name.hasPrefix("kk_unbox_")
     }
 
-    /// Callees lowered inline at the call site: arithmetic ops, box/unbox
-    /// tagging, narrowing, and abort shims.
     static func isInlineCallee(_ name: String) -> Bool {
         inlineCalleeNames.contains(name)
             || arithmeticOpcodes[name] != nil
@@ -158,8 +144,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// f64 ops reinterpret the i64 payload; f32 ops use the low 32 bits.
-    /// Comparisons yield the i32 compare result extended to i64.
     private static let floatBinaryOpcodes: [String: UInt8] = [
         "kk_op_dadd": WasmOpcode.f64Add,
         "kk_op_dsub": WasmOpcode.f64Sub,
@@ -183,15 +167,10 @@ enum WasmRuntimeHelpers {
         "kk_op_fge": WasmOpcode.f32Ge,
     ]
 
-    /// `a % b` (trunc remainder) and `a mod b` (floor mod) have no wasm
-    /// opcode — emitted as `a - b * trunc|floor(a / b)`.
     private static let floatRemOps: Set<String> = [
         "kk_op_dmod", "kk_op_dfloor_mod", "kk_op_fmod", "kk_op_ffloor_mod",
     ]
 
-    /// Numeric widths for `kk_<src>_to_<dst>` conversion callees. Signed
-    /// targets sign-extend out of the low bits; unsigned targets (including
-    /// Char) mask. 64-bit targets are the identity under the raw-i64 ABI.
     private static let integerWidths: [String: (bits: Int64, signed: Bool)] = [
         "byte": (8, true), "short": (16, true), "int": (32, true), "long": (64, true),
         "ubyte": (8, false), "ushort": (16, false), "char": (16, false),
@@ -260,7 +239,6 @@ enum WasmRuntimeHelpers {
             // the stack top).
             code.localSet(scratch)
             if isFloat {
-                // operand = f32.reinterpret(i32.wrap(arg))
                 code.op(WasmOpcode.i32WrapI64)
                 code.op(WasmOpcode.f32ReinterpretI32)
                 code.localGet(scratch)
@@ -272,8 +250,6 @@ enum WasmRuntimeHelpers {
                 code.op(WasmOpcode.f64ReinterpretI64)
             }
             code.op(op)
-            // Comparisons produce i32; arithmetic produces a float whose bits
-            // return as i64 (f32 keeps its payload in the low 32 bits).
             if op == WasmOpcode.f64Eq || op == WasmOpcode.f64Ne ||
                op == WasmOpcode.f64Lt || op == WasmOpcode.f64Le ||
                op == WasmOpcode.f64Gt || op == WasmOpcode.f64Ge ||
@@ -290,13 +266,10 @@ enum WasmRuntimeHelpers {
             }
             return
         }
-        // rem: r = a - b * trunc|floor(a / b). Floor-mod additionally forces a
-        // zero result to the divisor's sign (Kotlin `mod` contract).
         let floorMod = name == "kk_op_dfloor_mod" || name == "kk_op_ffloor_mod"
         let aL = scratch, bL = scratch + 1, rL = scratch + 2
         code.localSet(bL)
         code.localSet(aL)
-        // Stack discipline: compute q = trunc|floor(a/b), r = a - b*q.
         code.localGet(aL)
         if isFloat { code.op(WasmOpcode.i32WrapI64); code.op(WasmOpcode.f32ReinterpretI32) }
         else { code.op(WasmOpcode.f64ReinterpretI64) }
@@ -316,7 +289,6 @@ enum WasmRuntimeHelpers {
         code.op(isFloat ? WasmOpcode.f32Mul : WasmOpcode.f64Mul)
         code.op(isFloat ? WasmOpcode.f32Sub : WasmOpcode.f64Sub)
         if floorMod {
-            // r == ±0 → copysign(+0.0, b).
             code.op(isFloat ? WasmOpcode.i32ReinterpretF32 : WasmOpcode.i64ReinterpretF64)
             if isFloat { code.op(WasmOpcode.i64ExtendI32U) }
             code.localSet(rL)
@@ -409,8 +381,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    // MARK: - Emitted helper functions
-
     static let functionCalleeNames: Set<String> = [
         "$__kk_wasm_alloc",
         "$__kk_wasm_vtable",
@@ -429,8 +399,6 @@ enum WasmRuntimeHelpers {
         "kk_array_length",
         "kk_array_size",
         "kk_array_is_empty",
-        // Source-backed size bridges (`@KsSymbolName` on the `Array`/`IntArray`/
-        // `CharArray`/... extension getters in ArrayIntrinsics.kt).
         "__kk_array_size",
         "__kk_intArray_size",
         "__kk_longArray_size",
@@ -485,8 +453,6 @@ enum WasmRuntimeHelpers {
         "__kk_list_get",
         "__kk_mutable_list_add",
         "__kk_list_to_list",
-        // `*Array.toList`/`asList` externs (`ArrayConversions.kt`) plus the
-        // routed `toMutableList`/`copyOf` shims for primitive arrays.
         "__kk_intArray_toList", "__kk_longArray_toList",
         "__kk_shortArray_toList", "__kk_byteArray_toList",
         "__kk_charArray_toList", "__kk_booleanArray_toList",
@@ -506,15 +472,10 @@ enum WasmRuntimeHelpers {
         "kk_list_iterator",
         "kk_list_iterator_hasNext",
         "kk_list_iterator_next",
-        // Element equality shared by Set dedup / Map key lookup / contains.
         "__kk_wasm_elem_eq",
-        // `Any` members called through erased receivers — dispatch on the
-        // object's runtime typeID so collections hash/compare structurally.
         "kk_any_member_hashCode",
         "kk_any_member_equals",
         "kk_any_member_to_string",
-        // Member-thunk targets for class-typed collection receivers whose
-        // vtable slots reference unmaterialized kklib bodies.
         "__kk_wasm_identity_eq",
         "__kk_wasm_identity_hash",
         "__kk_wasm_obj_to_string",
@@ -574,10 +535,6 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_map_index_of",
         "__kk_mutable_map_putAll",
         "__kk_map_set_access_order",
-        // Reflection metadata registry: `__kk_*_register_*` append
-        // kind-tagged nodes to a token-keyed record so materialized init
-        // bodies can run their metadata setup without a native object
-        // linker. Reflection readers consume the records later.
         "$__kk_wasm_token_record_get",
         "$__kk_wasm_token_record",
         "$__kk_wasm_reglist_add",
@@ -648,7 +605,6 @@ enum WasmRuntimeHelpers {
         "kk_runtime_result_get_or_default",
         "kk_runtime_result_equals",
         "kk_runtime_result_run_catching",
-        // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
         // Range/progression boxes `{first@16, last@24, step@32}` plus
@@ -704,13 +660,9 @@ enum WasmRuntimeHelpers {
         "__kk_list_last",
         "__kk_list_is_empty",
         "__kk_string_joinToString",
-        // Array component-tag intrinsics: component identity is a pass-through
-        // on wasm until reflection needs the installed tag.
         "__kk_array_component_type",
         "__kk_array_component_element",
         "__kk_array_tag_component",
-        // Function-value ABI: create/invoke plus the unbox accessors and
-        // arity/description metadata calls the lambda lowering emits.
         "kk_function_create_0", "kk_function_create_1", "kk_function_create_2",
         "kk_function_create_3", "kk_function_create_4", "kk_function_create_5",
         "kk_function_create_6",
@@ -731,8 +683,6 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_box_double", "__kk_wasm_box_double_nullable",
         "__kk_wasm_box_float",
         "__kk_wasm_unbox_double", "__kk_wasm_unbox_float",
-        // Numeric conversions — Kotlin/Java saturating semantics map exactly
-        // onto wasm's trunc_sat opcodes.
         "__kk_double_to_int", "__kk_double_to_long",
         "__kk_float_to_int", "__kk_float_to_long",
         "kk_int_to_double", "kk_int_to_double_bits", "kk_long_to_double",
@@ -740,17 +690,14 @@ enum WasmRuntimeHelpers {
         "kk_double_to_float",
         "kk_float_to_double", "__kk_float_to_double_bits",
         "kk_double_to_bits", "kk_bits_to_double",
+        "__kk_double_toBits", "__kk_double_toRawBits",
         "kk_float_to_bits", "kk_bits_to_float",
+        "__kk_float_toBits", "__kk_float_toRawBits",
         "kk_double_equals", "kk_float_equals",
         "kk_nullable_double_equals", "kk_nullable_float_equals",
-        // Kotlin/JVM-compatible floating-point rendering: exact decimal
-        // expansion of the binary value and its rounding boundaries, then
-        // the shortest candidate inside the boundary interval (Dragon4).
         "__kk_wasm_expand", "__kk_wasm_cmp_decimal", "__kk_wasm_round_copy",
         "__kk_wasm_fp_format", "__kk_wasm_render_decimal",
         "__kk_wasm_format_double", "__kk_wasm_format_float",
-        // `kotlin.text` member helpers — byte-level semantics matching the
-        // existing `emitStringGetBody` convention (ASCII-exact folding;
         // UTF-16 surrogate handling is a later milestone). `$default`
         // forwarder arities append a mask argument the bodies ignore.
         "__kk_wasm_string_upper", "__kk_wasm_string_lower",
@@ -775,18 +722,12 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_string_reversed",
         "__kk_wasm_char_upper", "__kk_wasm_char_lower",
         "__kk_wasm_char_upper_str", "__kk_wasm_char_lower_str",
-        // Bundled-stdlib extern link names whose wasm behavior is provided
-        // by the helpers above (`@KsSymbolName` on `private external fun`
-        // declarations — see kotlin/text/*.kt).
         "__kk_string_get_flat", "kk_string_lowercase",
         "__kk_string_split", "__kk_string_split_limit",
         "__kk_char_uppercase_string", "__kk_char_lowercase_string",
         "__kk_char_titlecase_string",
         "__kk_char_uppercase_code", "__kk_char_lowercase_code",
         "__kk_char_titlecase_code",
-        // Generic `compareValues` core: null-sentinel rules → string/fp/scalar
-        // ordering → Comparable itable dispatch → signed fallback. Aliased by
-        // the bare stdlib names inline bodies call (`compareNullable` etc.).
         "__kk_wasm_compare_values",
         "__kk_wasm_string_compare",
         "__kk_wasm_invoke_comparator",
@@ -794,25 +735,15 @@ enum WasmRuntimeHelpers {
         "__kk_comparable_compareTo", "kk_comparable_compareTo",
         "kk_compare_any",
         "compareNullable", "compareValues", "compareValuesUnchecked",
-        // `naturalOrder()`/`reverseOrder()` singletons — real boxes carrying a
-        // `kotlin.Comparator` itable whose compare method delegates to the
-        // compare-values core (flipped for reverseOrder).
         "__kk_wasm_natural_order", "__kk_wasm_reverse_order",
         "naturalOrder", "reverseOrder",
         "__kk_wasm_comparator_natural", "__kk_wasm_comparator_desc",
-        // Stable-sort entry points (insertion sort — stability contract kept;
-        // selector/comparison variants invoke the function value per step).
         "__kk_wasm_stable_sort_with", "stableSortWith",
         "__kk_wasm_stable_sort_by_selector", "stableSortBySelector",
         "__kk_wasm_stable_sort_by_comparison", "stableSortByComparison",
         "__kk_wasm_prim_array_sort", "stableSortImpl",
         "__kk_wasm_min_of", "minOf", "__kk_wasm_max_of", "maxOf",
-        // IndexedValue boxes share the pair layout under their own nominal
-        // tag so component1/component2 route to the pair slot readers.
         "__kk_wasm_indexed_value_new",
-        // Iterable collect/scan helpers — generic `kk_iterable_iterator`
-        // dispatch so list/set boxes, map views, ranges, and Kotlin-defined
-        // iterables all reach their registered iterator.
         "__kk_wasm_iterable_to_mutable_list", "toMutableList",
         "__kk_wasm_iterable_to_mutable_set",
         "__kk_wasm_iterable_to_hash_set", "__kk_wasm_iterable_to_set",
@@ -836,17 +767,12 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_iterable_element_at", "__kk_wasm_iterable_element_at_or_null",
         "__kk_wasm_prim_array_sum_int", "__kk_wasm_prim_array_sum_fp",
         "__kk_wasm_int_array_sorted", "__kk_wasm_int_array_sorted_desc",
-        // `println(Any?)`/`print(Any?)` — the kklib body calls
-        // `message.toString()`; the wasm bridge renders via any_to_string.
         "__kk_println_any", "__kk_print_any", "__kk_wasm_println_empty",
         "__kk_wasm_noop",
-        // Object-aware `toString` for runtime box layouts — dispatched from
-        // `kk_any_to_string` by nominal typeID.
         "__kk_wasm_list_to_string", "__kk_wasm_map_to_string",
         "__kk_wasm_pair_to_string", "__kk_wasm_entry_to_string",
         "__kk_wasm_range_to_string", "__kk_wasm_indexed_value_to_string",
         "__kk_wasm_char_to_string", "__kk_wasm_array_identity_to_string",
-        // kotlin.text scalar parsing + slicing extras.
         "__kk_wasm_string_to_int", "__kk_wasm_string_to_long",
         "__kk_wasm_string_to_int_or_null", "__kk_wasm_string_to_long_or_null",
         "__kk_wasm_string_to_boolean",
@@ -865,30 +791,28 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_string_pad_start", "__kk_wasm_string_pad_end",
         "__kk_wasm_string_lines",
         "__kk_wasm_join_to_string_full",
-        // Flat-ABI extern spellings the frontend emits directly for
-        // `kotlin.text` scalar conversions (bypasses the member routing).
         "__kk_string_toInt_flat", "__kk_string_toIntOrNull_flat",
         "__kk_string_toLong_flat", "__kk_string_toLongOrNull_flat",
+        "__kk_string_toDouble", "__kk_string_toDoubleOrNull",
+        "__kk_string_toFloat", "__kk_string_toFloatOrNull",
         "__kk_string_toDouble_flat", "__kk_string_toDoubleOrNull_flat",
         "__kk_string_toFloat_flat", "__kk_string_toFloatOrNull_flat",
-        // `kotlin.error`/`kotlin.TODO` — IllegalStateException through the
-        // thrown channel (NotImplementedError falls under the same tag).
+        "__kk_wasm_decimal_parse_exact",
         "__kk_wasm_error", "__kk_wasm_todo",
     ]
 
-    /// True when `name` has an emitted wasm helper body — used by callee
-    /// resolution so throwable intrinsics route to helpers rather than stubs.
     static func isEmittedHelperName(_ name: String) -> Bool {
         functionCalleeNames.contains(name) || throwableHelperKind(for: name) != nil
     }
 
-    /// Builds the wasm body for a helper callee. `nil` means no helper exists
-    /// and the caller should fall back to a stub.
     static func emittedBody(
         for name: String,
         argumentCount: Int,
         context ctx: WasmModuleContext
     ) -> [UInt8]? {
+        if name == "__kk_wasm_decimal_parse_exact" {
+            return WasmDecimalParserBody.bytes
+        }
         var code = WasmCode()
         let extraLocals: Int
         switch name {
@@ -928,8 +852,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 2
             emitArrayNewBody(&code, ctx: ctx)
         case "kk_array_of":
-            // Vararg packing already built the array via kk_array_new +
-            // kk_array_set; the factory is an identity on that handle.
             extraLocals = 0
             code.localGet(0)
         case "kk_empty_array":
@@ -971,6 +893,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitLoadMetaBody(&code)
             code.op(WasmOpcode.i64Eqz)
+            code.i64ExtendFromComparison()
         case "kk_any_to_string", "kk_any_to_string_nullable":
             // Body uses fixed locals 2...9; extras must cover index 9 for
             // whatever arity was requested first.
@@ -1007,7 +930,6 @@ enum WasmRuntimeHelpers {
         case "kk_op_cast":
             extraLocals = 0
             emitOpCastBody(&code, ctx: ctx)
-        // `x as? T` → `kk_op_is ? value : nullSentinel`.
         case "kk_op_safe_cast":
             extraLocals = 0
             code.localGet(0)
@@ -1044,9 +966,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitPrintBody(&code, ctx: ctx, newline: true, fd: 2)
         case "__kk_console_stdout_close", "__kk_console_stderr_close":
-            // KUU-4156: `System.out`/`System.err` `PrintStream.close()` marks
-            // the matching console fd closed; later writes drop like a closed
-            // JVM PrintStream instead of reaching the WASI fd.
             extraLocals = 0
             let closedGlobal = ctx.module.addGlobal(
                 initialValue: 0,
@@ -1070,7 +989,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 4
             emitStringEqualsFlatBody(&code, ctx: ctx)
         case "__kk_list_of", "__kk_array_list_of":
-            // (array, count) -> list box adopting the packed array as backing.
             extraLocals = 1
             emitListBoxBody(
                 &code, ctx: ctx,
@@ -1095,9 +1013,6 @@ enum WasmRuntimeHelpers {
             emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.listCountOffset)
         case "__kk_list_check_modification", "__kk_wasm_view_check":
-            // View staleness gate: non-view receivers pass through silently
-            // (matching the zero-return ABI); a view whose root parent's
-            // modCount moved throws ConcurrentModificationException.
             extraLocals = 1
             emitViewCheckBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_wasm_list_modcount":
@@ -1209,17 +1124,12 @@ enum WasmRuntimeHelpers {
             extraLocals = 12
             emitElemEqBody(&code, ctx: ctx)
         case "kk_any_member_hashCode":
-            // Any.hashCode on an erased receiver — elem_hash already does the
-            // typeID dispatch (collections structural, scalars/strings by
-            // value, other boxes by identity).
             extraLocals = 0
             code.localGet(0)
             code.call(ctx.emittedHelperIndex(
                 for: "__kk_wasm_elem_hash", argumentCount: 1
             ))
         case "kk_any_member_equals":
-            // Any.equals — elem_eq keeps pointer identity first, then family
-            // compares for collections; everything else stays identity.
             extraLocals = 0
             code.localGet(0)
             code.localGet(1)
@@ -1258,7 +1168,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.pairFirstOffset)
         case "__kk_pair_second":
             extraLocals = 0
-            // Live entry view: mapRef != 0 → map[mapKey], else slot3.
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.pairMapRefOffset)
             code.op(WasmOpcode.i64Eqz)
             code.openIf(result: .i64)
@@ -1273,8 +1182,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 9
             emitSetOfBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
         case "__kk_hash_set_new_checked":
-            // Capacity/loadFactor validation is a native-side concern; the
-            // wasm path allocates the same empty HashSet box.
             extraLocals = 0
             code.i64Const(0)
             code.i64Const(0)
@@ -1320,16 +1227,12 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitMapFreezeBody(&code)
         case "__kk_map_set_access_order":
-            // KUU-4500: the wasm map box has no access-order flag — the
-            // setter is a no-op and the box keeps insertion order.
             extraLocals = 0
             code.i64Const(0)
         case "__kk_set_freeze":
             extraLocals = 0
             code.localGet(0)
         case "__kk_builder_set_freeze":
-            // Same identity semantics as `__kk_set_freeze` — the wasm set box
-            // has no read-only flag, so freezing is a no-op.
             extraLocals = 0
             code.localGet(0)
         case "__kk_map_size":
@@ -1383,19 +1286,14 @@ enum WasmRuntimeHelpers {
         case "__kk_mutable_map_putAll":
             extraLocals = 3
             emitMutableMapPutAllBody(&code, ctx: ctx, argumentCount: argumentCount)
-        // --- Reflection metadata registry ---------------------------------
         // `$__kk_wasm_token_record_get(token) -> record|0`: linear scan of
         // the global `{count@0, cap@8, pairs@16}` table.
         case "$__kk_wasm_token_record_get":
             extraLocals = 3
             emitTokenRecordGetBody(&code, ctx: ctx)
-        // `$__kk_wasm_token_record(token) -> record`: get-or-create — grows
-        // the pair table and allocates the record box on a miss.
         case "$__kk_wasm_token_record":
             extraLocals = 5
             emitTokenRecordBody(&code, ctx: ctx)
-        // `reglist_add(owner, kind, argc, a0..a7) -> node`: prepend a
-        // kind-tagged registration node to `owner.regHead` (offset 80).
         case "$__kk_wasm_reglist_add":
             extraLocals = 1
             emitReglistAddBody(&code, ctx: ctx)
@@ -1403,7 +1301,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 2
             emitKClassCreateBody(&code, ctx: ctx)
         case "__kk_kclass_create_array":
-            // Three value params; scratch locals start at index 3.
             extraLocals = 2
             emitKClassCreateBody(&code, ctx: ctx, recordLocal: 3, kclassLocal: 4)
         case "kk_typeof":
@@ -1429,8 +1326,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 2
             emitKTypeWithNullabilityBody(&code, ctx: ctx)
         case "__kk_ktype_component_descriptor":
-            // Component descriptors aren't consumed by wasm iteration — the
-            // `__kk_array_component_type` pass-through above applies too.
             extraLocals = 0
             code.localGet(0)
         case "__kk_kparameter_create_typed":
@@ -1467,9 +1362,6 @@ enum WasmRuntimeHelpers {
         case "__kk_kconstructor_set_parameter_type":
             extraLocals = 0
             emitKConstructorSetParameterTypeBody(&code, ctx: ctx)
-        // Token-keyed registration family — every variant appends a
-        // kind-tagged node to `token_record(arg0).regHead` with the
-        // remaining arguments as payload.
         case "__kk_kclass_register_metadata":
             extraLocals = 0
             emitTokenRegisterBody(&code, ctx: ctx, kind: 1, argumentCount: argumentCount)
@@ -1506,12 +1398,9 @@ enum WasmRuntimeHelpers {
         case "__kk_java_class_register_declared_field":
             extraLocals = 0
             emitTokenRegisterBody(&code, ctx: ctx, kind: 12, argumentCount: argumentCount)
-        // `register_member` is keyed by the KClass box itself, not a token.
         case "__kk_kclass_register_member":
             extraLocals = 0
             emitOwnerRegisterBody(&code, ctx: ctx, kind: 13)
-        // KUU-4064: member extensions join the same reglist under their own
-        // kind so future member queries can exclude them like the JVM.
         case "__kk_kclass_register_member_extension":
             extraLocals = 0
             emitOwnerRegisterBody(&code, ctx: ctx, kind: 17)
@@ -1530,11 +1419,9 @@ enum WasmRuntimeHelpers {
         case "kk_enum_register_values":
             extraLocals = 1
             emitEnumRegisterValuesBody(&code, ctx: ctx)
-        // `values()` → fresh array box of `min(count, len)` copied entries.
         case "kk_enum_make_values_array":
             extraLocals = 3
             emitEnumMakeValuesArrayBody(&code, ctx: ctx)
-        // `entries` → cached readOnly list box per classID (record.s4).
         case "kk_enum_make_entries_list_cached":
             extraLocals = 4
             emitEnumMakeEntriesListCachedBody(&code, ctx: ctx, argumentCount: argumentCount)
@@ -1548,7 +1435,6 @@ enum WasmRuntimeHelpers {
             ))
             code.globalSet(ctx.thrownGlobal)
             code.i64Const(0)
-        // Local delegated-property stub `{name, returnType, isLocal, isMutable}`.
         case "__kk_kproperty_stub_create_local":
             extraLocals = 1
             emitSmallBoxBody(
@@ -1556,16 +1442,12 @@ enum WasmRuntimeHelpers {
                 fields: [16: 0, 24: 1, 40: 3], boxLocal: argumentCount
             )
             emitStoreAtConst(&code, baseLocal: argumentCount, byteOffset: 32, value: 1)
-        // Member-reflection stub `{name, returnType, isMutable}` — the
-        // arity (arg2) only selects the KPropertyN nominal on native; the
-        // single wasm stub box shape just records mutability (KUU-4030).
         case "__kk_kproperty_stub_create_member":
             extraLocals = 1
             emitSmallBoxBody(
                 &code, ctx: ctx, typeID: L.kpropertyStubTypeID, slots: 5,
                 fields: [16: 0, 24: 1, 40: 3], boxLocal: argumentCount
             )
-        // `kk_object_register_*_override(obj, fnSlot)` → record(obj).s0/s1/s2.
         case "kk_object_register_any_to_string":
             extraLocals = 1
             emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 24)
@@ -1575,13 +1457,9 @@ enum WasmRuntimeHelpers {
         case "kk_object_register_hashcode_override":
             extraLocals = 1
             emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 40)
-        // `kk_value_class_register_any_to_string(classID, fnSlot)` →
-        // record(classID).s1 — consulted per-typeID by `kk_any_to_string`.
         case "kk_value_class_register_any_to_string":
             extraLocals = 1
             emitObjectOverrideRegisterBody(&code, ctx: ctx, slotOffset: 32)
-        // `kk_runtime_register_data_class(classID)` marks the type record
-        // (s3 |= marker); `..._fields(classID, mask)` merges the slot mask.
         case "kk_runtime_register_data_class":
             extraLocals = 2
             emitDataClassRegisterBody(&code, ctx: ctx, argumentCount: argumentCount, withMask: false)
@@ -1618,8 +1496,6 @@ enum WasmRuntimeHelpers {
         // `initializer@2, mode@3, lock@4, cached@5, computed@6` (byte 16...48).
         case "kk_lazy_new":
             if argumentCount >= 6 {
-                // `LazyImpl.<init>` is a field-init on the pre-allocated
-                // `this` (arg0): declared params land at field words 2...6.
                 extraLocals = 0
                 for (argIdx, off) in [16, 24, 32, 40, 48].enumerated() {
                     emitStoreAt(
@@ -1629,9 +1505,6 @@ enum WasmRuntimeHelpers {
                 }
                 code.localGet(0)
             } else {
-                // `lazy(...)`/`lazyOf(...)` factory calls carry no `this`;
-                // fabricate the same layout in a fresh 7-word box with the
-                // initializer (always the last argument) at word 2.
                 extraLocals = 1
                 emitLazyFactoryBoxBody(&code, ctx: ctx, boxLocal: argumentCount)
                 emitStoreAt(&code, baseLocal: argumentCount, byteOffset: 16,
@@ -1653,7 +1526,6 @@ enum WasmRuntimeHelpers {
             code.end()
             emitLoadAt(&code, baseLocal: 0, byteOffset: 40)
         case "kk_lazy_of":
-            // `lazyOf(v)` — pre-seeded box: cached@40=v, computed@48=1.
             extraLocals = 1
             emitLazyFactoryBoxBody(&code, ctx: ctx, boxLocal: argumentCount)
             emitStoreAt(&code, baseLocal: argumentCount, byteOffset: 40, valueLocal: 0)
@@ -1714,7 +1586,6 @@ enum WasmRuntimeHelpers {
             code.end()
             emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
         case "kk_runtime_result_get_or_default":
-            // `(this, default) -> T`: the box's flag selects the payload.
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
             code.op(WasmOpcode.i64Eqz)
@@ -1724,9 +1595,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
             code.end()
         case "kk_runtime_result_equals":
-            // `(this, other) -> Boolean`: identity fast path, then nominal
-            // Result tag + flag + structural payload equality. Non-object
-            // `other` (`< dataStart`) can never equal a box.
             extraLocals = 0
             code.localGet(0)
             code.localGet(1)
@@ -1860,7 +1728,6 @@ enum WasmRuntimeHelpers {
             )
         case "__kk_uint_rangeUntil", "__kk_op_ulong_rangeUntil":
             extraLocals = 1
-            // An exclusive end of zero yields the canonical MAX_VALUE..0.
             code.localGet(1)
             code.op(WasmOpcode.i64Eqz)
             code.openIf()
@@ -1998,14 +1865,9 @@ enum WasmRuntimeHelpers {
             extraLocals = 6
             emitJoinToStringBody(&code, ctx: ctx, argumentCount: argumentCount)
         case "__kk_array_component_type", "__kk_array_tag_component":
-            // Both are pass-throughs: the component descriptor isn't consumed
-            // by wasm iteration and arrays carry no installable tag slot yet.
             extraLocals = 0
             code.localGet(0)
         case "__kk_array_component_element":
-            // Component descriptors are pass-throughs on wasm (see
-            // __kk_array_component_type), so there is no element slot to
-            // recover — 0 falls back to the erased classifier box.
             extraLocals = 0
             code.i64Const(0)
         case let name where name.hasPrefix("kk_function_create_"):
@@ -2032,11 +1894,9 @@ enum WasmRuntimeHelpers {
         case "kk_function_value_tag_arity",
              "__kk_function_copy_description",
              "__kk_function_set_enclosing_class":
-            // Metadata bookkeeping the wasm backend doesn't consume yet.
             extraLocals = 0
             code.i64Const(0)
         case "__kk_function_set_description":
-            // Keep the text on the box so `toString` can recover it later;
             // only our own function-value box has the @40 slot. The argument
             // may be a raw funcref index rather than a heap box — only touch
             // the header when the pointer actually reaches heap memory.
@@ -2067,8 +1927,6 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             code.localGet(0)
         case "kk_op_notnull":
-            // `!!` — nullSentinel → NPE through thrownGlobal (nil message so
-            // `toString` prints the fqName only); else pass the value through.
             extraLocals = 0
             code.localGet(0)
             code.i64Const(L.nullSentinel)
@@ -2084,10 +1942,6 @@ enum WasmRuntimeHelpers {
             code.end()
             code.localGet(0)
         case "kk_op_notnull_msg":
-            // Platform `T!` in a non-null position — JVM
-            // `checkNotNullExpressionValue`: nullSentinel →
-            // NPE("<call>(...) must not be null") through thrownGlobal
-            // (KUU-4452); else pass the value through.
             extraLocals = 0
             code.localGet(0)
             code.i64Const(L.nullSentinel)
@@ -2103,7 +1957,6 @@ enum WasmRuntimeHelpers {
             code.end()
             code.localGet(0)
         case "kk_op_elvis":
-            // `?:` — `lhs == nullSentinel ? rhs : lhs`.
             extraLocals = 0
             code.localGet(0)
             code.i64Const(L.nullSentinel)
@@ -2193,16 +2046,57 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.f32ReinterpretI32)
             code.op(WasmOpcode.f64PromoteF32)
             code.op(WasmOpcode.i64ReinterpretF64)
-        case "kk_double_to_bits", "kk_bits_to_double":
-            // f64 payloads already travel as raw i64 bits — identity.
+        case "kk_double_to_bits", "kk_bits_to_double", "__kk_double_toRawBits":
             extraLocals = 0
             code.localGet(0)
+        case "__kk_double_toBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0x7FF0_0000_0000_0000)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0x7FF0_0000_0000_0000)
+            code.op(WasmOpcode.i64Eq)
+            code.localGet(0)
+            code.i64Const(0x000F_FFFF_FFFF_FFFF)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Ne)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FF8_0000_0000_0000)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
         case "kk_float_to_bits", "kk_bits_to_float":
-            // f32 payloads live in the low 32 bits.
             extraLocals = 0
             code.localGet(0)
             code.i64Const(0xFFFF_FFFF)
             code.op(WasmOpcode.i64And)
+        case "__kk_float_toRawBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case "__kk_float_toBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0x7F80_0000)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0x7F80_0000)
+            code.op(WasmOpcode.i64Eq)
+            code.localGet(0)
+            code.i64Const(0x007F_FFFF)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Ne)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FC0_0000)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
         case "kk_double_equals", "kk_float_equals",
              "kk_nullable_double_equals", "kk_nullable_float_equals":
             extraLocals = 2
@@ -2582,22 +2476,24 @@ enum WasmRuntimeHelpers {
         case "__kk_wasm_string_to_boolean":
             extraLocals = 2
             emitStringToBooleanBody(&code, argumentCount: argumentCount)
-        case "__kk_wasm_string_to_double", "__kk_string_toDouble_flat":
-            extraLocals = 10
+        case "__kk_wasm_string_to_double", "__kk_string_toDouble",
+             "__kk_string_toDouble_flat":
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: false,
                                   argumentCount: argumentCount)
-        case "__kk_wasm_string_to_float", "__kk_string_toFloat_flat":
-            extraLocals = 10
+        case "__kk_wasm_string_to_float", "__kk_string_toFloat",
+             "__kk_string_toFloat_flat":
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_double_or_null",
-             "__kk_string_toDoubleOrNull_flat":
-            extraLocals = 10
+             "__kk_string_toDoubleOrNull", "__kk_string_toDoubleOrNull_flat":
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float_or_null",
-             "__kk_string_toFloatOrNull_flat":
-            extraLocals = 10
+             "__kk_string_toFloatOrNull", "__kk_string_toFloatOrNull_flat":
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_substring_after",
@@ -2651,10 +2547,6 @@ enum WasmRuntimeHelpers {
         return body.bytes
     }
 
-    // MARK: Address helpers
-
-    /// Pushes `load(baseLocal + byteOffset)`; negative offsets go through i32
-    /// math because memarg offsets are unsigned.
     private static func emitLoadAt(
         _ code: inout WasmCode,
         baseLocal: Int,
@@ -2671,7 +2563,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// Pushes the i32 address `baseLocal + byteOffset`.
     private static func emitAddress(
         _ code: inout WasmCode,
         baseLocal: Int,
@@ -2707,12 +2598,6 @@ enum WasmRuntimeHelpers {
         code.i64Store(offset: 0)
     }
 
-    // MARK: Range helpers
-
-    /// Nominal tag for the `{first@16, last@24, step@32}` box each range
-    /// factory produces — `downTo`/`step` yield progressions, `..`/`until`
-    /// yield the closed ranges, so `is IntRange`/`is CharProgression` checks
-    /// see the same tags the native `RuntimeRangeBox.kind` encodes.
     private static func rangeBoxTypeID(for name: String) -> Int64 {
         switch name {
         case "__kk_op_rangeTo", "__kk_op_rangeUntil":
@@ -2741,8 +2626,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// Allocates a 5-slot range box and stores first/last/step into slots
-    /// 2/3/4. Leaves the box handle on the stack.
     private static func emitRangeBoxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -2777,10 +2660,6 @@ enum WasmRuntimeHelpers {
         code.localGet(objectLocal)
     }
 
-    /// Pushes the i32 `hasNext` predicate for a `{cur@16,last@24,step@32}`
-    /// state: `step>0 ? cur<=last : step<0 ? cur>=last : false`. Shared by
-    /// `__kk_range_for_in_hasNext` and the advance path of `..._next`; zeroing
-    /// step on overflow makes the recomputation a stable stop.
     private static func emitRangeHasNextExpr(_ code: inout WasmCode, unsignedBounds: Bool) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
@@ -2803,7 +2682,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// Copies `{first,last,step}` off the range box into a fresh iterator.
     private static func emitRangeForInIteratorBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -2819,7 +2697,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: offset)
             code.i64Store(offset: 0)
         }
-        // UInt and ULong share the same unsigned i64 iterator operations.
         emitIteratorItableRegistration(
             &code, ctx: ctx, objectLocal: argumentCount,
             hasNextHelper: unsignedBounds ? "__kk_uint_range_hasNext" : "__kk_range_for_in_hasNext",
@@ -2828,8 +2705,6 @@ enum WasmRuntimeHelpers {
         code.localGet(argumentCount)
     }
 
-    /// Returns `cur` and advances by `step` while the iterator has elements.
-    /// A wrapped addition clears the step so subsequent bounds checks fail.
     private static func emitRangeForInNextBody(
         _ code: inout WasmCode,
         argumentCount: Int,
@@ -2871,11 +2746,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `__kk_op_step(range, step)` — validates `step > 0` (throws
-    /// IllegalArgumentException through `thrownGlobal` otherwise, mirroring
-    /// STDLIB-022), keeps the source direction's sign, and aligns `last` down
-    /// to the final element the step actually lands on, matching the native
-    /// `getProgressionLastElement` adjustment.
     private static func emitRangeStepBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -2916,7 +2786,6 @@ enum WasmRuntimeHelpers {
         code.globalSet(ctx.thrownGlobal)
         code.localGet(0)
         code.elseBranch()
-        // nextStep = oldStep < 0 ? -step : step
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -2999,7 +2868,6 @@ enum WasmRuntimeHelpers {
         name: String,
         argumentCount: Int
     ) {
-        // The Companion receiver precedes the endpoints and step.
         let first = argumentCount - 3
         let last = first + 1
         let step = first + 2
@@ -3038,10 +2906,6 @@ enum WasmRuntimeHelpers {
         )
     }
 
-    /// `__kk_range_to_list(range)` — materializes `{first,last,step}` into a
-    /// read-only list box (`toList()` on a range/progression). Counts first so
-    /// the backing array is exact, then fills it with the same boundary
-    /// predicate the for-in iterator uses.
     private static func emitRangeToListBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -3055,8 +2919,6 @@ enum WasmRuntimeHelpers {
         let step = argumentCount + 5
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.localSet(step)
-        // count = step>0 ? (first<=last ? (last-first)/step+1 : 0)
-        //        : step<0 ? (first>=last ? (first-last)/(-step)+1 : 0) : 0
         code.localGet(step)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -3110,7 +2972,6 @@ enum WasmRuntimeHelpers {
         code.localSet(idx)
         code.openBlock()
         code.openLoop()
-        // hasNext: step>0 ? cur<=last : step<0 ? cur>=last : false
         code.localGet(step)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -3161,8 +3022,6 @@ enum WasmRuntimeHelpers {
         code.localGet(listObj)
     }
 
-    /// `__kk_range_count(range)` — element count with the native wrapping
-    /// arithmetic: `(last &- first) / step &+ 1` (i64 sub/add wrap naturally).
     private static func emitRangeCountBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
@@ -3209,8 +3068,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `__kk_range_isEmpty(range)` — `step>0 ? first>last : step<0 ?
-    /// first<last : true`, matching `kk_range_isEmpty`.
     private static func emitRangeIsEmptyBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
@@ -3234,9 +3091,6 @@ enum WasmRuntimeHelpers {
         code.i64ExtendFromComparison()
     }
 
-    /// `__kk_range_sum(range)` — wraps at i64 (Kotlin's Long-type sum for
-    /// Long progressions; the Int 32-bit wrap is an accepted gap until wasm
-    /// gains a tagged element type).
     private static func emitRangeSumBody(_ code: inout WasmCode) {
         let cur = 1
         let sum = 2
@@ -3246,8 +3100,6 @@ enum WasmRuntimeHelpers {
         code.localSet(sum)
         code.openBlock()
         code.openLoop()
-        // hasNext on the *advancing* cursor: step>0 ? cur<=last : cur>=last
-        // (step==0 falls to false via the i32Const(0) arm).
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -3283,9 +3135,6 @@ enum WasmRuntimeHelpers {
         code.localGet(sum)
     }
 
-    /// `__kk_range_reversed(range)` — `{last, first, -step}` progression box.
-    /// The tag approximates `IntProgression` for all element kinds until the
-    /// helper learns the source nominal (documented gap vs `is CharProgression`).
     private static func emitRangeReversedBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -3305,15 +3154,11 @@ enum WasmRuntimeHelpers {
         )
     }
 
-    /// `__kk_range_contains(range, value)` — bounds plus step congruence,
-    /// matching `runtimeRangeContains`: step>0 → first<=v<=last &&
-    /// (v-first)%step==0; step<0 → last<=v<=first && (first-v)%(-step)==0.
     private static func emitRangeContainsBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
         code.openIf(result: .i32)
-        // v >= first && v <= last && (v-first) % step == 0
         code.localGet(1)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.op(WasmOpcode.i64GeS)
@@ -3333,7 +3178,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
         code.openIf(result: .i32)
-        // v <= first && v >= last && (first-v) % (-step) == 0
         code.localGet(1)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.op(WasmOpcode.i64LeS)
@@ -3357,9 +3201,6 @@ enum WasmRuntimeHelpers {
         code.i64ExtendFromComparison()
     }
 
-    /// `__kk_list_index_of(list, elem)` — linear scan with `__kk_wasm_elem_eq`
-    /// over the shared `{array@16,count@24}` box; -1 when absent. Source-List
-    /// overrides can't dispatch (no kklib bodies), matching the box fast path.
     private static func emitListIndexOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -3380,7 +3221,6 @@ enum WasmRuntimeHelpers {
         code.localGet(count)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // elem_eq(arr[i], element)
         code.localGet(arr)
         code.localGet(i)
         code.call(ctx.emittedHelperIndex(for: "kk_array_get_inbounds", argumentCount: 2))
@@ -3402,7 +3242,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(-1)
     }
 
-    /// `__kk_list_last_index_of(list, elem)` — same scan from the tail.
     private static func emitListLastIndexOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -3443,12 +3282,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(-1)
     }
 
-    /// `__kk_string_joinToString(list, sep, prefix, postfix)` — joins the
-    /// shared-layout box into a flat string. Zero args pick the Kotlin
-    /// defaults (`", "`, `""`, `""`); `limit`/`truncated`/`transform` params
-    /// beyond arity 4 are ignored (documented gap). Elements stringify via
-    /// `kk_any_to_string(elem, 1)` — heap objects render as flat strings,
-    /// primitives as ints; object `toString` overrides can't dispatch yet.
     private static func emitJoinToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -3460,7 +3293,6 @@ enum WasmRuntimeHelpers {
         let arr = argumentCount + 3
         let sepObj = argumentCount + 4
         let postObj = argumentCount + 5
-        // defaults-for-zero on separator/prefix/postfix
         for (arg, fallback) in [(1, ", "), (2, ""), (3, "")] {
             code.localGet(arg)
             code.op(WasmOpcode.i64Eqz)
@@ -3512,8 +3344,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2))
     }
 
-    // MARK: Helper bodies
-
     /// `size -> i64`: lazy-initialized bump allocator. `size` is the number of
     /// body bytes the returned pointer may write; the 16-byte object header at
     /// `ptr-16` is reserved on top of it so the next allocation's header can
@@ -3525,15 +3355,15 @@ enum WasmRuntimeHelpers {
         code.globalGet(ctx.dataEndGlobal)
         code.globalSet(ctx.heapGlobal)
         code.end()
-        code.globalGet(ctx.heapGlobal)      // old
+        code.globalGet(ctx.heapGlobal)
         code.localTee(1)
         code.localGet(0)
         code.i64Const(16 + 7)
         code.op(WasmOpcode.i64Add)
         code.i64Const(-8)
         code.op(WasmOpcode.i64And)
-        code.localTee(2)                    // delta = align8(16+size)
-        code.op(WasmOpcode.i64Add)          // new = old + delta
+        code.localTee(2)
+        code.op(WasmOpcode.i64Add)
         code.localSet(3)
         // The bump allocator owns all memory past dataEnd; grow the linear
         // memory geometrically (at least doubling or 16 pages = 1 MiB) so
@@ -3543,11 +3373,11 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.memorySize)
         code.u(0)
         code.i64ExtendFromComparison()
-        code.localTee(5)                    // currentPages
+        code.localTee(5)
         code.i64Const(16)
-        code.op(WasmOpcode.i64Shl)          // currentBytes
+        code.op(WasmOpcode.i64Shl)
         code.localGet(3)
-        code.op(WasmOpcode.i64LtU)          // currentBytes < new
+        code.op(WasmOpcode.i64LtU)
         code.openIf()
         code.localGet(3)
         code.localGet(5)
@@ -3558,7 +3388,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.i64Const(16)
         code.op(WasmOpcode.i64ShrU)
-        code.localTee(4)                    // neededPages
+        code.localTee(4)
         code.localGet(5)
         code.i64Const(16)
         code.op(WasmOpcode.i64GtU)
@@ -3566,14 +3396,14 @@ enum WasmRuntimeHelpers {
         code.localGet(5)
         code.elseBranch()
         code.i64Const(16)
-        code.end()                          // minBatch = max(currentPages, 16)
+        code.end()
         code.localTee(5)
-        code.op(WasmOpcode.i64GtU)          // neededPages > minBatch
+        code.op(WasmOpcode.i64GtU)
         code.openIf(result: .i64)
         code.localGet(4)
         code.elseBranch()
         code.localGet(5)
-        code.end()                          // desiredPages = max(neededPages, minBatch)
+        code.end()
         code.op(WasmOpcode.i32WrapI64)
         code.op(WasmOpcode.memoryGrow)
         code.u(0)
@@ -3588,10 +3418,10 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.localGet(3)
-        code.globalSet(ctx.heapGlobal)      // commit new high-water mark
+        code.globalSet(ctx.heapGlobal)
         code.localGet(1)
-        code.i64Const(16)                   // object base sits past the
-        code.op(WasmOpcode.i64Add)          // 16-byte header at old
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Add)
     }
 
     /// `obj -> i64`: object's vtable pointer (body slot 1), allocated lazily.
@@ -3625,7 +3455,6 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
     }
 
-    /// `count -> i64`: uniform box with ARRAY tag and length in the meta slot.
     private static func emitArrayNewBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.localGet(0)
         code.i64Const(8)
@@ -3637,8 +3466,6 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
     }
 
-    /// `base, slot -> i64`: raw slot load — the native hot path shared by
-    /// object fields (slots >= 2) and array elements.
     private static func emitArrayGetInboundsBody(_ code: inout WasmCode) {
         code.localGet(0)
         code.op(WasmOpcode.i32WrapI64)
@@ -3650,13 +3477,11 @@ enum WasmRuntimeHelpers {
         code.i64Load(offset: 0)
     }
 
-    /// `array, index -> i64`: bounds-checked element load (length in meta).
     private static func emitArrayGetBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         emitBoundsCheck(&code, ctx: ctx, indexLocal: 1, baseLocal: 0)
         emitArrayGetInboundsBody(&code)
     }
 
-    /// `array, index, value -> i64`: bounds-checked element store.
     private static func emitArraySetBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         emitBoundsCheck(&code, ctx: ctx, indexLocal: 1, baseLocal: 0)
         code.localGet(0)
@@ -3716,16 +3541,12 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `obj, ifaceSlot, methodSlot, fn -> 0`: write into the object's itable
-    /// buffer (allocated lazily; pointer lives at `vt + itablePtrOffset`).
     /// The itable keyspace is disjoint from direct vtable slots, matching
     /// the native runtime's per-object dispatch tables.
-    /// Locals: argumentCount = vt, argumentCount+1 = itable.
     private static func emitRegisterItableMethodBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_vtable", argumentCount: 1))
         code.localSet(4)
-        // it = load(vt + vtableItablePtrOffset); allocate on first use.
         code.localGet(4)
         code.op(WasmOpcode.i32WrapI64)
         code.i32Const(Int32(L.vtableItablePtrOffset))
@@ -3744,7 +3565,6 @@ enum WasmRuntimeHelpers {
         code.localGet(5)
         code.i64Store(offset: 0)
         code.end()
-        // it[ifaceSlot*itableStride + methodSlot] = fn
         code.localGet(5)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(1)
@@ -3777,12 +3597,10 @@ enum WasmRuntimeHelpers {
         emitStoreAt(&code, baseLocal: 0, byteOffset: 0, valueLocal: 3)
         emitStoreAtConst(&code, baseLocal: 3, byteOffset: 8, value: Int64(L.ifaceMapCapacity))
         code.end()
-        // count = map[0]; capacity = map[8]
         emitLoadAt(&code, baseLocal: 3, byteOffset: 0)
         code.localSet(4)
         emitLoadAt(&code, baseLocal: 3, byteOffset: 8)
         code.localSet(5)
-        // count == capacity → reallocate a doubled map and copy live entries.
         code.localGet(4)
         code.localGet(5)
         code.op(WasmOpcode.i64Eq)
@@ -3817,7 +3635,6 @@ enum WasmRuntimeHelpers {
         code.localGet(6)
         code.localSet(3)
         code.end()
-        // store pair at map+16+count*16 / map+24+count*16; count++
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(4)
@@ -3845,11 +3662,7 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `obj, interfaceTypeID, methodSlot -> i64`: resolve a dynamic itable
-    /// dispatch: find ifaceSlot in the map, then read the vtable entry.
     private static func emitItableLookupBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
-        // locals: 3=map, 4=count, 5=i, 6=ifaceSlot, 7=vt, 8=it
-        //
         // KUU-4385: flat String boxes ({data, length, byteCount, hash}) carry
         // no object header — body slot 0 is the UTF-8 data pointer, not an
         // iface map, so the generic path below would read string bytes as a
@@ -3922,7 +3735,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // load(map+16+i*16) == typeID ?
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(5)
@@ -3934,7 +3746,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
-        // ifaceSlot = load(map+24+i*16); it[ifaceSlot*stride + m]
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(5)
@@ -3944,7 +3755,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 24)
         code.localSet(6)
-        // vt = obj.vtable; a null vtable or null itable is a miss (return 0).
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.vtableSlotOffset)
         code.localTee(7)
         code.op(WasmOpcode.i64Eqz)
@@ -3978,7 +3788,6 @@ enum WasmRuntimeHelpers {
         code.i64Load(offset: 0)
         code.op(WasmOpcode.return)
         code.end()
-        // i++
         code.localGet(5)
         code.i64Const(1)
         code.op(WasmOpcode.i64Add)
@@ -3988,7 +3797,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `child, parent -> 0`: prepend an edge node {child, parent, next}.
     private static func emitRegisterTypeEdgeBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.i64Const(24)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
@@ -4003,13 +3811,10 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `source, target -> i64`: transitive closure over the type-edge list
-    /// (iteration-capped fixpoint; edges form a DAG in practice).
     private static func emitIsAssignableBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
-        // locals: 2=current, 3=node, 4=iters
         code.localGet(0)
         code.localSet(2)
-        code.openLoop() // $outer
+        code.openLoop()
         code.localGet(2)
         code.localGet(1)
         code.op(WasmOpcode.i64Eq)
@@ -4029,7 +3834,7 @@ enum WasmRuntimeHelpers {
         code.end()
         code.globalGet(ctx.edgeHeadGlobal)
         code.localSet(3)
-        code.openLoop() // $scan
+        code.openLoop()
         code.localGet(3)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -4046,20 +3851,18 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32WrapI64)
         code.i64Load(offset: 8)
         code.localSet(2)
-        code.br(2) // continue $outer
+        code.br(2)
         code.end()
         code.localGet(3)
         code.op(WasmOpcode.i32WrapI64)
         code.i64Load(offset: 16)
         code.localSet(3)
-        code.br(0) // continue $scan
-        code.end() // $scan
-        code.end() // $outer
+        code.br(0)
+        code.end()
+        code.end()
         code.i64Const(0)
     }
 
-    /// The `is` result for a null input: true iff the token is nullable or
-    /// names the null type itself.
     private static func emitNullIsResult(_ code: inout WasmCode) {
         code.localGet(1)
         code.i64Const(0x100)
@@ -4082,7 +3885,6 @@ enum WasmRuntimeHelpers {
     /// RuntimeTypeTokenEncoding — base = token & 0xFF, nullable = token & 0x100,
     /// payload = token >> 9.
     private static func emitOpIsBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
-        // locals: 2=base, 3=payload, 4=isHeapPtr
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -4094,7 +3896,6 @@ enum WasmRuntimeHelpers {
         code.openIf()
         emitNullIsResult(&code)
         code.end()
-        // base = token & 0xFF; payload = token >> 9
         code.localGet(1)
         code.i64Const(0xFF)
         code.op(WasmOpcode.i64And)
@@ -4103,7 +3904,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(9)
         code.op(WasmOpcode.i64ShrU)
         code.localSet(3)
-        // isHeapPtr = v >= dataEnd && v < heap (heap==0 → false)
         code.localGet(0)
         code.globalGet(ctx.dataEndGlobal)
         code.op(WasmOpcode.i64GeU)
@@ -4113,7 +3913,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32And)
         code.i64ExtendFromComparison()
         code.localSet(4)
-        // base == anyBase(1) → 1
         code.localGet(2)
         code.i64Const(1)
         code.op(WasmOpcode.i64Eq)
@@ -4121,7 +3920,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.return)
         code.end()
-        // base == unitBase(15) or nullBase(5) → 0 (null handled above)
         for base: Int64 in [5, 15] {
             code.localGet(2)
             code.i64Const(base)
@@ -4131,7 +3929,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.return)
             code.end()
         }
-        // base == nominalBase(6): object type ID + edge walk
         code.localGet(2)
         code.i64Const(6)
         code.op(WasmOpcode.i64Eq)
@@ -4148,7 +3945,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.return)
         code.end()
         code.end()
-        // base == stringBase(2): heap object tagged string
         code.localGet(2)
         code.i64Const(2)
         code.op(WasmOpcode.i64Eq)
@@ -4248,8 +4044,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.return)
         code.end()
-        // Remaining bases (function/...): tagged values
-        // can't be distinguished → 0; heap objects → 0; raw evens → 1.
         code.localGet(0)
         code.i64Const(1)
         code.op(WasmOpcode.i64And)
@@ -4267,8 +4061,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `value, typeToken -> i64`: `as` — pass through on match, signal a
-    /// thrown exception otherwise.
     private static func emitOpCastBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.localGet(0)
         code.localGet(1)
@@ -4283,7 +4075,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `array, typeID -> i64`: retag the box's nominal identity.
     private static func emitArrayTagTypeBody(_ code: inout WasmCode) {
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset, valueLocal: 1)
         code.localGet(0)
@@ -4302,13 +4093,10 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
     }
 
-    /// KUU-4156: module-global flag name mirroring the native runtime's
-    /// per-fd "console stream closed" state (fd 1 → stdout, fd 2 → stderr).
     private static func consoleClosedGlobalName(fd: Int32) -> String {
         fd == 2 ? "$__kk_console_stderr_closed" : "$__kk_console_stdout_closed"
     }
 
-    /// `fd_write(fd, iovec, 1, nwritten)` — drops the errno result.
     private static func emitFDWrite(_ code: inout WasmCode, ctx: WasmModuleContext, fd: Int32 = 1) {
         code.i32Const(fd)
         code.i32Const(Int32(L.iovecAddress))
@@ -4318,14 +4106,12 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.drop)
     }
 
-    /// `string -> i64`: WASI fd_write of the flat string's byte payload.
     private static func emitPrintBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
         newline: Bool,
         fd: Int32 = 1
     ) {
-        // KUU-4156: a closed `System.out`/`System.err` drops later writes.
         let closedGlobal = ctx.module.addGlobal(
             initialValue: 0, name: consoleClosedGlobalName(fd: fd)
         )
@@ -4335,7 +4121,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // s == 0 → no-op for now (native prints "null"; M2 will match).
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -4368,8 +4153,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
     }
 
-    /// `string, index -> i64`: UTF-8 byte widened to a code unit (ASCII-exact;
-    /// UTF-16 surrogate handling is a later milestone).
     private static func emitStringGetBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.op(WasmOpcode.i32WrapI64)
@@ -4380,8 +4163,6 @@ enum WasmRuntimeHelpers {
         code.i64ExtendFromComparison()
     }
 
-    /// Pushes a reference to a compile-time-known string literal, materialized
-    /// through `__kk_string_literal_from_utf8`.
     private static func emitLiteralString(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -4393,9 +4174,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
     }
 
-    /// `a, b -> i64`: flat-string concatenation. Null operands pass through
-    /// unchanged (Kotlin `"x" + null` rendering is a later-stdlib concern).
-    /// locals: 2=newData, 3=i, 4=ba, 5=bb, 6=obj — params a=0, b=1.
     private static func emitConcatFlatBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
@@ -4418,7 +4196,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(2)
-        // Copy a's bytes.
         code.i64Const(0)
         code.localSet(3)
         code.openBlock()
@@ -4446,7 +4223,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Copy b's bytes after a's.
         code.i64Const(0)
         code.localSet(3)
         code.openBlock()
@@ -4477,7 +4253,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Build the flat String object {data, length, byteCount, hash}.
         code.i64Const(48)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(6)
@@ -4501,12 +4276,10 @@ enum WasmRuntimeHelpers {
     /// `{+0:data, +8:charLen, +16:byteLen, +24:hash}` — byte length and the
     /// payload are authoritative; works for data-segment and heap strings
     /// alike (unlike `elem_eq`, which can only compare heap-resident ones).
-    /// Locals: argumentCount = i, +1 = aLen, +2 = pa, +3 = pb.
     private static func emitStringEqualsFlatBody(
         _ code: inout WasmCode,
         ctx _: WasmModuleContext
     ) {
-        // a == b (identity or equal raw values).
         code.localGet(0)
         code.localGet(1)
         code.op(WasmOpcode.i64Eq)
@@ -4514,8 +4287,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.return)
         code.end()
-        // Either side null/garbage → not equal. Both args are strings by
-        // contract, so only the null sentinel needs guarding.
         code.localGet(0)
         code.i64Const(0)
         code.op(WasmOpcode.i64Eq)
@@ -4530,7 +4301,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // byteLen compare.
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
         code.op(WasmOpcode.i64Ne)
@@ -4538,7 +4308,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Byte loop over data pointers.
         code.i64Const(0)
         code.localSet(2)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
@@ -4583,12 +4352,9 @@ enum WasmRuntimeHelpers {
     /// (passthrough), 2 = Bool, 9 = UInt32; every other tag falls back to
     /// signed-decimal rendering of the raw i64 (Float/Double bit patterns
     /// included — full numeric formatting is a stdlib milestone).
-    /// locals: 2=mag, 3=tmp, 4=size, 5=data, 6=i, 7=sign — params v=0, tag=1.
     private static func emitAnyToStringBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
-        // tags 5/6/7 carry raw scalar payloads (never pointers), and their
-        // values can share the null sentinel's bit pattern (-0.0 is
-        // Int64.min), so they decode before every object/null check — the
-        // lowering pre-guards nullable receivers (see
+        // Tags 5/6/7 carry raw scalar payloads and decode before every
+        // object/null check — the lowering pre-guards nullable receivers (see
         // CallLowerer.emitAnyToStringWithNullGuard).
         code.localGet(1)
         code.i64Const(6)
@@ -4606,7 +4372,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_float", argumentCount: 1))
         code.op(WasmOpcode.return)
         code.end()
-        // tag == 3 → the value already is the string.
         code.localGet(1)
         code.i64Const(3)
         code.op(WasmOpcode.i64Eq)
@@ -4645,7 +4410,6 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Enum entry boxes render by their declared name.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(L.enumEntryTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -4653,9 +4417,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
         code.op(WasmOpcode.return)
         code.end()
-        // Nominal boxes (typeID > 0): per-instance toString override
-        // (registry[obj].s0), then the value-class toString registered
-        // under the type's own key (registry[typeID].s1).
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -4671,8 +4432,6 @@ enum WasmRuntimeHelpers {
             callArgs: [0], recL: 9, fnL: 8
         )
         code.end()
-        // Boxed Double/Float payloads (`{typeID@-16, bits@16}`) render via
-        // the Dragon4 formatter — covers `println(3.14)` through tag 1.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
         code.op(WasmOpcode.i64Eq)
@@ -4689,9 +4448,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_float", argumentCount: 1))
         code.op(WasmOpcode.return)
         code.end()
-        // Structured objects render via their dedicated helpers — list/set
-        // boxes share the iterator path, map boxes use the entry iterator,
-        // pair/entry/range/IndexedValue have bespoke formats. List-family
         // boxes carry sentinel type IDs (negative constants), not nominal
         // hashes.
         for (typeID, helper) in [
@@ -4734,9 +4490,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.return)
             code.end()
         }
-        // Array boxes carry the nominal `kotlin.*Array` typeID (or the
-        // generic `L.arrayTypeID` when untagged) — render
-        // `TypeName@hexHash`. The helper returns 0 for non-array typeIDs.
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(
             for: "__kk_wasm_array_identity_to_string", argumentCount: 1
@@ -4751,7 +4504,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.end()
-        // tag == 2 → "true"/"false".
         code.localGet(1)
         code.i64Const(2)
         code.op(WasmOpcode.i64Eq)
@@ -4765,8 +4517,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.return)
         code.end()
-        // tag == 4 → UTF-8-encode the UTF-16 code unit into a scratch
-        // buffer (locals 2 = buffer, 3 = byte length), then box it.
         code.localGet(1)
         code.i64Const(4)
         code.op(WasmOpcode.i64Eq)
@@ -4790,7 +4540,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.localSet(3)
-        // byte0 = len==1 ? v : len==2 ? 0xC0|v>>6 : 0xE0|v>>12
         code.localGet(2)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(3)
@@ -4818,7 +4567,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.i32WrapI64)
         code.i32Store8()
-        // byte1 (len>=2) = 0x80 | ((len==2 ? v : v>>6) & 0x3F)
         code.localGet(3)
         code.i64Const(2)
         code.op(WasmOpcode.i64GeS)
@@ -4844,7 +4592,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32WrapI64)
         code.i32Store8()
         code.end()
-        // byte2 (len==3) = 0x80 | (v & 0x3F)
         code.localGet(3)
         code.i64Const(3)
         code.op(WasmOpcode.i64Eq)
@@ -4885,9 +4632,6 @@ enum WasmRuntimeHelpers {
         emitLiteralString(&code, ctx: ctx, "0")
         code.op(WasmOpcode.return)
         code.end()
-        // tag == 9 → zero-extend the low UInt32 before rendering; tags
-        // 10–13 re-narrow UByte/UShort/Byte/Short the same way (defensive —
-        // producers already normalize).
         code.localGet(1)
         code.i64Const(9)
         code.op(WasmOpcode.i64Eq)
@@ -4966,7 +4710,6 @@ enum WasmRuntimeHelpers {
         code.localSet(2)
         code.end()
         code.end()
-        // n = digit count.
         code.localGet(2)
         code.localSet(3)
         code.i64Const(0)
@@ -4987,7 +4730,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // size = n + sign; data = alloc(size).
         code.localGet(4)
         code.localGet(7)
         code.op(WasmOpcode.i64Add)
@@ -4995,7 +4737,6 @@ enum WasmRuntimeHelpers {
         code.localGet(4)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(5)
-        // Write digits back-to-front.
         code.localGet(4)
         code.localSet(6)
         code.openBlock()
@@ -5031,7 +4772,7 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.localGet(5)
         code.op(WasmOpcode.i32WrapI64)
-        code.i32Const(0x2D) // '-'
+        code.i32Const(0x2D)
         code.i32Store8()
         code.end()
         code.localGet(5)
@@ -5039,12 +4780,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
     }
 
-    // MARK: - Floating-point boxes, conversions, and rendering
-
-    /// `(bits) -> i64`: heap box `{typeID@-16, bits@16}` with nominal
-    /// Double/Float tag. Pass-through when the argument is already a box of
-    /// the same type (re-boxing a `Double?` read back from a generic slot)
-    /// and, for the nullable variant, when it is the null sentinel.
     private static func emitNumericBoxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -5090,9 +4825,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
     }
 
-    /// `(v) -> i64`: inverse of the box helpers — a heap object with the
-    /// matching typeID yields its `@16` payload; every other value (raw bits,
-    /// the null sentinel, foreign objects) passes through unchanged.
     private static func emitNumericUnboxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -5127,8 +4859,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(a, b) -> i64`: boxed-or-raw floating-point equality. The nullable
-    /// variants first fold the null sentinel (`a == b` covers both-null).
     private static func emitFpEqualsBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -5189,7 +4919,6 @@ enum WasmRuntimeHelpers {
     /// quintupling (`p < 0`, since `2^p = 5^-p * 10^p`) keep every digit
     /// exact. Locals: copy=3, len=4, i=5, count=6, carry=7, mult=8, tmp=9.
     private static func emitExpandBody(_ code: inout WasmCode) {
-        // len = decimal digit count of m.
         code.localGet(0)
         code.localSet(3)
         code.i64Const(0)
@@ -5209,7 +4938,6 @@ enum WasmRuntimeHelpers {
         code.brIf(0)
         code.end()
         code.end()
-        // Write the digits of m big-endian at buf+16.
         code.localGet(0)
         code.localSet(3)
         code.localGet(4)
@@ -5239,7 +4967,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // mult = p > 0 ? 2 : 5, count = |p|.  p == 0 skips the loop entirely.
         code.localGet(1)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -5261,8 +4988,6 @@ enum WasmRuntimeHelpers {
         code.localGet(6)
         code.op(WasmOpcode.i64Eqz)
         code.brIf(1)
-        // carry loop: for i = len-1 downto 0: t = d[i]*mult + carry;
-        // d[i] = t % 10; carry = t / 10.
         code.i64Const(0)
         code.localSet(7)
         code.localGet(4)
@@ -5303,8 +5028,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // A leftover carry is a new MOST significant digit: shift the
-        // big-endian digit run right by one and prepend it.
         code.localGet(7)
         code.i64Truthy()
         code.openIf()
@@ -5348,7 +5071,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // buf = {exp: len + min(p,0), len}.
         emitStoreAt(&code, baseLocal: 2, byteOffset: 8, valueLocal: 4)
         code.localGet(4)
         code.localGet(1)
@@ -5365,10 +5087,6 @@ enum WasmRuntimeHelpers {
         code.localGet(4)
     }
 
-    /// `(a, b) -> i64`: three-way compare of two expanded decimals
-    /// `{exp,len,digits}` — returns -1/0/1. Compares the decimal-point
-    /// position first, then aligned digit strings (absent digits read as 0).
-    /// Locals: la=2, lb=3, i=4, n=5.
     private static func emitCmpDecimalBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         emitLoadAt(&code, baseLocal: 1, byteOffset: 0)
@@ -5405,7 +5123,6 @@ enum WasmRuntimeHelpers {
         code.localGet(5)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // da = i < la ? a[16+i] : 0
         code.localGet(4)
         code.localGet(2)
         code.op(WasmOpcode.i64LtS)
@@ -5420,7 +5137,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.end()
         code.localSet(6)
-        // db = i < lb ? b[16+i] : 0
         code.localGet(4)
         code.localGet(3)
         code.op(WasmOpcode.i64LtS)
@@ -5459,15 +5175,9 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(src, k, dst) -> i64`: `dst` = `src` rounded to at most `k`
-    /// significant digits (round-half-even on the exact digits). Overflow
-    /// (`999…9` -> `100…0`) keeps `len = k` and bumps `exp` — numerically
-    /// identical for the interval compare. Locals: i=3, j=4, tail=5, d=6,
-    /// srcLen=7.
     private static func emitRoundCopyBody(_ code: inout WasmCode) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
         code.localSet(7)
-        // len = min(k, srcLen)
         code.localGet(1)
         code.localGet(7)
         code.op(WasmOpcode.i64LtS)
@@ -5477,7 +5187,6 @@ enum WasmRuntimeHelpers {
         code.localGet(7)
         code.end()
         code.localSet(4)
-        // copy len digits
         code.i64Const(0)
         code.localSet(3)
         code.openBlock()
@@ -5507,7 +5216,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localSet(3)
         emitStoreAt(&code, baseLocal: 2, byteOffset: 0, valueLocal: 3)
-        // Round only when digits were dropped.
         code.localGet(7)
         code.localGet(1)
         code.op(WasmOpcode.i64GtS)
@@ -5519,7 +5227,6 @@ enum WasmRuntimeHelpers {
         code.i32Load8U()
         code.op(WasmOpcode.i64ExtendI32U)
         code.localSet(6)
-        // roundUp = d > 5 | (d == 5 & (tail != all-zero | dst[k-1] odd))
         code.localGet(6)
         code.i64Const(5)
         code.op(WasmOpcode.i64GtU)
@@ -5529,7 +5236,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(5)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
-        // tail = any src[k+1 .. srcLen) nonzero
         code.i64Const(0)
         code.localSet(5)
         code.localGet(1)
@@ -5567,7 +5273,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.localSet(4)
         code.elseBranch()
-        // half-even: round up iff dst[k-1] is odd
         emitAddress(&code, baseLocal: 2, byteOffset: 16)
         code.localGet(1)
         code.op(WasmOpcode.i32WrapI64)
@@ -5584,7 +5289,6 @@ enum WasmRuntimeHelpers {
         code.localGet(4)
         code.i64Truthy()
         code.openIf()
-        // propagate the carry through dst digits
         code.localGet(1)
         code.localSet(3)
         code.openBlock()
@@ -5629,8 +5333,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // i == 0 at loop exit means the carry ran out of digits
-        // (999… -> 100…): dst[0] = 1 and exp += 1.
         code.localGet(3)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -5648,12 +5350,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(m, p, lowGapHalf, even, maxK, sign) -> i64`: Dragon4 over the three
-    /// exact decimals — `v`, `m⁺ = (2m+1)·2^(p-1)`, and `m⁻` (halved when the
-    /// lower representable gap halves at a power-of-two mantissa). The first
-    /// `k` whose rounded candidate lands inside the (inclusive for even
-    /// mantissas) boundary interval wins; `render_decimal` prints it.
-    /// Locals: buf=6, k=7, cLo=8, cHi=9, loOK=10, hiOK=11.
     private static func emitFpFormatBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.i64Const(4096)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
@@ -5707,7 +5403,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_expand", argumentCount: 3))
         code.op(WasmOpcode.drop)
-        // k = 1 … maxK
         code.i64Const(1)
         code.localSet(7)
         code.openBlock()
@@ -5739,7 +5434,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_cmp_decimal", argumentCount: 2))
         code.localSet(9)
-        // loOK = even ? cLo >= 0 : cLo > 0 ; hiOK = even ? cHi <= 0 : cHi < 0
         code.localGet(3)
         code.i64Truthy()
         code.openIf(result: .i64)
@@ -5793,7 +5487,6 @@ enum WasmRuntimeHelpers {
     /// chosen digit string — `E`-notation when `sciExp >= 7 or <= -4`, the
     /// Java `d.fracE±exp` shape, otherwise fixed notation with a mandatory
     /// `.0` fraction. Locals: out=2, w=3, len=4, exp=5, sci=6, i=7, j=8,
-    /// v=9, cnt=10.
     private static func emitRenderDecimalBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         code.i64Const(96)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
@@ -5817,7 +5510,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.i64Sub)
         code.localSet(6)
-        // scientific iff sciExp >= 7 || sciExp <= -4
         code.localGet(6)
         code.i64Const(7)
         code.op(WasmOpcode.i64GeS)
@@ -5826,15 +5518,12 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64LeS)
         code.op(WasmOpcode.i32Or)
         code.openIf()
-        // d0 '.' frac 'E' exp — frac = digits[1..] with trailing zeros
-        // trimmed, at least one digit ("1.0E10").
         emitWriteDigit(&code, bufLocal: 0, digitIndex: 0, outLocal: 2, wLocal: 3)
         emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x2E)
         code.localGet(3)
         code.i64Const(1)
         code.op(WasmOpcode.i64Add)
         code.localSet(3)
-        // j = last nonzero index (>= 1)
         code.localGet(4)
         code.i64Const(1)
         code.op(WasmOpcode.i64Sub)
@@ -5878,7 +5567,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // j stayed 0 -> frac is empty -> write '0'
         code.localGet(8)
         code.i64Const(0)
         code.op(WasmOpcode.i64LeS)
@@ -5896,14 +5584,12 @@ enum WasmRuntimeHelpers {
         code.localSet(3)
         emitWriteI64Decimal(&code, valueLocal: 6, outLocal: 2, wLocal: 3, scratchA: 7, scratchB: 8)
         code.elseBranch()
-        // fixed notation
         code.localGet(6)
         code.localGet(4)
         code.i64Const(1)
         code.op(WasmOpcode.i64Sub)
         code.op(WasmOpcode.i64GeS)
         code.openIf()
-        // integer: digits + (sciExp - len + 1) zeros + ".0"
         code.i64Const(0)
         code.localSet(7)
         code.openBlock()
@@ -5920,7 +5606,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // zeros = sciExp - len + 1
         code.localGet(6)
         code.localGet(4)
         code.op(WasmOpcode.i64Sub)
@@ -5959,7 +5644,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64GeS)
         code.openIf()
-        // 0 <= sciExp < len-1: ddd . ddd
         code.i64Const(0)
         code.localSet(7)
         code.openBlock()
@@ -5996,7 +5680,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.elseBranch()
-        // sciExp < 0: "0." + (-sciExp-1) zeros + digits
         emitStoreByte(&code, baseLocal: 2, indexLocal: 3, value: 0x30)
         code.localGet(3)
         code.i64Const(1)
@@ -6052,11 +5735,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_string_literal_from_utf8", argumentCount: 2))
     }
 
-    /// `(bits) -> i64`: field extraction for binary64/binary32 — specials
-    /// (NaN/Infinity/±0.0) short-circuit, then the mantissa/exponent drive
-    /// `__kk_wasm_fp_format`. The all-decimal expansion needs only
-    /// `(m, p, lowGapHalf, even, maxK, sign)`.
-    /// Locals: sign=1, e=2, f=3, m=4, p=5, lgh=6.
     private static func emitFormatFpBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -6094,7 +5772,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(manMask)
         code.op(WasmOpcode.i64And)
         code.localSet(3)
-        // specials
         code.localGet(2)
         code.i64Const(expMask)
         code.op(WasmOpcode.i64Eq)
@@ -6114,7 +5791,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.return)
         code.end()
-        // E == 0 && f == 0 -> ±0.0
         code.localGet(2)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -6131,7 +5807,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.return)
         code.end()
         code.end()
-        // m = E ? (f | 2^manBits) : f ; p = E ? E - bias : subExp
         code.localGet(2)
         code.i64Truthy()
         code.openIf(result: .i64)
@@ -6152,7 +5827,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(subExp)
         code.end()
         code.localSet(5)
-        // lowGapHalf = (f == threshold && E > 1)
         code.localGet(3)
         code.i64Const(threshold)
         code.op(WasmOpcode.i64Eq)
@@ -6162,7 +5836,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32And)
         code.i64ExtendFromComparison()
         code.localSet(6)
-        // fp_format(m, p, lgh, even, maxK, sign)
         code.localGet(4)
         code.localGet(5)
         code.localGet(6)
@@ -6176,7 +5849,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_fp_format", argumentCount: 6))
     }
 
-    /// Writes `'0' + buf[16 + digitIndex]` at `out + w` and bumps `w`.
     private static func emitWriteDigit(
         _ code: inout WasmCode,
         bufLocal: Int,
@@ -6202,7 +5874,6 @@ enum WasmRuntimeHelpers {
         code.localSet(wLocal)
     }
 
-    /// Constant-index convenience for digit 0 of `buf`.
     private static func emitWriteDigit(
         _ code: inout WasmCode,
         bufLocal: Int,
@@ -6225,7 +5896,6 @@ enum WasmRuntimeHelpers {
         code.localSet(wLocal)
     }
 
-    /// Writes one ASCII byte at `out + index` — the caller owns bumping `w`.
     private static func emitStoreByte(
         _ code: inout WasmCode,
         baseLocal: Int,
@@ -6240,8 +5910,6 @@ enum WasmRuntimeHelpers {
         code.i32Store8()
     }
 
-    /// Writes a signed i64 as ASCII decimal at `out + w`, bumping `w`.
-    /// Locals scratchA/scratchB are free caller temporaries.
     private static func emitWriteI64Decimal(
         _ code: inout WasmCode,
         valueLocal: Int,
@@ -6250,7 +5918,6 @@ enum WasmRuntimeHelpers {
         scratchA: Int,
         scratchB: Int
     ) {
-        // sign
         code.localGet(valueLocal)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -6265,7 +5932,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Sub)
         code.localSet(valueLocal)
         code.end()
-        // digit count into scratchB, value copy into scratchA
         code.localGet(valueLocal)
         code.localSet(scratchA)
         code.i64Const(0)
@@ -6285,8 +5951,6 @@ enum WasmRuntimeHelpers {
         code.brIf(0)
         code.end()
         code.end()
-        // cnt survives in valueLocal (dead after the copy) while scratchB
-        // counts down: digits land at out[w + j], then w += cnt.
         code.localGet(valueLocal)
         code.localSet(scratchA)
         code.localGet(scratchB)
@@ -6327,9 +5991,6 @@ enum WasmRuntimeHelpers {
         code.localSet(wLocal)
     }
 
-    // MARK: - String helpers
-
-    /// Byte at `dataLocal[indexLocal]` → i64.
     private static func emitByteAt(_ code: inout WasmCode, dataLocal: Int, indexLocal: Int) {
         code.localGet(dataLocal)
         code.op(WasmOpcode.i32WrapI64)
@@ -6340,7 +6001,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64ExtendI32U)
     }
 
-    /// `bufLocal[indexLocal] = valueLocal` as a single byte.
     private static func emitByteStore(_ code: inout WasmCode, bufLocal: Int, indexLocal: Int, valueLocal: Int) {
         code.localGet(bufLocal)
         code.op(WasmOpcode.i32WrapI64)
@@ -6352,7 +6012,6 @@ enum WasmRuntimeHelpers {
         code.i32Store8()
     }
 
-    /// Folds the ASCII letter in `local` to lowercase in place (A-Z → +32).
     private static func emitFoldAsciiLower(_ code: inout WasmCode, local: Int) {
         code.localGet(local)
         code.i64Const(65)
@@ -6389,9 +6048,6 @@ enum WasmRuntimeHelpers {
         code.localGet(scratchLocal)
     }
 
-    /// UTF-8-encodes `charLocal` into `bufLocal` (1–3 bytes), storing the byte
-    /// count into `lenLocal` — same shape as the tag-4 path in
-    /// `emitAnyToStringBody` (ASCII-exact; no surrogate pairs).
     private static func emitCharToUtf8(_ code: inout WasmCode, charLocal: Int, bufLocal: Int, lenLocal: Int) {
         code.localGet(charLocal)
         code.i64Const(0x80)
@@ -6409,7 +6065,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
         code.localSet(lenLocal)
-        // byte0 = len==1 ? c : len==2 ? 0xC0|c>>6 : 0xE0|c>>12
         code.localGet(bufLocal)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(lenLocal)
@@ -6437,7 +6092,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.i32WrapI64)
         code.i32Store8()
-        // byte1 (len>=2) = 0x80 | ((len==2 ? c : c>>6) & 0x3F)
         code.localGet(lenLocal)
         code.i64Const(2)
         code.op(WasmOpcode.i64GeS)
@@ -6463,7 +6117,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32WrapI64)
         code.i32Store8()
         code.end()
-        // byte2 (len==3) = 0x80 | (c & 0x3F)
         code.localGet(lenLocal)
         code.i64Const(3)
         code.op(WasmOpcode.i64Eq)
@@ -6482,8 +6135,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(s) -> String`: ASCII case fold — `A-Z`/`a-z` map, everything else
-    /// copied through. Locals (argc base): data, byteLen, buf, i, c, charLen.
     private static func emitStringCaseBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
     ) {
@@ -6532,10 +6183,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: data)
     }
 
-    /// `(s, start[, end]) -> String`: byte-level substring sharing the source
-    /// buffer (strings are immutable). Out-of-range indices throw
-    /// StringIndexOutOfBoundsException through `thrownGlobal`.
-    /// Locals: argc+0=data+start, argc+1=len, argc+2=obj.
     private static func emitSubstringBody(_ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int) {
         let d = argumentCount, e = argumentCount + 1, obj = argumentCount + 2
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
@@ -6546,7 +6193,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         }
         code.localSet(e)
-        // start < 0 || start > end || end > byteLen → throw
         code.localGet(1)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -6579,9 +6225,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: d, charLenLocal: e, byteLenLocal: e, scratchLocal: obj)
     }
 
-    /// `(s, n) -> String`: byte repeat. `n < 0` throws
-    /// IllegalArgumentException. Locals (argc base): data, byteLen, buf, i,
-    /// j, charLen, obj.
     private static func emitStringRepeatBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
     ) {
@@ -6669,9 +6312,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: obj)
     }
 
-    /// `(s) -> String`: trims bytes <= 0x20 at the selected ends, sharing the
-    /// buffer. `trimStart`/`trimEnd` select which scans run (both for `trim`).
-    /// Locals (argc base): data, len, i, j.
     private static func emitStringTrimBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int,
         trimStart: Bool = true, trimEnd: Bool = true
@@ -6736,10 +6376,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_string_substring_to", argumentCount: 3))
     }
 
-    /// `(s, needle|char, startIndex, ignoreCase[, mask]) -> Int`: naive byte
-    /// scan. `charNeedle` encodes the Char argument into a scratch buffer so
-    /// the search loops stay shared. Locals (argc base): sd, sl, nd, nl, i,
-    /// j, a, res.
     private static func emitStringIndexOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -6764,7 +6400,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
             code.localSet(nl)
         }
-        // Clamp startIndex to [0, sl] (JVM semantics).
         code.localGet(2)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -6778,7 +6413,6 @@ enum WasmRuntimeHelpers {
         code.localSet(i)
         code.openBlock()
         code.openLoop()
-        // i > sl - nl → not found
         code.localGet(i)
         code.localGet(sl)
         code.localGet(nl)
@@ -6795,9 +6429,8 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.localGet(i)
         code.localSet(res)
-        code.br(4) // matched → leave function-level block
+        code.br(4)
         code.end()
-        // a = sd[i+j]; b = byte pushed for compare (reuse j-local space via a)
         code.localGet(i)
         code.localGet(j)
         code.op(WasmOpcode.i64Add)
@@ -6806,7 +6439,6 @@ enum WasmRuntimeHelpers {
         code.localSet(a)
         emitByteAt(&code, dataLocal: nd, indexLocal: j)
         code.localSet(b)
-        // ignoreCase → fold both to lowercase
         code.localGet(3)
         code.i64Truthy()
         code.openIf()
@@ -6817,7 +6449,7 @@ enum WasmRuntimeHelpers {
         code.localGet(b)
         code.op(WasmOpcode.i64Ne)
         code.openIf()
-        code.br(2) // mismatch → end of inner block → i++
+        code.br(2)
         code.end()
         code.localGet(j)
         code.i64Const(1)
@@ -6836,10 +6468,8 @@ enum WasmRuntimeHelpers {
         code.localGet(res)
     }
 
-    /// `(s, needle|char, [startIndex,] ignoreCase[, mask]) -> Int`: backward
     /// byte scan. `hasStart` selects the parameter layout — the no-start
     /// overloads and their `$default` shims put ignoreCase at index 2.
-    /// Locals (argc base): sd, sl, nd, nl, i, j, a, b.
     private static func emitStringLastIndexOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -6867,7 +6497,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
             code.localSet(nl)
         }
-        // i = min(startIndex | sl - 1, sl - nl); i < 0 → -1.
         code.localGet(sl)
         code.localGet(nl)
         code.op(WasmOpcode.i64Sub)
@@ -6913,7 +6542,7 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.localGet(i)
         code.localSet(res)
-        code.br(4) // matched → leave the scan block
+        code.br(4)
         code.end()
         code.localGet(i)
         code.localGet(j)
@@ -6933,7 +6562,7 @@ enum WasmRuntimeHelpers {
         code.localGet(b)
         code.op(WasmOpcode.i64Ne)
         code.openIf()
-        code.br(2) // mismatch → end of inner block → i--
+        code.br(2)
         code.end()
         code.localGet(j)
         code.i64Const(1)
@@ -6952,8 +6581,6 @@ enum WasmRuntimeHelpers {
         code.localGet(res)
     }
 
-    /// `(s, needle[, ic]) -> Boolean` / char variants — delegates to
-    /// `__kk_wasm_string_index_of*` and compares `>= 0`.
     private static func emitStringContainsBody(_ code: inout WasmCode, ctx: WasmModuleContext, name: String) {
         let charNeedle = name.contains("_char")
         code.localGet(0)
@@ -7008,7 +6635,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
             code.localSet(nl)
         }
-        // base offset: suffix → sl - nl; prefix with start → arg; else 0.
         if isSuffix {
             code.localGet(sl)
             code.localGet(nl)
@@ -7019,7 +6645,6 @@ enum WasmRuntimeHelpers {
             code.i64Const(0)
         }
         code.localSet(at)
-        // base < 0 || base + nl > sl → false
         code.localGet(at)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -7045,7 +6670,7 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.i64Const(1)
         code.localSet(res)
-        code.br(2) // all bytes matched → leave the scan block
+        code.br(2)
         code.end()
         code.localGet(at)
         code.localGet(i)
@@ -7067,7 +6692,7 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.i64Const(0)
         code.localSet(res)
-        code.br(2) // mismatch → leave the scan block with false
+        code.br(2)
         code.end()
         code.localGet(i)
         code.i64Const(1)
@@ -7079,11 +6704,6 @@ enum WasmRuntimeHelpers {
         code.localGet(res)
     }
 
-    /// `(s, old, new, ic[, mask]) -> String`: two-pass byte replace. An empty
-    /// `old` needle inserts `new` around every byte (JVM parity).
-    /// `charNeedles` encodes Char params into 4-byte scratch buffers instead
-    /// of loading String fields (`String.replace(Char, Char, …)`).
-    /// Locals: sd,sl,od,ol,nd,nl,buf,i,w,cnt,j,a,nb,resLen,cl (argc base).
     private static func emitStringReplaceBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int,
         charNeedles: Bool = false
@@ -7115,7 +6735,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 2, byteOffset: 16)
             code.localSet(nl)
         }
-        // Pass 1 — count matches.
         code.i64Const(0)
         code.localSet(cnt)
         code.i64Const(0)
@@ -7134,7 +6753,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.i64Add)
         code.localSet(cnt)
-        // i += max(ol, 1)
         code.localGet(i)
         code.localGet(ol)
         code.i64Const(1)
@@ -7155,7 +6773,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // resLen = sl + cnt * (nl - ol); buf = alloc(resLen)
         code.localGet(sl)
         code.localGet(cnt)
         code.localGet(nl)
@@ -7167,7 +6784,6 @@ enum WasmRuntimeHelpers {
         code.localGet(resLen)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(buf)
-        // Pass 2 — copy with substitution.
         code.i64Const(0)
         code.localSet(i)
         code.i64Const(0)
@@ -7182,7 +6798,6 @@ enum WasmRuntimeHelpers {
         code.brIf(1)
         emitReplaceMatchAt(&code, sd: sd, od: od, ol: ol, i: i, j: j, a: a, b: nb, icParam: 3)
         code.openIf()
-        // copy nl bytes nd → buf+w
         code.i64Const(0)
         code.localSet(j)
         code.openBlock()
@@ -7205,8 +6820,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // ol == 0 → also copy the current source byte before advancing
-        // (but not at i == sl, which is the terminal empty-needle match).
         code.localGet(ol)
         code.op(WasmOpcode.i64Eqz)
         code.localGet(i)
@@ -7249,7 +6862,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Copy the tail (bytes i..sl).
         code.openBlock()
         code.openLoop()
         code.localGet(i)
@@ -7270,8 +6882,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // charLen = charLen(s) + cnt * (charLen(new) - charLen(old));
-        // Char needles count UTF-16 units from the raw codepoint instead.
         emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
         code.localGet(cnt)
         if charNeedles {
@@ -7303,9 +6913,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: resLen, scratchLocal: i)
     }
 
-    /// `(s, needle|char, replacement|char, ignoreCase[, mask]) -> String`:
-    /// replace the FIRST match only — `indexOf` + single splice.
-    /// Locals (argc base): sd,sl,od,ol,nd,nl,idx,buf,i,j,w,resLen,cl,a
     private static func emitStringReplaceFirstBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -7339,7 +6946,6 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 2, byteOffset: 16)
             code.localSet(nl)
         }
-        // idx = indexOf(s, needle, 0, ignoreCase)
         code.localGet(0)
         code.localGet(1)
         code.i64Const(0)
@@ -7349,7 +6955,6 @@ enum WasmRuntimeHelpers {
             argumentCount: 4
         ))
         code.localSet(idx)
-        // idx < 0 → no match → return the receiver unchanged.
         code.localGet(idx)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -7357,7 +6962,6 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
         code.op(WasmOpcode.return)
         code.end()
-        // resLen = sl - ol + nl; buf = alloc(resLen)
         code.localGet(sl)
         code.localGet(ol)
         code.op(WasmOpcode.i64Sub)
@@ -7367,7 +6971,6 @@ enum WasmRuntimeHelpers {
         code.localGet(resLen)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(buf)
-        // copy s[0..idx)
         code.i64Const(0)
         code.localSet(i)
         code.openBlock()
@@ -7386,7 +6989,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // copy nd[0..nl) → buf[idx + j)
         code.localGet(idx)
         code.localSet(w)
         code.i64Const(0)
@@ -7411,7 +7013,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // copy s[idx+ol..sl) → buf[idx+nl..)
         code.localGet(idx)
         code.localGet(ol)
         code.op(WasmOpcode.i64Add)
@@ -7436,7 +7037,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // charLen = charLen(s) - charLen(old) + charLen(new)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 8)
         if charNeedles {
             code.localGet(1)
@@ -7467,10 +7067,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: resLen, scratchLocal: i)
     }
 
-    /// `(s, delim) -> List<String>`: byte-scan split into an ArrayList box.
-    /// An empty delimiter returns a single-element list (interim — Kotlin
-    /// splits between every char). Locals: sd,sl,dd,dl,list,i,seg,j,a
-    /// (argc base).
     private static func emitStringSplitBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
     ) {
@@ -7494,8 +7090,6 @@ enum WasmRuntimeHelpers {
         code.localSet(i)
         code.i64Const(0)
         code.localSet(seg)
-        // Empty delimiter → one element per byte (JVM `split("")` parity);
-        // otherwise the scan below never advances.
         code.localGet(dl)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -7534,7 +7128,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Sub)
         code.op(WasmOpcode.i64GtS)
         code.brIf(1)
-        // match check at i (case-sensitive; j/a scratch)
         code.i64Const(0)
         code.localSet(j)
         code.openBlock()
@@ -7543,7 +7136,6 @@ enum WasmRuntimeHelpers {
         code.localGet(dl)
         code.op(WasmOpcode.i64GeU)
         code.openIf()
-        // matched → add substring(s, seg, i), seg = i += dl
         code.localGet(0)
         code.localGet(seg)
         code.localGet(i)
@@ -7559,7 +7151,7 @@ enum WasmRuntimeHelpers {
         code.localSet(i)
         code.localGet(i)
         code.localSet(seg)
-        code.br(3) // restart the outer scan from the advanced position
+        code.br(3)
         code.end()
         code.localGet(i)
         code.localGet(j)
@@ -7571,7 +7163,7 @@ enum WasmRuntimeHelpers {
         code.localGet(a)
         code.op(WasmOpcode.i64Ne)
         code.openIf()
-        code.br(2) // mismatch → i++
+        code.br(2)
         code.end()
         code.localGet(j)
         code.i64Const(1)
@@ -7587,7 +7179,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Trailing piece substring(s, seg, sl) — including the empty tail.
         code.localGet(0)
         code.localGet(seg)
         code.localGet(sl)
@@ -7600,9 +7191,6 @@ enum WasmRuntimeHelpers {
         code.localGet(list)
     }
 
-    /// `(s) -> Boolean`: byteLen == 0 (`isEmpty`), all bytes <= 0x20
-    /// (`isBlank`), and the `negate` variants (`isNotEmpty`/`isNotBlank`).
-    /// Locals (argc base): data, len, i.
     private static func emitStringIsEmptyOrBlankBody(
         _ code: inout WasmCode, blank: Bool, negate: Bool, argumentCount: Int
     ) {
@@ -7625,14 +7213,14 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64GeU)
             code.openIf()
             code.i64Const(1)
-            code.br(2) // every byte was whitespace → blank
+            code.br(2)
             code.end()
             emitByteAt(&code, dataLocal: data, indexLocal: i)
             code.i64Const(0x20)
             code.op(WasmOpcode.i64GtU)
             code.openIf()
             code.i64Const(0)
-            code.br(2) // non-whitespace byte → not blank
+            code.br(2)
             code.end()
             code.localGet(i)
             code.i64Const(1)
@@ -7651,8 +7239,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(s) -> String`: reverse the byte payload into a fresh buffer.
-    /// Locals (argc base): data, len, buf, i, cl, src, c.
     private static func emitStringReversedBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int
     ) {
@@ -7676,7 +7262,6 @@ enum WasmRuntimeHelpers {
         code.localGet(len)
         code.op(WasmOpcode.i64GeU)
         code.brIf(1)
-        // buf[i] = data[len - 1 - i]
         code.localGet(len)
         code.i64Const(1)
         code.op(WasmOpcode.i64Sub)
@@ -7696,7 +7281,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: data)
     }
 
-    /// `(c) -> c`: ASCII Char fold (a-z ↔ A-Z), everything else passthrough.
     private static func emitCharCaseBody(_ code: inout WasmCode, upper: Bool) {
         code.localGet(0)
         code.i64Const(upper ? 97 : 65)
@@ -7714,9 +7298,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(c) -> String`: fold a Char and encode it as a one-char flat string —
-    /// backs `Char.uppercase()`/`lowercase()`/`titlecase()` which return
-    /// String. Locals (argc base): c, buf, byteLen, charLen, obj.
     private static func emitCharToStringCaseBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
     ) {
@@ -7746,9 +7327,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: obj)
     }
 
-    /// `(s) -> String`: fold the first byte (upper for capitalize, lower for
-    /// decapitalize), copy the rest. Empty input returns the input box.
-    /// Locals (argc base): data, len, buf, i, c, cl.
     private static func emitStringCapitalizeBody(
         _ code: inout WasmCode, ctx: WasmModuleContext, argumentCount: Int, upper: Bool
     ) {
@@ -7807,8 +7385,6 @@ enum WasmRuntimeHelpers {
         emitWrapString(&code, ctx: ctx, dataLocal: buf, charLenLocal: cl, byteLenLocal: len, scratchLocal: c)
     }
 
-    /// Match test at `sd[i]` vs `od[0..ol]` with optional ASCII folding —
-    /// pushes an i32 flag (1 = match). `j`, `a`, `b` are scratch locals.
     private static func emitReplaceMatchAt(
         _ code: inout WasmCode,
         sd: Int, od: Int, ol: Int, i: Int, j: Int, a: Int, b: Int, icParam: Int
@@ -7822,7 +7398,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64GeU)
         code.openIf()
         code.i64Const(1)
-        code.br(2) // all bytes matched → exit the flag block with 1
+        code.br(2)
         code.end()
         code.localGet(i)
         code.localGet(j)
@@ -7843,7 +7419,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Ne)
         code.openIf()
         code.i64Const(0)
-        code.br(2) // mismatch → exit the flag block with 0
+        code.br(2)
         code.end()
         code.localGet(j)
         code.i64Const(1)
@@ -7859,11 +7435,8 @@ enum WasmRuntimeHelpers {
         code.i64Truthy()
     }
 
-    // MARK: - List helpers
-
     /// Allocates the list box `object_new(3, typeID)` and fills
     /// slot2=backing array, slot3=count, slot4=flags (bit0 = read-only).
-    /// The object's local index is `objectLocal`; `countLocal == nil` stores 0.
     private static func emitListBoxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -7908,17 +7481,12 @@ enum WasmRuntimeHelpers {
                 value: readOnly ? 1 : 0
             )
         }
-        // Iterable(0)/Sequence(1)/MutableIterable(2) all iterate through the
-        // shared list-layout iterator — mirrors the native
-        // `maybeRegisterCollectionIterableItable` table so interface-typed
-        // receivers (`MutableSet.iterator()`, `Iterable.for`) dispatch here.
         emitIterableItableRegistration(&code, ctx: ctx, objectLocal: objectLocal)
         if listItables {
             emitListItableRegistrations(&code, ctx: ctx, objectLocal: objectLocal)
         }
     }
 
-    /// Registers the `kotlin.collections.List` (iface slot 3) and
     /// `kotlin.collections.MutableList` (iface slot 4) itables on a list box.
     /// Method slots follow the pinned source-dispatch table in
     /// `LayoutSynthesis.orderedOwnMethods` — unregistered slots stay 0 so a
@@ -7958,13 +7526,11 @@ enum WasmRuntimeHelpers {
         method(3, 5, "kk_list_iterator", arity: 1)
         method(3, 6, "__kk_list_index_of", arity: 2)
         method(3, 7, "__kk_list_last_index_of", arity: 2)
-        // size getter slot = vtableSize (9) + 0 per kirInterfacePropertyGetterSlots.
         method(3, 9, "__kk_list_size", arity: 1)
         reg("kotlin.collections.MutableList", slot: 4)
         method(4, 2, "__kk_mutable_list_add", arity: 2)
     }
 
-    /// Registers `iterator()` in method slot 0 for the box's iterable interfaces.
     private static func emitIterableItableRegistration(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8000,9 +7566,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(list, index) -> elem`: bounds-check against the count slot, then load
-    /// the element out of the backing array. OOB marks the thrown channel.
-    /// Locals: argumentCount = count, argumentCount+1 = array.
     private static func emitListGetBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8035,10 +7598,6 @@ enum WasmRuntimeHelpers {
         code.i64Load(offset: 0)
     }
 
-    /// `(list, elem) -> bool`: append with backing-array growth (capacity is
-    /// the array's meta slot; count lives on the list). Read-only lists throw.
-    /// Locals: argumentCount = count, +1 = array, +2 = capacity, +3 = newArr,
-    /// +4 = copy index.
     private static func emitMutableListAddBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8050,7 +7609,6 @@ enum WasmRuntimeHelpers {
         let newArrLocal = argumentCount + 3
         let iLocal = argumentCount + 4
         emitViewMutationGuard(&code, ctx: ctx)
-        // Read-only flag lives in bit0 of slot4.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.i64Const(1)
         code.op(WasmOpcode.i64And)
@@ -8076,7 +7634,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: arrLocal, byteOffset: L.metaOffset)
         code.end()
         code.localSet(capLocal)
-        // Grow when full: newCapacity = cap*2, or 8 when empty.
         code.localGet(countLocal)
         code.localGet(capLocal)
         code.op(WasmOpcode.i64GeS)
@@ -8127,7 +7684,6 @@ enum WasmRuntimeHelpers {
         code.localSet(arrLocal)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset, valueLocal: newArrLocal)
         code.end()
-        // arr[count] = elem; count += 1.
         code.localGet(arrLocal)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(countLocal)
@@ -8148,7 +7704,6 @@ enum WasmRuntimeHelpers {
 
     /// `(list) -> List`: snapshot copy — new backing array with capacity =
     /// count so later appends can't mutate the view.
-    /// Locals: argumentCount = count, +1 = srcArr, +2 = newArr, +3 = i, +4 = obj.
     private static func emitListToListBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8206,26 +7761,13 @@ enum WasmRuntimeHelpers {
     }
 
     private enum PrimArrayElemConv {
-        /// Elements copied through unchanged (ints, chars, booleans, object
-        /// arrays, Long/ULong — the null-sentinel collision on
-        /// Long.MIN/ULong patterns is a documented generic-dispatch edge).
         case raw
-        /// Elements zero-extended out of `bits` low bits (unsigned arrays).
         case mask(Int64)
-        /// Elements boxed through `__kk_wasm_box_double`.
         case boxDouble
-        /// Elements boxed through `__kk_wasm_box_float`.
         case boxFloat
-        /// Transform resolved at runtime from the array's nominal typeID
-        /// tag (Double/Float box, unsigned narrow arrays mask, else raw).
         case byTypeTag
     }
 
-    /// `(array) -> list`: `*Array.toList`/`asList`/`toMutableList` and the
-    /// generic `Array.toList`/`toMutableList` shims. `view` shares the
-    /// source array for the `asList` contract (raw conversion only);
-    /// otherwise elements copy into a fresh array with `conv` applied.
-    /// Locals (argc base): len, dst, i, obj, convSel, maskL, v.
     private static func emitPrimArrayToListBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8241,8 +7783,6 @@ enum WasmRuntimeHelpers {
         emitLoadMetaBody(&code)
         code.localSet(len)
         if view, case .raw = conv {
-            // Share the backing array — the read-only list view reflects
-            // later array writes, matching `asList`.
             emitListBoxBody(
                 &code, ctx: ctx,
                 typeID: L.listTypeID, readOnly: true,
@@ -8255,8 +7795,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1))
         code.localSet(dst)
         if case .byTypeTag = conv {
-            // convSel: 0 raw, 1 mask8, 2 mask16, 3 mask32, 4 boxDouble,
-            // 5 boxFloat — resolved once from the typeID tag.
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
             code.localSet(convSel)
             for (fq, sel) in [
@@ -8276,7 +7814,6 @@ enum WasmRuntimeHelpers {
             code.i64Const(0)
             for _ in 0..<5 { code.end() }
             code.localSet(convSel)
-            // maskL: sel 1→0xFF, 2→0xFFFF, else 0xFFFFFFFF.
             code.localGet(convSel)
             code.i64Const(1)
             code.op(WasmOpcode.i64Eq)
@@ -8381,9 +7918,6 @@ enum WasmRuntimeHelpers {
         code.localGet(obj)
     }
 
-    /// `(array) -> array`: `copyOf` — fresh array, raw element copy, and the
-    /// nominal type tag forwarded so identity rendering keeps
-    /// `kotlin.*Array`. Locals (argc base): len, dst, i, tid.
     private static func emitPrimArrayCopyBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8433,10 +7967,6 @@ enum WasmRuntimeHelpers {
         code.localGet(dst)
     }
 
-    /// `(iterator) -> elem`: ConcurrentModificationException when the backing
-    /// count drifted, NoSuchElementException when exhausted (both thrown
-    /// markers for now).
-    /// Locals: argumentCount = list, +1 = count, +2 = index.
     private static func emitListIteratorNextBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8478,7 +8008,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // elem = list.backing[index]; index += 1.
         emitLoadAt(&code, baseLocal: listLocal, byteOffset: L.listArrayOffset)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(indexLocal)
@@ -8494,7 +8023,6 @@ enum WasmRuntimeHelpers {
         code.i64Store(offset: 0)
     }
 
-    /// `flags@offset += 1 << modCountShift`: bump the structural-modification
     /// epoch in the flag word's high bits. Mirrors JVM `modCount++` — called
     /// by every count-changing mutator but not by `set` (non-structural).
     private static func emitBumpModCount(
@@ -8509,9 +8037,6 @@ enum WasmRuntimeHelpers {
         code.i64Store(offset: 0)
     }
 
-    /// `(list) -> i64`: the box's structural-modification epoch —
-    /// `flags >> modCountShift`. Views resolve through to the root parent so
-    /// iterators/views on a window see mutations applied to the root.
     private static func emitListModCountBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -8531,19 +8056,11 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(list) -> i64` (0 = fine, 1 = stale-and-thrown): fail-fast check for
-    /// `subList` view boxes. A non-view receiver — every other box kind —
-    /// returns 0 untouched, which is the lowering ABI contract. On a stale
-    /// view this throws `ConcurrentModificationException` through the
-    /// thrown channel, matching the native `kk_list_check_modification`
-    /// semantics (`!isValidView`).
-    /// Locals: argumentCount = parent.
     private static func emitViewCheckBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
         argumentCount: Int
     ) {
-        // Guard: scalar receivers can never be views (avoids a wild load).
         code.localGet(0)
         code.i64Const(L.dataStart)
         code.op(WasmOpcode.i64LtU)
@@ -8577,10 +8094,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// Preamble for helpers reached without a lowering-inserted
-    /// `check_modification` (direct thunk calls on `List`/`MutableList`
-    /// members excluded from the list-view check set): a stale view throws
-    /// CME through the thrown channel; callers see `thrownReturn`.
     private static func emitViewStaleCheck(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8619,15 +8132,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(list, fromIndex, toIndex) -> view box`: `subList` on a sentinel
-    /// list. The view's backing pointer is pre-adjusted into the root
-    /// parent's array (`list.backing + from*8`), so get/iterate/toString and
-    /// `set` all work through the window without extra dispatch. Nested
-    /// views re-anchor to the root parent since `list.backing` already
-    /// carries the accumulated offset. JVM write-through `add`/`removeAt`
-    /// on views is not modelled — those mutators throw UOE via
-    /// `emitViewMutationGuard`.
-    /// Locals: argumentCount = root, +1 = expectedMod, +2 = box.
     private static func emitListSubListBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8636,8 +8140,6 @@ enum WasmRuntimeHelpers {
         let rootL = argumentCount, expectedL = argumentCount + 1
         let boxL = argumentCount + 2
         emitViewStaleCheck(&code, ctx: ctx, thrownReturn: 0)
-        // Bounds: fromIndex < 0 or toIndex > size → IOOBE;
-        // fromIndex > toIndex → IllegalArgumentException (JVM order).
         code.localGet(1)
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
@@ -8664,8 +8166,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // root = isView(list) ? list.parent : list — views always anchor to
-        // the root so a single modCount source exists per chain.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(L.listViewTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -8685,7 +8185,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(L.listViewTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(boxL)
-        // backing' = list.backing + from*8 (already root-adjusted for views).
         emitAddress(&code, baseLocal: boxL, byteOffset: L.listArrayOffset)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
         code.localGet(1)
@@ -8698,7 +8197,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.op(WasmOpcode.i64Sub)
         code.i64Store(offset: 0)
-        // flags: copy the low byte (readOnly) and tag as view.
         emitAddress(&code, baseLocal: boxL, byteOffset: L.listFlagsOffset)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         code.i64Const(0xFF)
@@ -8713,19 +8211,6 @@ enum WasmRuntimeHelpers {
         code.localGet(boxL)
     }
 
-    // MARK: - Pair / Set / Map helpers
-
-    /// `(a, b) -> i64`: value equality for collection storage. Raw i64s compare
-    /// by value; two distinct heap pointers fall back to structural comparison
-    /// (currently only strings). Mirrors `kk_op_eq`'s boxed path.
-    /// Locals: argumentCount = isHeap(a), +1 = isHeap(b), +2 = aLen, +3 = i,
-    /// +4 = pa (scratch).
-    // MARK: - Reflection metadata registry
-
-    /// `$__kk_wasm_token_record_get(token) -> record|0`: linear scan over
-    /// the registry's pair table `{count@0, cap@8, pairs@16: (token,
-    /// record)*cap}`. The buffer is a raw alloc (no object header fields
-    /// are used beyond the +16 reserve the allocator always makes).
     private static func emitTokenRecordGetBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -8749,7 +8234,6 @@ enum WasmRuntimeHelpers {
         code.localGet(nL)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // pairs[i].token == arg0 → return pairs[i].record
         code.localGet(regL)
         code.op(WasmOpcode.i32WrapI64)
         code.i32Const(16)
@@ -8785,8 +8269,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `$__kk_wasm_token_record(token) -> record`: get-or-create — grows
-    /// the pair table with `memory.copy` on capacity and allocates an
     /// `object_new(11, metaRecordTypeID)` record `{token@16, s0..s3@24..48,
     /// regHead@80}` on a miss.
     private static func emitTokenRecordBody(
@@ -8852,13 +8334,11 @@ enum WasmRuntimeHelpers {
         code.localGet(newL)
         code.globalSet(reg)
         code.end()
-        // rec = object_new(11, metaRecord); rec.token = arg0
         code.i64Const(11)
         code.i64Const(L.metaRecordTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(recL)
         emitStoreAt(&code, baseLocal: recL, byteOffset: 16, valueLocal: 0)
-        // pairs[n] = (token, rec); count = n + 1
         code.localGet(regL)
         code.op(WasmOpcode.i32WrapI64)
         code.i32Const(16)
@@ -8910,7 +8390,6 @@ enum WasmRuntimeHelpers {
                 byteOffset: Int64(32 + i * 8), valueLocal: 3 + i
             )
         }
-        // node.next = owner.regHead; owner.regHead = node
         code.localGet(nodeL)
         code.op(WasmOpcode.i32WrapI64)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.regHeadOffset)
@@ -8919,8 +8398,6 @@ enum WasmRuntimeHelpers {
         code.localGet(nodeL)
     }
 
-    /// Shared emitter for `__kk_*_register_*` helpers keyed by arg0's
-    /// token: appends a kind-tagged node carrying args 1..end (up to 8).
     private static func emitTokenRegisterBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8942,9 +8419,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `register_member(kclassBox, member) -> 0` — arg0 is already a
-    /// KClass box (which keeps its list at `L.regHeadOffset`), so it is the
-    /// reglist owner directly.
     private static func emitOwnerRegisterBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8960,12 +8434,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `__kk_kclass_create(token, name) -> kclass` and
-    /// `__kk_kclass_create_array(token, name, component) -> kclass`: cached
-    /// per-token in `record.s0`; creates `{token@16, name@24, regHead@80}` on
-    /// a miss. The array-component argument is unused — wasm component
-    /// descriptors are pass-through stubs, so array class literals keep the
-    /// erased `kotlin.Array` identity here.
     private static func emitKClassCreateBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -8989,8 +8457,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
     }
 
-    /// `kk_typeof(token, nameHint, args, nullable) -> KType` — resolves the
-    /// token's KClass then boxes `{classifier@16, args@24, nullable@32}`.
     private static func emitKTypeOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9010,7 +8476,6 @@ enum WasmRuntimeHelpers {
         code.localGet(ktL)
     }
 
-    /// `__kk_ktype_create(classifier, args, nullable) -> KType`.
     private static func emitKTypeCreateBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9026,10 +8491,6 @@ enum WasmRuntimeHelpers {
         code.localGet(ktL)
     }
 
-    /// `__kk_ktype_with_nullability(ktype, flag) -> KType` — copies the
-    /// `{classifier@16, args@24, nullable@32}` box for a reified `typeOf<T>`;
-    /// `flag < 0` preserves the source nullability. Each call hands out a
-    /// fresh box because KType reference identity is observable.
     private static func emitKTypeWithNullabilityBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9059,9 +8520,6 @@ enum WasmRuntimeHelpers {
         code.localGet(ktL)
     }
 
-    /// Small `{typeID, fields}` box: `object_new(slots, typeID)` then
-    /// `fields[offset] = arg index` stores; returns the box. `boxLocal`
-    /// must be a free local (pass `argumentCount`).
     private static func emitSmallBoxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9082,10 +8540,6 @@ enum WasmRuntimeHelpers {
 
     /// `() -> i64` at `boxLocal`: allocate the 7-word LazyImpl-layout box
     /// `{header, initializer@16, mode@24, lock@32, cached@40, computed@48}`
-    /// and register the `kotlin.Lazy` itable (isInitialized@0, value get@1)
-    /// plus the `LazyImpl → Lazy`/`LazyImpl → Any` type edges, so interface
-    /// dispatch and `is` checks work on factory-produced lazies exactly as
-    /// they do on the caller-constructed delegate object.
     private static func emitLazyFactoryBoxBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9126,8 +8580,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `__kk_ktypeparameter_create(identity, name, variance, isReified)`
-    /// cached per-identity in `record.s0`.
     private static func emitKTypeParameterCreateBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9152,9 +8604,6 @@ enum WasmRuntimeHelpers {
         emitLoadAt(&code, baseLocal: recL, byteOffset: 24)
     }
 
-    /// `__kk_kconstructor_create(name, arity, returnType, fnPtr, isPrimary,
-    /// visibility, kclass) -> KConstructor`; when the owner KClass box is
-    /// present the ctor node joins its regHead list.
     private static func emitKConstructorCreateBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9186,8 +8635,6 @@ enum WasmRuntimeHelpers {
         code.localGet(cL)
     }
 
-    /// `__kk_kconstructor_set_parameter_type(kctor, index, typeToken)` —
-    /// appends a param-type node to the ctor's paramHead list (offset 80).
     private static func emitKConstructorSetParameterTypeBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9203,8 +8650,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `kk_enum_box_ordinal(ordinal, name, classID)`: null ordinals pass
-    /// through; otherwise allocate `{ordinal@16, name@24, classID@32}`.
     private static func emitEnumBoxOrdinalBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9227,8 +8672,6 @@ enum WasmRuntimeHelpers {
         code.localGet(bL)
     }
 
-    /// `kk_enum_register_values(typeToken, valuesArrayRaw, count)` — the
-    /// array handle is parked in `record.s2` for future `values()` reads.
     private static func emitEnumRegisterValuesBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9241,15 +8684,11 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `kk_enum_make_values_array(valuesRaw, count, classID)` — builds a
-    /// fresh raw array of `min(max(count,0), len(values))` entry handles.
-    /// Locals: safeCount=3, arr=4, i=5.
     private static func emitEnumMakeValuesArrayBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
     ) {
         let safeL = 3, arrL = 4, iL = 5
-        // safeCount = (values==0 ? 0 : values.len); if 0<=count<safeCount → count.
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
         code.openIf(result: .i64)
@@ -9269,7 +8708,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.localSet(safeL)
         code.end()
-        // arr = alloc(safeCount*8) with array header.
         code.localGet(safeL)
         code.i64Const(8)
         code.op(WasmOpcode.i64Mul)
@@ -9277,7 +8715,6 @@ enum WasmRuntimeHelpers {
         code.localSet(arrL)
         emitStoreAtConst(&code, baseLocal: arrL, byteOffset: L.typeIDOffset, value: L.arrayTypeID)
         emitStoreAt(&code, baseLocal: arrL, byteOffset: L.metaOffset, valueLocal: safeL)
-        // i = 0; while i < safeCount: arr[i] = values[i]; i++
         code.i64Const(0)
         code.localSet(iL)
         code.localGet(0)
@@ -9318,9 +8755,6 @@ enum WasmRuntimeHelpers {
         code.localGet(arrL)
     }
 
-    /// `kk_enum_make_entries_list_cached(valuesRaw, count, classID)` —
-    /// caches a readOnly list box per classID in `record.s4` (@56).
-    /// Locals: rec=3, cached/list=4, safeCount=5, arr=6.
     private static func emitEnumMakeEntriesListCachedBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9335,7 +8769,6 @@ enum WasmRuntimeHelpers {
         code.localTee(boxL)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
-        // safeCount = (values==0 ? 0 : min(values.len, max(count,0)))
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
         code.openIf(result: .i64)
@@ -9355,8 +8788,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.localSet(safeL)
         code.end()
-        // list box over the source array (substituted when 0 inside the
-        // shared list-box emit); count = safeCount.
         code.localGet(0)
         code.localSet(arrL)
         emitListBoxBody(
@@ -9368,7 +8799,6 @@ enum WasmRuntimeHelpers {
         code.localGet(boxL)
     }
 
-    /// `register_*_override(key, fnSlot)` / value-class variant: stores
     /// the fn table-slot into `record(key)` at `slotOffset` (s0=24,
     /// s1=32, s2=40).
     private static func emitObjectOverrideRegisterBody(
@@ -9384,9 +8814,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `__kk_mutable_map_putAll(map, other)` — iterates `other` with the
-    /// existing map helpers, forwarding every entry through
-    /// `__kk_mutable_map_put` so readOnly rejection propagates.
     private static func emitMutableMapPutAllBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9426,8 +8853,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `kk_runtime_register_data_class[_fields]` — parks the data-class
-    /// marker and field mask in `record(classID).s3`.
     private static func emitDataClassRegisterBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9439,7 +8864,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
         code.localSet(recL)
         if withMask {
-            // s3 = mask | (s3 & markerBit)
             emitLoadAt(&code, baseLocal: recL, byteOffset: 48)
             code.i64Const(L.dataClassMarkerBit)
             code.op(WasmOpcode.i64And)
@@ -9457,9 +8881,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `StringBuilder` accumulator — `object_new(3, stringBuilderTypeID)`
-    /// with `{str@16}`; `new_from_string_flat` seeds the accumulator with
-    /// arg0.
     private static func emitStringBuilderNewBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9476,9 +8897,6 @@ enum WasmRuntimeHelpers {
         code.localGet(sbL)
     }
 
-    /// `__kk_string_builder_append_obj(sb, value)` — renders `value` via
-    /// `kk_any_to_string` and folds it into the accumulator with
-    /// `__kk_string_concat_flat`.
     private static func emitStringBuilderAppendObjBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -9501,11 +8919,6 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
     }
 
-    /// Consults a registry slot for a callable table-index override and
-    /// tail-calls it through `call_indirect` when present. `key` is the
-    /// record key (obj handle or typeID); `slotOffset` selects s0/s1/s2.
-    /// `argCount` is the bridge arity (1 for toString/hashCode, 2 for
-    /// equals). Emits nothing when the slot is empty.
     private static func emitOverrideConsult(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -9542,14 +8955,12 @@ enum WasmRuntimeHelpers {
     private static func emitElemEqBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
         let aHeap = 2, bHeap = 3, lenL = 4, iL = 5, paL = 6
         let pbL = 10, strFlag = 9
-        // a == b (bitwise): covers identical pointers and equal raw values.
         code.localGet(0)
         code.localGet(1)
         code.op(WasmOpcode.i64Eq)
         code.openIf(result: .i64)
         code.i64Const(1)
         code.elseBranch()
-        // isObjectPointer(x) = dataStart <= x < heap — covers data-segment
         // strings (literals) and heap objects alike; raw i64 values are
         // always < dataStart so they can never reach the byte compare.
         // Flags are stored extended to i64 because all locals are i64.
@@ -9571,9 +8982,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32And)
         code.i64ExtendFromComparison()
         code.localSet(bHeap)
-        // Nominal objects may carry a registered equals override
-        // (`kk_object_register_equals_override` → registry[obj].s1); the
-        // bridge takes (a, b) and returns i64.
         code.localGet(aHeap)
         code.i64Const(0)
         code.op(WasmOpcode.i64Ne)
@@ -9628,7 +9036,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // i = 0; pa = a.data
         code.i64Const(0)
         code.localSet(iL)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
@@ -9639,7 +9046,6 @@ enum WasmRuntimeHelpers {
         code.localGet(lenL)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // pa[i] vs b.data[i]
         code.localGet(paL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(iL)
@@ -9931,7 +9337,6 @@ enum WasmRuntimeHelpers {
             code.localGet(lenL)
             code.op(WasmOpcode.i64GeS)
             code.brIf(1)
-            // k = keysA[i]; vA = valsA[i]
             code.localGet(aHeap)
             code.op(WasmOpcode.i32WrapI64)
             code.localGet(iL)
@@ -9950,7 +9355,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i32Add)
             code.i64Load(offset: 0)
             code.localSet(foundL)
-            // vB = __kk_map_get(B, k) — nullSentinel means miss-or-null.
             code.localGet(1)
             code.localGet(jL)
             code.call(ctx.emittedHelperIndex(
@@ -9961,8 +9365,6 @@ enum WasmRuntimeHelpers {
             code.i64Const(L.nullSentinel)
             code.op(WasmOpcode.i64Eq)
             code.openIf()
-            // Miss-or-null: equal only when A's value is also null and B
-            // actually contains the key (AbstractMap.equals shape).
             code.localGet(foundL)
             code.i64Const(L.nullSentinel)
             code.op(WasmOpcode.i64Ne)
@@ -10004,13 +9406,10 @@ enum WasmRuntimeHelpers {
             code.end()
         }
         code.end()
-        // Different kinds / non-strings / non-heap: not equal.
         code.i64Const(0)
         code.end()
     }
 
-    /// `(a, b) -> i64`: `Any.equals` fallback — pure identity compare for
-    /// objects with no structural override in their vtable.
     private static func emitIdentityEqBody(_ code: inout WasmCode) {
         code.localGet(0)
         code.localGet(1)
@@ -10018,15 +9417,10 @@ enum WasmRuntimeHelpers {
         code.i64ExtendFromComparison()
     }
 
-    /// `(a) -> i64`: `Any.hashCode` fallback — the heap pointer doubles as
-    /// the identity hash (unique within a run, matching JVM semantics).
     private static func emitIdentityHashBody(_ code: inout WasmCode) {
         code.localGet(0)
     }
 
-    /// `(a) -> i64`: `toString` via `kk_any_to_string` with the heap-object
-    /// tag so collection boxes render structurally and other objects fall
-    /// back to `FqName@hash` identity strings.
     private static func emitObjToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -10036,11 +9430,6 @@ enum WasmRuntimeHelpers {
         code.call(ctx.emittedHelperIndex(for: "kk_any_to_string", argumentCount: 2))
     }
 
-    /// `(e) -> i64`: element hashCode matching `Objects.hashCode` — nulls
-    /// hash to 0, strings fold over UTF-8 bytes, Double/Float boxes hash
-    /// their bits, collection families recurse into
-    /// `__kk_wasm_collection_hash`, and everything else is an identity hash.
-    /// Locals: argumentCount = typeID, +1 = h, +2 = i, +3 = data, +4 = len.
     private static func emitElemHashBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10062,7 +9451,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Heap objects dispatch on typeID; raw i64 scalars hash to themselves.
         code.i64Const(L.dataStart)
         code.localGet(0)
         code.op(WasmOpcode.i64LeU)
@@ -10073,8 +9461,6 @@ enum WasmRuntimeHelpers {
         code.openIf(result: .i64)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(tidL)
-        // Nominal objects may carry a registered hashCode override
-        // (`kk_object_register_hashcode_override` → registry[obj].s2).
         code.localGet(tidL)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
@@ -10126,7 +9512,6 @@ enum WasmRuntimeHelpers {
         code.localGet(hL)
         code.op(WasmOpcode.return)
         code.end()
-        // Double box: bits ^ (bits >>> 32).
         code.localGet(tidL)
         code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
         code.op(WasmOpcode.i64Eq)
@@ -10139,7 +9524,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Xor)
         code.op(WasmOpcode.return)
         code.end()
-        // Float box: sign-extend the 32-bit payload.
         code.localGet(tidL)
         code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
         code.op(WasmOpcode.i64Eq)
@@ -10149,7 +9533,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64ExtendI32S)
         code.op(WasmOpcode.return)
         code.end()
-        // Collection families hash structurally so equal contents hash equal.
         for (i, fqName) in [
             "kotlin.collections.List",
             "kotlin.collections.Set",
@@ -10179,18 +9562,12 @@ enum WasmRuntimeHelpers {
         ))
         code.op(WasmOpcode.return)
         code.end()
-        // Other heap objects: identity hash.
         code.localGet(0)
         code.elseBranch()
         code.localGet(0)
         code.end()
     }
 
-    /// `(collection) -> i64`: structural hashCode per family — ordered
-    /// 31-fold for lists, unordered sums for sets, and `key ^ value` entry
-    /// sums for maps (matching AbstractList/AbstractSet/AbstractMap).
-    /// Locals: argumentCount = typeID, +1 = h, +2 = i, +3 = elems/keys,
-    /// +4 = values, +5 = count.
     private static func emitCollectionHashBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10227,7 +9604,6 @@ enum WasmRuntimeHelpers {
                 for: "__kk_wasm_elem_hash", argumentCount: 1
             ))
         }
-        // --- list family: h = 31*h + eh(e), ordered ---
         code.localGet(tidL)
         code.i64Const(L.listTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -10272,7 +9648,6 @@ enum WasmRuntimeHelpers {
         code.localGet(hL)
         code.op(WasmOpcode.return)
         code.end()
-        // --- set family: h += eh(e), order-free ---
         for (i, fqName) in setTypeIDs.enumerated() {
             code.localGet(tidL)
             code.i64Const(Self.stableNominalTypeID(fqName))
@@ -10308,7 +9683,6 @@ enum WasmRuntimeHelpers {
         code.localGet(hL)
         code.op(WasmOpcode.return)
         code.end()
-        // --- map family: h += eh(k) ^ eh(v) over entries ---
         for (i, fqName) in mapTypeIDs.enumerated() {
             code.localGet(tidL)
             code.i64Const(Self.stableNominalTypeID(fqName))
@@ -10348,14 +9722,9 @@ enum WasmRuntimeHelpers {
         code.localGet(hL)
         code.op(WasmOpcode.return)
         code.end()
-        // Unknown heap object: identity hash.
         code.localGet(0)
     }
 
-    /// `(recv, collection) -> i64`: `containsAll` — iterates the argument
-    /// through the generic `Iterable` itable and checks `__kk_set_contains`
-    /// on the receiver's shared list-layout backing store.
-    /// Locals: argumentCount = iterator, +1 = element.
     private static func emitContainsAllBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10406,7 +9775,6 @@ enum WasmRuntimeHelpers {
         code.localGet(argumentCount)
     }
 
-    /// The nominal type-ID the set box should carry for a given factory name.
     private static func setTypeID(for name: String) -> Int64 {
         switch name {
         case "__kk_hash_set_of", "__kk_hash_set_new_checked":
@@ -10429,10 +9797,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// Emits `kk_type_register_super(child, parent)` for every edge and the
-    /// per-object itable registrations needed for dynamic dispatch on Set/Map
-    /// and their iterators. Mirrors the native registration tables in
-    /// `RuntimeCollectionHelpers+Iterators.swift`.
     private static func emitCollectionItableRegistrations(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10486,11 +9850,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(iterable) -> iterator`: generic `Iterable.iterator()` — always route
-    /// through the object's `kotlin.collections.Iterable` itable (slot 0,
-    /// method 0) so list/set boxes, map views, and Kotlin-defined iterables
-    /// all reach their registered iterator. A lookup miss traps rather than
-    /// misdispatching.
     private static func emitIterableIteratorBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -10510,10 +9869,8 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
     }
 
-    /// `(collection) -> size`: `Collection.size` for the shared box layouts —
     /// list/set boxes carry `count@24`, map boxes `count@32`; anything else
     /// falls back to the `Collection` itable getter (method slot 4).
-    /// Locals: argumentCount = typeID.
     private static func emitCollectionSizeBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
@@ -10521,7 +9878,6 @@ enum WasmRuntimeHelpers {
         let typeLocal = 1
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(typeLocal)
-        // Map-family layouts keep their count in a different slot.
         for fqName in [
             "kotlin.collections.Map", "kotlin.collections.MutableMap",
             "kotlin.collections.HashMap", "kotlin.collections.LinkedHashMap",
@@ -10576,8 +9932,6 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
     }
 
-    /// Type-edge registrations mirroring the native runtime's `is`-assignable
-    /// DAG for collection tags.
     private static func emitCollectionTypeEdges(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10594,11 +9948,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(array, count) -> Set box`: dedups the packed array into fresh backing
-    /// storage, then wraps it in a list-layout box carrying the set's type ID
-    /// and itables.
-    /// Locals: argumentCount = uniqArr, +1 = uniqCount, +2 = i, +3 = elem,
-    /// +4 = dupScan index, +5 = found flag, +6 = box.
     private static func emitSetOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10623,7 +9972,6 @@ enum WasmRuntimeHelpers {
             ("kotlin.collections.LinkedHashSet", "kotlin.collections.MutableSet"),
             ("kotlin.collections.LinkedHashSet", "kotlin.collections.Set"),
         ])
-        // uniqArr = kk_array_new(count); dedup src into it.
         code.localGet(1)
         code.call(ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1))
         code.localSet(uniqArr)
@@ -10637,7 +9985,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // elem = src[i]
         code.localGet(0)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(iL)
@@ -10647,7 +9994,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 0)
         code.localSet(elemL)
-        // Scan uniqArr[0..uniqCount) for a duplicate.
         code.i64Const(0)
         code.localSet(jL)
         code.i64Const(0)
@@ -10673,7 +10019,7 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.i64Const(1)
         code.localSet(foundL)
-        code.br(2) // out of the scan loop
+        code.br(2)
         code.end()
         code.localGet(jL)
         code.i64Const(1)
@@ -10682,7 +10028,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // If not found: append.
         code.localGet(foundL)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -10761,8 +10106,6 @@ enum WasmRuntimeHelpers {
         code.localGet(boxL)
     }
 
-    /// `(set, elem) -> i64`: linear contains via `__kk_wasm_elem_eq`.
-    /// Locals: argumentCount = i.
     private static func emitSetContainsBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10805,10 +10148,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(set, elem) -> i64`: dedup check + append/grow, mirroring the mutable
-    /// list add path. Returns 1 when the element was newly inserted.
-    /// Locals: argumentCount = count, +1 = arr, +2 = cap, +3 = i (scan),
-    /// +4 = dup flag, +5 = newArr.
     private static func emitMutableSetAddBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10820,7 +10159,6 @@ enum WasmRuntimeHelpers {
         code.localSet(countL)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
         code.localSet(arrL)
-        // Dedup scan: contains(elem) → return 0.
         code.i64Const(0)
         code.localSet(iL)
         code.openBlock()
@@ -10859,7 +10197,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Grow when full (same policy as mutable list add).
         emitLoadAt(&code, baseLocal: arrL, byteOffset: L.metaOffset)
         code.localSet(capL)
         code.localGet(countL)
@@ -10912,7 +10249,6 @@ enum WasmRuntimeHelpers {
         code.localSet(arrL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset, valueLocal: newArrL)
         code.end()
-        // arr[count] = elem; count++.
         code.localGet(arrL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(countL)
@@ -10931,8 +10267,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
     }
 
-    /// `(set, elem) -> i64`: shift-remove on a hit, 0 otherwise.
-    /// Locals: argumentCount = count, +1 = arr, +2 = i, +3 = j, +4 = matched.
     private static func emitMutableSetRemoveBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -10969,7 +10303,6 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.i64Const(1)
         code.localSet(hitL)
-        // Shift tail left: for j in i..<count-1 { arr[j] = arr[j+1] }
         code.localGet(iL)
         code.localSet(jL)
         code.openBlock()
@@ -11011,7 +10344,7 @@ enum WasmRuntimeHelpers {
         code.localSet(countL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.listCountOffset, valueLocal: countL)
         emitBumpModCount(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
-        code.br(2) // break out of the scan loop's enclosing block
+        code.br(2)
         code.end()
         code.localGet(iL)
         code.i64Const(1)
@@ -11063,7 +10396,6 @@ enum WasmRuntimeHelpers {
         emitMapItableRegistrations(&code, ctx: ctx, objectLocal: objectLocal)
     }
 
-    /// Registers the `Map`/`MutableMap` itables on a runtime map box so
     /// interface-typed receivers (`m.entries` on a `MutableMap<K,V>`-typed
     /// value dispatches `itableDynamic[MutableMap:getterSlot]`) resolve to
     /// the runtime helpers instead of missing the table and calling an
@@ -11124,10 +10456,6 @@ enum WasmRuntimeHelpers {
         method(1, 7, "__kk_map_values", arity: 1)
     }
 
-    /// `(keys, values, count) -> Map box`. `__kk_emptyMap` (arity 0) builds an
-    /// empty read-only map; the `_of` factories adopt their packed arrays
-    /// (a `0`/null slot becomes a fresh empty array).
-    /// Locals: argumentCount = keysArr, +1 = valuesArr, +2 = box.
     private static func emitMapOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11199,9 +10527,6 @@ enum WasmRuntimeHelpers {
         code.localGet(boxL)
     }
 
-    /// `(pairs, count) -> Map box`: unpacks `Pair` elements into parallel
-    /// keys/values arrays, then delegates to the plain factory's boxing.
-    /// Locals: argumentCount = keys, +1 = values, +2 = i, +3 = pair, +4 = box.
     private static func emitMapOfPairsBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11226,7 +10551,6 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // pair = pairs[i]
         code.localGet(0)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(iL)
@@ -11236,7 +10560,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 0)
         code.localSet(pairL)
-        // keys[i] = pair.first
         code.localGet(keysL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(iL)
@@ -11246,7 +10569,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Add)
         emitLoadAt(&code, baseLocal: pairL, byteOffset: L.pairFirstOffset)
         code.i64Store(offset: 0)
-        // values[i] = pair.second
         code.localGet(valuesL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(iL)
@@ -11303,8 +10625,6 @@ enum WasmRuntimeHelpers {
         code.localGet(boxL)
     }
 
-    /// `(map) -> map`: `map_freeze` retags the box to the read-only `Map`
-    /// identity and sets the read-only flag, mirroring `runtimeMapBox.freeze`.
     private static func emitMapFreezeBody(_ code: inout WasmCode) {
         emitStoreAtConst(
             &code, baseLocal: 0, byteOffset: L.typeIDOffset,
@@ -11314,8 +10634,6 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
     }
 
-    /// `(map, key) -> i64`: index of `key` in the keys array, or `-1`.
-    /// Locals: argumentCount = keys, +1 = count, +2 = i, +3 = cur.
     private static func emitMapIndexOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11369,9 +10687,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(-1)
     }
 
-    /// `(map, key) -> value`: linear probe over keys; miss returns the null
-    /// sentinel (Kotlin `null`).
-    /// Locals: argumentCount = idx.
     private static func emitMapGetBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11398,8 +10713,6 @@ enum WasmRuntimeHelpers {
         code.i64Load(offset: 0)
     }
 
-    /// `(map, value) -> i64`: linear contains over the values array.
-    /// Locals: argumentCount = vals, +1 = count, +2 = i.
     private static func emitMapContainsValueBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11450,19 +10763,12 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// Which `Map` view `emitMapViewBody` materializes.
     private enum MapViewKind {
-        /// `map.keys` — Set view over the keys array.
         case keys
-        /// `map.values` — List view over the values array.
         case values
-        /// `map.entries` — Set of live `MutableEntry` boxes.
         case entries
     }
 
-    /// `(map) -> Set|List box`: snapshots the view into a fresh array and wraps
-    /// it via the existing `__kk_set_of`/`__kk_list_of` factories.
-    /// Locals: argumentCount = count, +1 = src, +2 = dst, +3 = i.
     private static func emitMapViewBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11565,10 +10871,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(map, key, value) -> old value|nullSentinel`: put with growth. Read-only
-    /// maps (mapOf/freeze results) mark the thrown channel.
-    /// Locals: argumentCount = keys, +1 = values, +2 = count, +3 = cap,
-    /// +4 = idx, +5 = i, +6 = newKeys, +7 = newValues.
     private static func emitMutableMapPutBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11589,7 +10891,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Update path: idx = indexOf(key)
         code.localGet(0)
         code.localGet(1)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_map_index_of", argumentCount: 2))
@@ -11600,7 +10901,6 @@ enum WasmRuntimeHelpers {
         code.openIf()
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapValuesOffset)
         code.localSet(valsL)
-        // old = vals[idx]; vals[idx] = v; return old
         code.localGet(valsL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(idxL)
@@ -11609,7 +10909,7 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Mul)
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 0)
-        code.localSet(iL) // reuse iL as `old`
+        code.localSet(iL)
         code.localGet(valsL)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(idxL)
@@ -11622,7 +10922,6 @@ enum WasmRuntimeHelpers {
         code.localGet(iL)
         code.op(WasmOpcode.return)
         code.end()
-        // Insert path.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapKeysOffset)
         code.localSet(keysL)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapValuesOffset)
@@ -11635,7 +10934,6 @@ enum WasmRuntimeHelpers {
         code.localGet(capL)
         code.op(WasmOpcode.i64GeS)
         code.openIf()
-        // newCap = cap*2 or 8
         code.localGet(capL)
         code.i64Const(2)
         code.op(WasmOpcode.i64Mul)
@@ -11719,9 +11017,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(L.nullSentinel)
     }
 
-    /// `(map, key) -> old value|nullSentinel`: shift-remove on hit.
-    /// Locals: argumentCount = keys, +1 = values, +2 = count, +3 = idx,
-    /// +4 = i, +5 = old.
     private static func emitMutableMapRemoveBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11767,7 +11062,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i32Add)
         code.i64Load(offset: 0)
         code.localSet(oldL)
-        // Shift tail left for both arrays.
         code.localGet(idxL)
         code.localSet(iL)
         code.openBlock()
@@ -11814,9 +11108,6 @@ enum WasmRuntimeHelpers {
         code.localGet(oldL)
     }
 
-    /// `(entry, value) -> old value`: `MutableEntry.setValue` thunk — updates
-    /// the pair slot and, for live map entries, writes through to the map.
-    /// Locals: argumentCount = old, +1 = map.
     private static func emitMutableMapEntrySetValueBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11829,14 +11120,11 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64Eq)
         code.openIf(result: .i64)
-        // Standalone entry: old = slot.second; slot.second = value.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.pairSecondOffset)
         code.localSet(oldL)
         emitStoreAt(&code, baseLocal: 0, byteOffset: L.pairSecondOffset, valueLocal: 1)
         code.localGet(oldL)
         code.elseBranch()
-        // Live entry: put() writes through and returns the previous value;
-        // keep the pair slot in sync.
         code.localGet(mapL)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.pairMapKeyOffset)
         code.localGet(1)
@@ -11850,7 +11138,6 @@ enum WasmRuntimeHelpers {
     /// `(map) -> iterator box` {container@16, index@24, expected@32} — the
     /// iterator shares the list-iterator layout; the type ID decides whether
     /// `next` yields keys (`__kk_map_iterator`) or entry boxes (`__kk_mutable_*`).
-    /// Locals: argumentCount = iter object.
     private static func emitMapIteratorBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11867,13 +11154,11 @@ enum WasmRuntimeHelpers {
         code.localSet(objL)
         emitStoreAt(&code, baseLocal: objL, byteOffset: L.listArrayOffset, valueLocal: 0)
         emitStoreAtConst(&code, baseLocal: objL, byteOffset: L.listCountOffset, value: 0)
-        // expected = map modCount (CME sentinel).
         emitAddress(&code, baseLocal: objL, byteOffset: L.listFlagsOffset)
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.mapFlagsOffset)
         code.i64Const(L.modCountShift)
         code.op(WasmOpcode.i64ShrU)
         code.i64Store(offset: 0)
-        // Register Iterator itable so interface-typed receivers dispatch.
         emitIteratorItableRegistration(
             &code, ctx: ctx, objectLocal: objL,
             hasNextHelper: name == "__kk_mutable_map_iterator"
@@ -11918,7 +11203,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(iterator) -> i64`: generic `hasNext`/`next` — pure itable dispatch.
     /// The receiver may be ANY Iterator implementation: raw list/set/map
     /// iterator boxes (whose itables point at the specialized helpers) or a
     /// Kotlin-defined iterator object (anonymous `object : MutableIterator`
@@ -11948,15 +11232,11 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(1)))
     }
 
-    // MARK: - Function values
-
-    /// `(fnIdx, closure) -> box`: materialize the `{fnIdx, closure, arity}`
     /// function-value box. An already-object value (another box or a Kotlin
     /// callable object) passes through unchanged — mirroring the idempotent
     /// boxing of the native `runtimeCreateFunctionValue`. `kk_lambda_*` and
     /// adapter symbols arrive as funcref table indices, which stay below the
     /// dataStart heap bound.
-    /// Locals: argumentCount = box.
     private static func emitFunctionCreateBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -11976,9 +11256,6 @@ enum WasmRuntimeHelpers {
         emitStoreAt(&code, baseLocal: 2, byteOffset: L.functionFnIdxOffset, valueLocal: 0)
         emitStoreAt(&code, baseLocal: 2, byteOffset: L.functionClosureOffset, valueLocal: 1)
         emitStoreAtConst(&code, baseLocal: 2, byteOffset: L.functionArityOffset, value: Int64(arity))
-        // Register FunctionN.invoke (method 0, iface slot 0) so the box also
-        // answers `f is FunctionN` / iface-typed invokes; dispatch lands back
-        // on this same invoke helper with the receiver-first ABI.
         let invokeName = arity == 0 ? "kk_function_invoke_0"
             : arity == 1 ? "kk_function_invoke"
             : "kk_function_invoke_\(arity)"
@@ -12002,14 +11279,12 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
     }
 
-    /// `(fnObj, args...) -> i64`: invoke a function value of `valueArity`
     /// parameters. Three shapes resolve to two call_indirect signatures:
     ///   - box → `fn(closure, args...)`   (closure-first ABI)
     ///   - callable object → `invoke(obj, args...)` via the FunctionN itable
     ///     (same signature — the receiver occupies the first slot)
     ///   - raw funcref index → `fn(args...)` (flat ABI, no closure)
     /// `fnObj < dataStart` distinguishes table indices from heap pointers.
-    /// Locals: argumentCount = fnIdx, +1 = first-arg staging, +2 = spare.
     private static func emitFunctionInvokeBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12017,7 +11292,6 @@ enum WasmRuntimeHelpers {
     ) {
         let fnIdxLocal = valueArity + 1
         let argLocal = valueArity + 2
-        // Null / sentinel receivers surface as NPE through the thrown channel.
         code.localGet(0)
         code.i64Const(0)
         code.op(WasmOpcode.i64Eq)
@@ -12034,7 +11308,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Raw funcref index: flat `fn(args...)`.
         code.localGet(0)
         code.i64Const(L.dataStart)
         code.op(WasmOpcode.i64LtS)
@@ -12047,7 +11320,6 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity)))
         code.op(WasmOpcode.return)
         code.end()
-        // Box: `fn(closure, args...)`.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(L.functionValueTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -12065,8 +11337,6 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity + 1)))
         code.op(WasmOpcode.return)
         code.end()
-        // Callable object: `invoke(receiver, args...)` through the
-        // FunctionN itable — same signature shape as the box path.
         code.localGet(0)
         code.i64Const(stableNominalTypeID("kotlin.Function.Function\(valueArity)"))
         code.i64Const(0)
@@ -12091,11 +11361,6 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(valueArity + 1)))
     }
 
-    /// `(fnObj) -> i64`: `kk_function_value_fn_ptr` / `closure_raw` — recover
-    /// the raw pair a collection HOF helper invokes directly. Boxes read
-    /// their fields; callable objects resolve through the FunctionN itable
-    /// (closure = the object itself); raw table indices are already the pair.
-    /// Locals: argumentCount = probe index, +1/+2 = spares.
     private static func emitFunctionValueResolveBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12105,7 +11370,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(L.dataStart)
         code.op(WasmOpcode.i64LtS)
         code.openIf()
-        // Raw index: the value itself is the fnPtr; it owns no closure.
         if wantClosure {
             code.i64Const(0)
         } else {
@@ -12127,7 +11391,6 @@ enum WasmRuntimeHelpers {
             code.localGet(0)
             code.op(WasmOpcode.return)
         }
-        // Callable object: scan Function0..6 for a registered invoke.
         for arity in 0...6 {
             code.localGet(0)
             code.i64Const(stableNominalTypeID("kotlin.Function.Function\(arity)"))
@@ -12146,9 +11409,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(iterator) -> i64`: shared map-iterator `next` — CME check, bounds,
-    /// then key-or-entry depending on the iterator's type ID.
-    /// Locals: argumentCount = container, +1 = index, +2 = key, +3 = count.
     private static func emitMapIteratorNextBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12158,7 +11418,6 @@ enum WasmRuntimeHelpers {
         let keyL = argumentCount + 2, countL = argumentCount + 3
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listArrayOffset)
         code.localSet(containerL)
-        // CME: expected (@32) vs live modCount.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.listFlagsOffset)
         emitLoadAt(&code, baseLocal: containerL, byteOffset: L.mapFlagsOffset)
         code.i64Const(L.modCountShift)
@@ -12186,7 +11445,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // key = map.keys[index]; index += 1.
         emitLoadAt(&code, baseLocal: containerL, byteOffset: L.mapKeysOffset)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(indexL)
@@ -12201,7 +11459,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.i64Add)
         code.i64Store(offset: 0)
-        // Mutable iterator returns a live entry; read-only returns the key.
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.i64Const(L.mutableMapIteratorTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -12214,10 +11471,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(map, key) -> MutableEntry box`: live entry view used by map iterators
-    /// and `entries`. Shares the pair layout; nonzero mapRef keeps
-    /// `second`/`setValue` backed by `map[key]`.
-    /// Locals: argumentCount = entry object.
     private static func emitMapEntryNewBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12231,7 +11484,6 @@ enum WasmRuntimeHelpers {
         emitStoreAt(&code, baseLocal: objL, byteOffset: L.pairFirstOffset, valueLocal: 1)
         emitStoreAt(&code, baseLocal: objL, byteOffset: L.pairMapRefOffset, valueLocal: 0)
         emitStoreAt(&code, baseLocal: objL, byteOffset: L.pairMapKeyOffset, valueLocal: 1)
-        // second = map[key] (snapshot for pair-like use; mapRef keeps it live).
         emitAddress(&code, baseLocal: objL, byteOffset: L.pairSecondOffset)
         code.localGet(0)
         code.localGet(1)
@@ -12244,11 +11496,6 @@ enum WasmRuntimeHelpers {
         code.localGet(objL)
     }
 
-    // MARK: - Higher-order collection helpers
-
-    /// Pushes the f64 bit pattern for a compare operand: Double boxes
-    /// reinterpret their `{bits@16}` payload, Float boxes promote, everything
-    /// else converts the raw i64 scalar.
     private static func emitFpOperandBits(
         _ code: inout WasmCode,
         argLocal: Int,
@@ -12285,7 +11532,6 @@ enum WasmRuntimeHelpers {
         xBits: Int,
         yBits: Int
     ) {
-        // NaN checks: NaN != itself.
         code.localGet(xBits)
         code.op(WasmOpcode.f64ReinterpretI64)
         code.localGet(xBits)
@@ -12311,7 +11557,6 @@ enum WasmRuntimeHelpers {
         code.openIf(result: .i64)
         code.i64Const(-1)
         code.elseBranch()
-        // Equal value: distinguish -0.0/+0.0 by the sign bit.
         code.localGet(xBits)
         code.op(WasmOpcode.f64ReinterpretI64)
         code.localGet(yBits)
@@ -12353,10 +11598,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(a, b) -> -1|0|1`: the compareValues core — sentinel ordering, string
-    /// lexicographic bytes, fp total order, Comparable itable dispatch on the
-    /// lhs, signed fallback. Locals (argc base): aHeap, bHeap, tA, tB, fn,
-    /// xBits, yBits, fpA, fpB.
     private static func emitCompareValuesBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12414,7 +11655,6 @@ enum WasmRuntimeHelpers {
         code.end()
         code.op(WasmOpcode.return)
         code.end()
-        // Nominal tags for heap operands (0 for raw).
         for (arg, flag, tag) in [(0, aH, tA), (1, bH, tB)] {
             code.localGet(flag)
             code.i64Truthy()
@@ -12450,7 +11690,6 @@ enum WasmRuntimeHelpers {
         emitFpTotalOrderBits(&code, xBits: bx, yBits: by)
         code.op(WasmOpcode.return)
         code.end()
-        // Two strings compare lexicographically on their byte payloads.
         code.localGet(tA)
         code.i64Const(L.stringTypeID)
         code.op(WasmOpcode.i64Eq)
@@ -12489,7 +11728,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.return)
         code.end()
         code.end()
-        // Signed fallback — identity ordering.
         code.localGet(0)
         code.localGet(1)
         code.op(WasmOpcode.i64LtS)
@@ -12500,8 +11738,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(a, b) -> -1|0|1`: lexicographic byte compare on string objects.
-    /// Locals (argc base): i, lenA, lenB, min, dA, dB, diff.
     private static func emitStringCompareBody(
         _ code: inout WasmCode,
         argumentCount: Int
@@ -12589,11 +11825,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(comparator, a, b) -> -1|0|1`: `comparator.compare(a, b)` through the
-    /// `kotlin.Comparator` itable (iface slot 0, method slot 0). A zero
-    /// comparator or a lookup miss falls back to natural ordering — mirrors
-    /// `runtimeInvokeComparator`.
-    /// Locals (argc base): fn.
     private static func emitInvokeComparatorBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12634,9 +11865,6 @@ enum WasmRuntimeHelpers {
         code.callIndirect(ctx.module.funcTypeIndex(.i64Signature(3)))
     }
 
-    /// `() -> comparator box`: a real object carrying the `kotlin.Comparator`
-    /// itable so `sortedWith(naturalOrder())` dispatches through the generic
-    /// comparator path. Locals (argc base): obj.
     private static func emitComparatorFactoryBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12681,11 +11909,6 @@ enum WasmRuntimeHelpers {
         case comparator, selector, comparison
     }
 
-    /// `(list, cmp|selector, descending?) -> 0`: in-place stable insertion
-    /// sort on the shared list layout. `.comparator` invokes through the
-    /// Comparator itable, `.selector` compares invoked keys, `.comparison`
-    /// calls the two-arg function value directly.
-    /// Locals (argc base): n, arr, i, j, e, c, ka, kb, unused.
     private static func emitStableSortBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12708,7 +11931,6 @@ enum WasmRuntimeHelpers {
         code.localGet(n)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // e = arr[i]; j = i
         code.localGet(arr)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(i)
@@ -12726,7 +11948,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64LeS)
         code.brIf(1)
-        // c = compare(arr[j-1], e) — mode-dependent.
         switch mode {
         case .comparator:
             code.localGet(1)
@@ -12766,7 +11987,6 @@ enum WasmRuntimeHelpers {
                 for: "kk_function_invoke", argumentCount: 2
             ))
             code.localSet(kb)
-            // descending swaps the compare operands.
             code.localGet(2)
             code.i64Truthy()
             code.openIf()
@@ -12804,7 +12024,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64LeS)
         code.brIf(1)
-        // arr[j] = arr[j-1]; j -= 1
         code.localGet(arr)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(j)
@@ -12830,7 +12049,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // arr[j] = e
         code.localGet(arr)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(j)
@@ -12850,9 +12068,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(list, descending) -> 0`: in-place sort on a primitive array's i64
-    /// slots (signed compare; fp receivers route through a dedicated helper).
-    /// Locals (argc base): n, i, j, e, c, ka, kb, unused.
     private static func emitPrimArraySortBody(
         _ code: inout WasmCode,
         argumentCount: Int
@@ -12968,8 +12183,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `(a, b) -> min|max`: the two-arg `minOf`/`maxOf` leaf.
-    /// Locals (argc base): c.
     private static func emitMinMaxOfBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -12992,9 +12205,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(index, value) -> IndexedValue box`: shares the pair layout under the
-    /// `kotlin.collections.IndexedValue` nominal tag.
-    /// Locals (argc base): obj.
     private static func emitIndexedValueNewBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13010,7 +12220,6 @@ enum WasmRuntimeHelpers {
         code.localGet(obj)
     }
 
-    /// Marker emission for throws: ctor value → thrownGlobal → return 0.
     private static func emitThrow(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13029,10 +12238,6 @@ enum WasmRuntimeHelpers {
         case sorted, sortedDesc, sortedWith, sortedBy, sortedByDesc
     }
 
-    /// `(iterable[, n|other|comparator|fn]) -> collection`: generic iterator
-    /// — driven collect materializing ArrayList/Set boxes. Modes annotate the
-    /// destination box kind and the per-element action.
-    /// Locals (argc base): it, dst, e, i, prev/dst2, it2, arr, cnt.
     private static func emitIterCollectBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13044,7 +12249,6 @@ enum WasmRuntimeHelpers {
         let aux = argumentCount + 4, it2 = argumentCount + 5
         let arr = argumentCount + 6, cnt = argumentCount + 7
         let isSet = mode == .toMutableSet || mode == .toHashSet || mode == .toSet
-        // Iterator + destination box.
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(
             for: "kk_iterable_iterator", argumentCount: 1
@@ -13074,7 +12278,6 @@ enum WasmRuntimeHelpers {
             ))
             code.localSet(dst)
         }
-        // zip's second iterator; unzip's second destination.
         if mode == .zip {
             code.localGet(1)
             code.call(ctx.emittedHelperIndex(
@@ -13093,7 +12296,6 @@ enum WasmRuntimeHelpers {
             ))
             code.localSet(aux)
         }
-        // chunked's current window.
         if mode == .chunked {
             code.localGet(1)
             code.i64Const(0)
@@ -13111,7 +12313,7 @@ enum WasmRuntimeHelpers {
             code.call(ctx.emittedHelperIndex(
                 for: "__kk_array_list_of", argumentCount: 2
             ))
-            code.localSet(it2) // current window
+            code.localSet(it2)
         }
         code.i64Const(0)
         code.localSet(i)
@@ -13158,7 +12360,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64Add)
             code.localSet(i)
         case .distinct:
-            // Dedup append — the set-add helper shares the list layout.
             code.localGet(dst)
             code.localGet(e)
             code.call(ctx.emittedHelperIndex(
@@ -13320,7 +12521,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Post-pass modes.
         switch mode {
         case .reversed, .sortedDesc:
             if mode == .sortedDesc {
@@ -13331,7 +12531,6 @@ enum WasmRuntimeHelpers {
                 ))
                 code.op(WasmOpcode.drop)
             }
-            // Reverse dst's backing array in place.
             emitLoadAt(&code, baseLocal: dst, byteOffset: L.listArrayOffset)
             code.localSet(arr)
             emitLoadAt(&code, baseLocal: dst, byteOffset: L.listCountOffset)
@@ -13346,7 +12545,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64ShrU)
             code.op(WasmOpcode.i64GeU)
             code.brIf(1)
-            // swap arr[i], arr[cnt-1-i] via `e`/`it2` as scratch
             code.localGet(arr)
             code.op(WasmOpcode.i32WrapI64)
             code.localGet(i)
@@ -13431,7 +12629,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.drop)
             code.end()
         case .unzip:
-            // Return Pair(dst, aux).
             code.localGet(dst)
             code.localGet(aux)
             code.call(ctx.emittedHelperIndex(
@@ -13451,10 +12648,6 @@ enum WasmRuntimeHelpers {
         case single, singleOrNull, elementAt, elementAtOrNull
     }
 
-    /// `(iterable[, index]) -> element|count|sum`: generic fold over the
-    /// registered iterator. `min`/`max` compare through the compareValues
-    /// core; `OrNull` variants return the null sentinel on empty.
-    /// Locals (argc base): it, e, acc, i.
     private static func emitIterScalarBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13468,7 +12661,6 @@ enum WasmRuntimeHelpers {
             for: "kk_iterable_iterator", argumentCount: 1
         ))
         code.localSet(it)
-        // Modes returning early on emptiness.
         if mode == .first || mode == .firstOrNull {
             code.localGet(it)
             code.call(ctx.emittedHelperIndex(
@@ -13525,7 +12717,6 @@ enum WasmRuntimeHelpers {
                 for: "kk_iterator_next", argumentCount: 1
             ))
             code.localSet(e)
-            // min: e < acc → acc = e ; max: e > acc → acc = e
             code.localGet(e)
             code.localGet(acc)
             code.call(ctx.emittedHelperIndex(
@@ -13585,7 +12776,6 @@ enum WasmRuntimeHelpers {
             code.localGet(e)
             return
         }
-        // Loop-driven modes.
         code.i64Const(0)
         code.localSet(acc)
         code.i64Const(0)
@@ -13616,7 +12806,6 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64Add)
             code.localSet(acc)
         case .sumFp:
-            // acc holds f64 bits; e unboxes via the box path.
             emitLoadAt(&code, baseLocal: e, byteOffset: 16)
             code.op(WasmOpcode.f64ReinterpretI64)
             code.localGet(acc)
@@ -13647,7 +12836,6 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        // Exhausted.
         switch mode {
         case .last, .lastOrNull:
             if hasFlag {
@@ -13687,8 +12875,6 @@ enum WasmRuntimeHelpers {
         case sumInt, sumFp, sortedCopy, sortedCopyDesc
     }
 
-    /// `(array) -> sum|sorted copy`: primitive-array scans on i64 slots.
-    /// Locals (argc base): n, i, acc, dst.
     private static func emitPrimArrayScanBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13701,8 +12887,6 @@ enum WasmRuntimeHelpers {
         emitLoadMetaBody(&code)
         code.localSet(n)
         if mode == .sortedCopy || mode == .sortedCopyDesc {
-            // `*Array.sorted()/sortedDescending(): List` — copy into a
-            // fresh array, insertion-sort the copy, then box it read-only.
             code.localGet(n)
             code.call(ctx.emittedHelperIndex(
                 for: "kk_array_new", argumentCount: 1
@@ -13792,8 +12976,6 @@ enum WasmRuntimeHelpers {
         code.localGet(acc)
     }
 
-    /// `(value) -> 0`: `println(Any?)`/`print(Any?)` — any_to_string(tag 1)
-    /// then the WASI writer. Locals (argc base): s.
     private static func emitPrintAnyBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13807,12 +12989,10 @@ enum WasmRuntimeHelpers {
         emitPrintBody(&code, ctx: ctx, newline: newline)
     }
 
-    /// `() -> 0`: bare `println()` — newline only.
     private static func emitPrintlnEmptyBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
     ) {
-        // KUU-4156: a closed `System.out` drops later writes.
         let closedGlobal = ctx.module.addGlobal(
             initialValue: 0, name: consoleClosedGlobalName(fd: 1)
         )
@@ -13832,8 +13012,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `char -> string`: UTF-8 encode the code unit into a 3-byte scratch
-    /// buffer then materialize the literal. Locals (argc base): buf, len.
     private static func emitCharToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13940,9 +13118,6 @@ enum WasmRuntimeHelpers {
         case list, map
     }
 
-    /// `(collection) -> string`: Kotlin's `[a, b]`/`{k=v}` rendering through
-    /// the generic iterator. Map iterates its entry boxes via the map
-    /// iterator. Locals (argc base): it, res, i, e, sep, unused×3.
     private static func emitCollectionToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -13997,7 +13172,6 @@ enum WasmRuntimeHelpers {
         ))
         code.localSet(e)
         if isMap {
-            // entry → "k=v" via the pair slots.
             code.localGet(res)
             code.localGet(e)
             code.call(ctx.emittedHelperIndex(
@@ -14052,7 +13226,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(a, b) -> 0|1`: `==`/`!=` on mixed raw/nullable operands. Both the
     /// `0` literal and the Int64.min sentinel spell Kotlin `null` — normalize
     /// either to 0 before delegating to `__kk_wasm_elem_eq`, which covers
     /// identity, raw scalars, and structural string equality. Mirrors the
@@ -14078,7 +13251,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// `(pair) -> "(first, second)"`. Locals (argc base): res.
     private static func emitPairToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext) {
@@ -14115,9 +13287,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(entry) -> "key=value"` — the Map.Entry rendering. The live-view
-    /// `second` slot resolves through `__kk_pair_second`.
-    /// Locals (argc base): res.
     private static func emitEntryToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext) {
@@ -14146,9 +13315,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(range) -> "f..l" | "f..l step s"`: range/progression rendering —
-    /// CharRange/CharProgression endpoints go through the char encoder.
-    /// Locals (argc base): typeID, res.
     private static func emitRangeToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -14157,7 +13323,6 @@ enum WasmRuntimeHelpers {
         let t = argumentCount, res = argumentCount + 1
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(t)
-        // Endpoint at `slot`: char ranges render through the char encoder.
         func endpoint(_ slot: Int64) {
             code.localGet(t)
             code.i64Const(stableNominalTypeID("kotlin.ranges.CharRange"))
@@ -14189,7 +13354,6 @@ enum WasmRuntimeHelpers {
             for: "__kk_string_concat_flat", argumentCount: 2
         ))
         code.localSet(res)
-        // Progressions append " step N"; closed ranges don't.
         for fqName in [
             "kotlin.ranges.IntProgression",
             "kotlin.ranges.LongProgression",
@@ -14218,7 +13382,6 @@ enum WasmRuntimeHelpers {
         code.localGet(res)
     }
 
-    /// `(iv) -> "IndexedValue(index=i, value=v)"`. Locals (argc base): res.
     private static func emitIndexedValueToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext) {
@@ -14255,17 +13418,10 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `obj -> i64`: JVM-style identity rendering `Descriptor@hexHash` for
-    /// array boxes (mirrors `runtimeArrayIdentityToString`). The descriptor
-    /// resolves from the typeID slot; the hash is the low 32 bits of the
-    /// object address. Returns 0 for non-array typeIDs so callers can fall
-    /// through to other rendering.
     private static func emitArrayIdentityToStringBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext
     ) {
-        // locals: 1 = tid, 2 = nameObj, 3 = buf, 4 = v/hexStr, 5 = i,
-        // 6 = nibble, 7 = digit
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(1)
         // KUU-4001: JVM Object.toString() on an array spells the class name
@@ -14305,8 +13461,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Write the eight lowercase hex digits of `obj & 0xFFFFFFFF` into a
-        // scratch buffer, most significant nibble first.
         code.i64Const(8)
         code.call(ctx.emittedHelperIndex(
             for: "$__kk_wasm_alloc", argumentCount: 1
@@ -14324,7 +13478,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(8)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // nibble = (v >> (28 - i*4)) & 0xF
         code.localGet(4)
         code.i64Const(28)
         code.localGet(5)
@@ -14335,7 +13488,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(15)
         code.op(WasmOpcode.i64And)
         code.localSet(6)
-        // digit = nibble + (nibble < 10 ? '0' : 'a' - 10)
         code.localGet(6)
         code.i64Const(10)
         code.op(WasmOpcode.i64LtU)
@@ -14349,7 +13501,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.end()
         code.localSet(7)
-        // buf[i] = digit
         code.localGet(3)
         code.localGet(5)
         code.op(WasmOpcode.i64Add)
@@ -14381,8 +13532,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// Emits a `fail` jump: orNull → return the null sentinel, strict →
-    /// NumberFormatException through the thrown channel.
     private static func emitParseFail(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -14398,9 +13547,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.return)
     }
 
-    /// `(string) -> int|long`: Kotlin `toInt`/`toLong` — optional sign,
-    /// digits only, overflow → fail. Locals (argc base): i, len, data, acc,
-    /// neg, d.
     private static func emitStringParseIntBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -14430,14 +13576,14 @@ enum WasmRuntimeHelpers {
         code.i64ExtendFromComparison()
         code.localSet(d)
         code.localGet(d)
-        code.i64Const(0x2B) // '+'
+        code.i64Const(0x2B)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         code.i64Const(1)
         code.localSet(i)
         code.end()
         code.localGet(d)
-        code.i64Const(0x2D) // '-'
+        code.i64Const(0x2D)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         code.i64Const(1)
@@ -14474,7 +13620,6 @@ enum WasmRuntimeHelpers {
         code.openIf()
         emitParseFail(&code, ctx: ctx, orNull: orNull)
         code.end()
-        // Overflow guard before acc*10+d.
         code.localGet(acc)
         code.i64Const(Int64.max / 10 - 1)
         code.op(WasmOpcode.i64GtU)
@@ -14527,8 +13672,6 @@ enum WasmRuntimeHelpers {
         code.localGet(acc)
     }
 
-    /// `(string) -> 1|0`: Kotlin `toBoolean` — "true" case-insensitive.
-    /// Locals (argc base): i, data.
     private static func emitStringToBooleanBody(
         _ code: inout WasmCode,
         argumentCount: Int
@@ -14551,7 +13694,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(4)
         code.op(WasmOpcode.i64GeS)
         code.brIf(1)
-        // Fold byte to lowercase (ASCII) and compare with "true"[i].
         code.localGet(data)
         code.op(WasmOpcode.i32WrapI64)
         code.localGet(i)
@@ -14561,25 +13703,24 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64ExtendI32U)
         code.i64Const(0x20)
         code.op(WasmOpcode.i64Or)
-        // "true"[i] via nested selects.
         code.localGet(i)
         code.op(WasmOpcode.i64Eqz)
         code.openIf(result: .i64)
-        code.i64Const(0x74) // 't'
+        code.i64Const(0x74)
         code.elseBranch()
         code.localGet(i)
         code.i64Const(1)
         code.op(WasmOpcode.i64Eq)
         code.openIf(result: .i64)
-        code.i64Const(0x72) // 'r'
+        code.i64Const(0x72)
         code.elseBranch()
         code.localGet(i)
         code.i64Const(2)
         code.op(WasmOpcode.i64Eq)
         code.openIf(result: .i64)
-        code.i64Const(0x75) // 'u'
+        code.i64Const(0x75)
         code.elseBranch()
-        code.i64Const(0x65) // 'e'
+        code.i64Const(0x65)
         code.end()
         code.end()
         code.end()
@@ -14598,10 +13739,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
     }
 
-    /// `(string) -> fp bits`: Kotlin `toDouble`/`toFloat` — sign, integer
-    /// digits, optional fraction and exponent; the decimal scale applies via
-    /// pow10 mul/div. Locals (argc base): i, len, data, v, scale, neg, d,
-    /// e10, esign, unused.
     private static func emitStringParseFpBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -14609,322 +13746,67 @@ enum WasmRuntimeHelpers {
         orNull: Bool,
         argumentCount: Int
     ) {
-        let i = argumentCount, len = argumentCount + 1
-        let data = argumentCount + 2, v = argumentCount + 3
-        let scale = argumentCount + 4, neg = argumentCount + 5
-        let d = argumentCount + 6, e10 = argumentCount + 7
-        let esign = argumentCount + 8, dot = argumentCount + 9
+        let len = argumentCount, data = argumentCount + 1
+        let scratch = argumentCount + 2, bits = argumentCount + 3
+        let heapBefore = argumentCount + 4, scratchSize = argumentCount + 5
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localSet(len)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localSet(data)
-        code.i64Const(0)
-        code.localSet(i)
-        code.i64Const(0)
-        code.localSet(neg)
+
+        // wasm_decimal_parse.c lays scratch out as the length-byte digit copy,
+        // 8-byte alignment padding, nine (length + 1024)-limb u32 big integers,
+        // and 64 bytes of slack. The generated parser performs no allocations,
+        // so its allocation is always the heap top. Zero it before rewinding:
+        // later object allocations rely on fresh linear memory being zeroed.
+        code.globalGet(ctx.heapGlobal)
+        code.localSet(heapBefore)
         code.localGet(len)
-        code.op(WasmOpcode.i64Eqz)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        code.localGet(d)
-        code.i64Const(0x2B)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(i)
-        code.end()
-        code.localGet(d)
-        code.i64Const(0x2D)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(i)
-        code.i64Const(1)
-        code.localSet(neg)
-        code.end()
-        code.localGet(i)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64Add)
+        code.i64Const(-8)
+        code.op(WasmOpcode.i64And)
         code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.i64Const(0)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.i64Const(0)
-        code.localSet(scale)
-        code.i64Const(0)
-        code.localSet(e10)
-        code.i64Const(0)
-        code.localSet(esign)
-        code.i64Const(0)
-        code.localSet(dot)
-        code.openBlock()
-        code.openLoop()
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.brIf(1)
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        // '.' — second dot fails.
-        code.localGet(d)
-        code.i64Const(0x2E)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(dot)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.i64Const(1)
-        code.localSet(dot)
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(1)
-        code.end()
-        // 'e'/'E' exits to the exponent stage.
-        code.localGet(d)
-        code.i64Const(0x20)
-        code.op(WasmOpcode.i64Or)
-        code.i64Const(0x65)
-        code.op(WasmOpcode.i64Eq)
-        code.brIf(1)
-        code.localGet(d)
-        code.i64Const(0x30)
-        code.op(WasmOpcode.i64Sub)
-        code.localTee(d)
-        code.i64Const(9)
-        code.op(WasmOpcode.i64GtU)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Mul)
-        code.localGet(d)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Add)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(dot)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(scale)
-        code.end()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(0)
-        code.end()
-        code.end()
-        // Optional exponent — `i` sits past 'e' when the loop broke on it.
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.i64Const(0x20)
-        code.op(WasmOpcode.i64Or)
-        code.i64Const(0x65)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        code.localGet(d)
-        code.i64Const(0x2D)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(esign)
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.elseBranch()
-        code.localGet(d)
-        code.i64Const(0x2B)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.end()
-        code.end()
-        code.end()
-        code.openBlock()
-        code.openLoop()
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.brIf(1)
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.i64Const(0x30)
-        code.op(WasmOpcode.i64Sub)
-        code.localTee(d)
-        code.i64Const(9)
-        code.op(WasmOpcode.i64GtU)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(e10)
-        code.i64Const(10)
+        code.i64Const(36)
         code.op(WasmOpcode.i64Mul)
-        code.localGet(d)
         code.op(WasmOpcode.i64Add)
-        code.localSet(e10)
-        code.localGet(i)
-        code.i64Const(1)
+        code.i64Const(36 * 1024 + 64)
         code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(0)
-        code.end()
-        code.end()
-        code.end()
-        code.end()
-        code.localGet(i)
+        code.localTee(scratchSize)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(scratch)
+
+        code.localGet(data)
         code.localGet(len)
-        code.op(WasmOpcode.i64Ne)
+        code.localGet(scratch)
+        code.i64Const(wide ? 0 : 1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_decimal_parse_exact", argumentCount: 4))
+        code.localSet(bits)
+        code.localGet(scratch)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(0)
+        code.localGet(scratchSize)
+        code.i64Const(16 + 7)
+        code.op(WasmOpcode.i64Add)
+        code.i64Const(-8)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.truncSatPrefix)
+        code.u(WasmOpcode.memoryFillSubopcode)
+        code.u(0)
+        code.localGet(heapBefore)
+        code.globalSet(ctx.heapGlobal)
+        code.localGet(bits)
+        code.i64Const(-1)
+        code.op(WasmOpcode.i64Eq)
         code.openIf()
         emitParseFail(&code, ctx: ctx, orNull: orNull)
         code.end()
-        // scale = (esign ? -e10 : e10) - scale; cap at ±400.
-        code.localGet(esign)
-        code.i64Truthy()
-        code.openIf(result: .i64)
-        code.i64Const(0)
-        code.localGet(e10)
-        code.op(WasmOpcode.i64Sub)
-        code.elseBranch()
-        code.localGet(e10)
-        code.end()
-        code.localGet(scale)
-        code.op(WasmOpcode.i64Sub)
-        code.localSet(scale)
-        code.localGet(scale)
-        code.i64Const(400)
-        code.op(WasmOpcode.i64GtS)
-        code.openIf()
-        code.i64Const(400)
-        code.localSet(scale)
-        code.end()
-        code.localGet(scale)
-        code.i64Const(-400)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.i64Const(-400)
-        code.localSet(scale)
-        code.end()
-        code.openBlock()
-        code.openLoop()
-        code.localGet(scale)
-        code.op(WasmOpcode.i64Eqz)
-        code.brIf(1)
-        code.localGet(scale)
-        code.i64Const(0)
-        code.op(WasmOpcode.i64GtS)
-        code.openIf()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Mul)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Sub)
-        code.localSet(scale)
-        code.elseBranch()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Div)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(scale)
-        code.end()
-        code.br(0)
-        code.end()
-        code.end()
-        code.localGet(neg)
-        code.i64Truthy()
-        code.openIf(result: .f64)
-        code.i64Const(0)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.op(WasmOpcode.f64Sub)
-        code.elseBranch()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.end()
-        if wide {
-            code.op(WasmOpcode.i64ReinterpretF64)
-        } else {
-            code.op(WasmOpcode.f32DemoteF64)
-            code.op(WasmOpcode.i32ReinterpretF32)
-            code.op(WasmOpcode.i64ExtendI32U)
-        }
+        code.localGet(bits)
     }
 
-    /// `(s, delim[, missing]) -> string`: substringAfter/Before(/Last) —
-    /// `missing` (arg 2, 0 = self) rides the `$default` forwarder shape.
-    /// Locals (argc base): idx, dlen, start, end, slen.
     private static func emitStringSliceAtMatchBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -14960,7 +13842,6 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64LtS)
         code.openIf()
-        // Not found → missing arg (==0 → self).
         if argumentCount > 2 {
             code.localGet(2)
             code.op(WasmOpcode.i64Eqz)
@@ -14999,8 +13880,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(s, affix) -> string`: removePrefix/removeSuffix.
-    /// Locals (argc base): alen, slen, ok.
     private static func emitStringRemoveAffixBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -15043,9 +13922,6 @@ enum WasmRuntimeHelpers {
         code.end()
     }
 
-    /// `(s, targetLen, padChar) -> string`: padStart/padEnd — pads by the
-    /// UTF-8 encoding of the char param, `need` times (charLen semantics).
-    /// Locals (argc base): pad, plen, need, sBytes, i, buf, j, padB, sB, sD.
     private static func emitStringPadBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -15092,7 +13968,6 @@ enum WasmRuntimeHelpers {
         code.localSet(buf)
         code.i64Const(0)
         code.localSet(i)
-        // Copy `sB` bytes from `sD` to `buf+i` — `j` is the cursor.
         func emitSCopy() {
             code.i64Const(0)
             code.localSet(j)
@@ -15131,7 +14006,6 @@ enum WasmRuntimeHelpers {
             code.localSet(sB)
             emitSCopy()
         }
-        // `need` copies of the pad's `plen` bytes.
         code.openBlock()
         code.openLoop()
         code.localGet(need)
@@ -15187,8 +14061,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(s) -> List<string>`: `lines()` — split on \r\n / \n / \r.
-    /// Locals (argc base): dst, i, start, len, data, e.
     private static func emitStringLinesBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -15245,7 +14117,6 @@ enum WasmRuntimeHelpers {
             for: "__kk_mutable_list_add", argumentCount: 2
         ))
         code.op(WasmOpcode.drop)
-        // \r\n consumes both bytes.
         code.localGet(e)
         code.i64Const(0x0D)
         code.op(WasmOpcode.i64Eq)
@@ -15304,9 +14175,6 @@ enum WasmRuntimeHelpers {
         code.localGet(dst)
     }
 
-    /// `(recv, sep, prefix, postfix, limit, truncated, transform[, mask]) ->
-    /// string`: the full `joinToString` shape. Locals (argc base): it, res,
-    /// i, e, sepObj, postObj, truncObj, tf.
     private static func emitJoinToStringFullBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -15340,7 +14208,6 @@ enum WasmRuntimeHelpers {
             code.end()
             code.localSet(dstL)
         }
-        // prefix (param 1) seeds the accumulator; "" when defaulted.
         code.localGet(mask)
         code.i64Const(2)
         code.op(WasmOpcode.i64And)
@@ -15351,7 +14218,6 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
         code.end()
         code.localSet(res)
-        // limit (param 3): defaulted → -1 (no cap). A real 0 is honoured.
         code.localGet(mask)
         code.i64Const(8)
         code.op(WasmOpcode.i64And)
@@ -15362,7 +14228,6 @@ enum WasmRuntimeHelpers {
         code.localGet(4)
         code.end()
         code.localSet(limitL)
-        // transform (param 5): defaulted → 0 (identity).
         code.localGet(mask)
         code.i64Const(32)
         code.op(WasmOpcode.i64And)
@@ -15388,7 +14253,6 @@ enum WasmRuntimeHelpers {
         ))
         code.op(WasmOpcode.i64Eqz)
         code.brIf(1)
-        // limit >= 0 && i >= limit → append truncated + break.
         code.localGet(limitL)
         code.i64Const(0)
         code.op(WasmOpcode.i64GeS)
@@ -15465,8 +14329,6 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `(message?) -> 0`: `kotlin.error`/`kotlin.TODO` — IllegalStateException
-    /// through the thrown channel (TODO uses its canonical message).
     private static func emitErrorTodoBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
@@ -15474,9 +14336,6 @@ enum WasmRuntimeHelpers {
         argumentCount: Int
     ) {
         if todo {
-            // JVM parity: `TODO(reason)` throws
-            // `NotImplementedError("An operation is not implemented: " + reason)`;
-            // `TODO()` throws `NotImplementedError()` with no message.
             if argumentCount > 0 {
                 emitLiteralString(&code, ctx: ctx,
                                   "An operation is not implemented: ")
@@ -15516,38 +14375,22 @@ enum WasmRuntimeHelpers {
         return payload == 0 ? 1 : payload
     }
 
-    /// What a `__kk_*`/ `kk_*` throwable intrinsic lowers to on wasm.
     private enum ThrowableHelperKind {
-        /// Constructor: allocate the throwable box and store message/cause.
-        /// `messageArg`/`causeArg` are parameter indices, `nil` when absent.
         case ctor(fqName: String, messageArg: Int?, causeArg: Int?)
-        /// `__kk_throwable_message(obj)` — read the message slot.
         case message
-        /// `__kk_throwable_setMessage(obj, message)` — write the message slot.
         case setMessage
-        /// `__kk_throwable_cause(obj)` — read the cause slot.
         case cause
-        /// `__kk_throwable_setCause(obj, cause)` — write the cause slot.
         case setCause
         /// `__kk_throwable_initCause(obj, cause)` — JVM-guarded initCause on
         /// the native runtime; the wasm MVP has no initialized flag, so this
         /// stores the cause like `setCause` and returns the receiver.
         case initCause
-        /// `__kk_throwable_adoptCause(obj, source)` — copy the cause slot from
-        /// a factory-produced throwable onto a subclass instance.
         case adoptCause
-        /// `__kk_throwable_toString(obj)` — `"fqName"` or `"fqName: message"`.
         case toString
-        /// `__kk_throwable_suppressedRaw(obj)` — lazily-allocated array slot.
         case suppressedRaw
-        /// `kotlin.suppressedExceptions` getter — the raw array wrapped in a
-        /// read-only List box.
         case suppressedList
-        /// `__kk_throwable_appendSuppressed(obj, suppressed)` — bounded append.
         case appendSuppressed
-        /// `__kk_throwable_rawStackFrames(obj)` — empty array (no frames yet).
         case rawStackFrames
-        /// `__kk_throwable_set_options(...)` — accepted and ignored for now.
         case setOptions
     }
 
@@ -15557,12 +14400,8 @@ enum WasmRuntimeHelpers {
     private static let throwableCauseSlotOffset: Int64 = 24
     private static let throwableFqNameSlotOffset: Int64 = 32
     private static let throwableSuppressedSlotOffset: Int64 = 40
-    /// Fixed suppressed-list capacity for the MVP (K/N semantics allow up to
-    /// an arbitrary list; overflow is dropped and diagnosed nowhere — noted in
-    /// the plan's limitations).
     private static let throwableSuppressedCapacity: Int64 = 8
 
-    /// Callee-name prefix → fqName for `@KsSymbolName` throwable ctors.
     private static let throwableTypeByCalleePrefix: [(prefix: String, fqName: String)] = [
         ("__kk_throwable", "kotlin.Throwable"),
         ("kk_throwable", "kotlin.Throwable"),
@@ -15598,8 +14437,6 @@ enum WasmRuntimeHelpers {
         ("__kk_kotlin_nothing_value_exception", "kotlin.KotlinNothingValueException"),
     ]
 
-    /// Registered inside every throwable ctor so `catch`/`is` walks the same
-    /// superclass DAG user classes build via `kk_type_register_super`.
     private static let throwableHierarchyEdges: [(child: String, parent: String)] = [
         ("kotlin.Error", "kotlin.Throwable"),
         ("kotlin.Exception", "kotlin.Throwable"),
@@ -15652,8 +14489,6 @@ enum WasmRuntimeHelpers {
             ("_new_with_cause", 0, 1),
             ("_new_cause", nil, 0),
             ("_new_message", 0, nil),
-            // `Throwable()`/`Throwable(message)` share `__kk_throwable_new`;
-            // the arity guard in the ctor body decides whether arg0 exists.
             ("_new", 0, nil),
         ]
         for (suffix, message, cause) in suffixes where name.hasSuffix(suffix) {
@@ -15666,8 +14501,6 @@ enum WasmRuntimeHelpers {
         return nil
     }
 
-    /// Emits the body for throwable ctor/accessor helpers, or `nil` when the
-    /// name isn't a throwable intrinsic.
     private static func emittedThrowableBody(
         for name: String,
         argumentCount: Int,
@@ -15694,9 +14527,7 @@ enum WasmRuntimeHelpers {
             code.i64Const(6) // slots: iface, vtable, message, cause, fqName, suppressed
             code.i64Const(stableNominalTypeID(fqName))
             code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
-            // The single extra local sits right after the declared params.
             code.localSet(argumentCount)
-            // fqName string object → slot 4 (drives `toString`/`printStackTrace`).
             emitAddress(&code, baseLocal: argumentCount, byteOffset: throwableFqNameSlotOffset)
             emitLiteralString(&code, ctx: ctx, fqName)
             code.i64Store(offset: 0)
@@ -15755,15 +14586,12 @@ enum WasmRuntimeHelpers {
             emitStoreAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset, valueLocal: 1)
             code.localGet(0)
         case .adoptCause:
-            // Copy the source box's cause slot (arg1) into the receiver's (arg0);
-            // the wasm MVP tracks no initialized flag, matching `setCause`.
             emitLoadAt(&code, baseLocal: 1, byteOffset: throwableCauseSlotOffset)
             code.localSet(argumentCount)
             emitStoreAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset, valueLocal: argumentCount)
             code.i64Const(0)
         case .toString:
             extraLocals = 2
-            // fq = slot 4, msg = slot 2; result = msg ? fq + ": " + msg : fq
             emitLoadAt(&code, baseLocal: 0, byteOffset: throwableFqNameSlotOffset)
             code.localSet(1)
             emitLoadAt(&code, baseLocal: 0, byteOffset: throwableMessageSlotOffset)
@@ -15804,8 +14632,6 @@ enum WasmRuntimeHelpers {
                 break
             }
             if case .suppressedList = kind {
-                // Wrap the raw array in a read-only List box; meta is already
-                // the logical count.
                 emitLoadAt(&code, baseLocal: argumentCount, byteOffset: L.metaOffset)
                 code.localSet(argumentCount + 1)
                 emitListBoxBody(
@@ -15818,7 +14644,6 @@ enum WasmRuntimeHelpers {
                 code.localGet(argumentCount + 2)
                 break
             }
-            // count = arr.meta; bail at capacity, else store + count++.
             emitLoadAt(&code, baseLocal: argumentCount, byteOffset: L.metaOffset)
             code.localTee(argumentCount + 1)
             code.i64Const(throwableSuppressedCapacity)

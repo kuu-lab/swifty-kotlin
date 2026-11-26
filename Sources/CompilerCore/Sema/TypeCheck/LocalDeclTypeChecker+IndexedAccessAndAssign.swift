@@ -1,10 +1,5 @@
 
 extension LocalDeclTypeChecker {
-    /// `kotlin.concurrent.atomics`' array classes have no `operator get`/`set`
-    /// on the real (JVM/common) API surface; index access must not fall
-    /// through to the built-in array path (KUU-1365). The legacy
-    /// `kotlin.concurrent` arrays keep their bundled `get`/`set` extensions
-    /// and never reach this check.
     func isCanonicalAtomicArrayReceiver(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -24,8 +19,6 @@ extension LocalDeclTypeChecker {
             || symbol.name == interner.intern("AtomicArray")
     }
 
-    /// Returns the element type only for Kotlin's built-in array classes.
-    /// Generic type arguments alone do not make an arbitrary class indexable.
     func builtinArrayElementType(
         for receiverType: TypeID,
         sema: SemaModule,
@@ -150,11 +143,6 @@ extension LocalDeclTypeChecker {
         }
     }
 
-    /// For `a?.b[i]` and chained reads like `a?.b[i][j]`, the indexed `get`
-    /// runs on the non-null value inside the safe chain. A safe member must
-    /// select a non-null member; a nested safe indexed read continues only when
-    /// its stored element type is non-null, so nullable elements keep the
-    /// ordinary unsafe-receiver diagnostic.
     private func nonNullSafeChainReceiverType(
         _ receiverExpr: ExprID,
         inferredReceiverType: TypeID,
@@ -202,12 +190,12 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // The receiver of `a?.b[i]` is evaluated iff the access itself is —
-        // it keeps the conditionality this node was entered with, not the
-        // raised flag that gates the index expressions (KUU-3966).
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
         var effectiveIsSafeChain = isSafeChain
         var operatorReceiverType = inferredReceiverType
         if isSafeChain,
@@ -242,8 +230,6 @@ extension LocalDeclTypeChecker {
             )
         }
 
-        // Infer all index expressions without forcing Int.
-        // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
         for (position, indexExpr) in indices.enumerated() {
             let literalExpectedType = contextualIntegerLiteralExpectedType(
@@ -264,8 +250,6 @@ extension LocalDeclTypeChecker {
             let literal = driver.callChecker.integerLiteralValues(index, ast: ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
         }, dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type), isOperatorCall: true)
-        // Member existence does not imply applicability. Probe without emitting
-        // diagnostics, retaining even ambiguous viable members ahead of extensions.
         if ctx.resolver.probeCall(
             candidates: getCandidates, call: getCall, expectedType: expectedType,
             implicitReceiverType: receiverType, ctx: sema
@@ -318,9 +302,6 @@ extension LocalDeclTypeChecker {
                 driver.callChecker.contextualizeResolvedIntegerArguments(
                     args: indices.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
                 )
-                // A projected receiver (e.g. `MutableList<in Int>`) reads the
-                // projection's captured upper bound, not the solver's raw type
-                // argument — mirror the member-call path's projection merge.
                 var mergedSubstitution = resolved.substitutedTypeArguments
                 if let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
                     receiverType: receiverType,
@@ -329,7 +310,6 @@ extension LocalDeclTypeChecker {
                 ) {
                     mergedSubstitution.merge(varianceResult.covariantSubstitution) { _, projected in projected }
                 }
-                // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(
@@ -344,9 +324,6 @@ extension LocalDeclTypeChecker {
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                // Substitute type parameters in the return type so that
-                // generic get() calls (e.g. List<String?>.get()) return
-                // the concrete element type (String?) instead of T.
                 let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                 let returnType = sema.types.substituteTypeParameters(
                     in: signature.returnType,
@@ -478,12 +455,12 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // The receiver of `a?.b[i] = v` is evaluated iff the assignment
-        // itself is — it keeps the conditionality this node was entered
-        // with, not the raised flag that gates indices and value (KUU-3966).
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
 
         let setName = interner.intern("set")
         let receiverInfo = indexedOperatorMemberCandidates(
@@ -512,7 +489,6 @@ extension LocalDeclTypeChecker {
                 else {
                     return false
                 }
-                // Preserve cachedScopeLookup's expect/actual filtering.
                 if symbol.flags.contains(.expectDeclaration),
                    sema.symbols.actualSymbol(for: candidate) != nil
                 {
@@ -553,8 +529,6 @@ extension LocalDeclTypeChecker {
             }
         }
         if setCandidates.isEmpty {
-            // Bundled stdlib operator extensions (e.g. AtomicIntArray.set) are
-            // conceptually members and resolve without an explicit import.
             setCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
                 named: setName,
                 receiverType: receiverType,
@@ -565,8 +539,6 @@ extension LocalDeclTypeChecker {
             )
         }
 
-        // Infer all index expressions without forcing Int.
-        // Int constraint is only applied in the built-in array fallback.
         var indexTypes: [TypeID] = []
         for (position, indexExpr) in indices.enumerated() {
             let literalExpectedType = contextualIntegerLiteralExpectedType(
@@ -589,9 +561,6 @@ extension LocalDeclTypeChecker {
             return setCandidates + extensions.filter { !setCandidates.contains($0) }
         }()
 
-        // Determine the expected element type so integer literals can be
-        // narrowed for built-in array assignment and operator-set calls
-        // (e.g. ByteArray[0] = 9).
         let valueParameterIndex = indices.count
         let setValueExpectedType: TypeID? = {
             if !contextSetCandidates.isEmpty {
@@ -620,9 +589,6 @@ extension LocalDeclTypeChecker {
                     if isBuiltinArray,
                        !driver.callChecker.typeMentionsTypeParameter(paramType, sema: sema)
                     {
-                        // Probe the already inferred indices using this setter's
-                        // own value type. Inapplicable array members must not
-                        // provide the context for an extension's assigned value.
                         let indexArgs = zip(indices, indexTypes).map { expr, type in
                             let literal = driver.callChecker.integerLiteralValues(expr, ast: ast)
                             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
@@ -701,8 +667,6 @@ extension LocalDeclTypeChecker {
                 }
                 return nonNull
             case .classType:
-                // A nested generic constructor or factory call needs its
-                // fully substituted class type before argument inference.
                 guard driver.callChecker.isInferableNestedCallExpr(valueExpr, ast: ast),
                       !setValueTypeHasUnresolvedTypeParameter
                 else {
@@ -739,9 +703,6 @@ extension LocalDeclTypeChecker {
             dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             isOperatorCall: true
         )
-        // A single-index member cannot handle a multi-index assignment.
-        // Preserve applicable (including ambiguous) members, but try lexical
-        // operator extensions when none of the collected candidates applies.
         if ctx.resolver.probeCall(
             candidates: setCandidates, call: setCall, expectedType: nil,
             implicitReceiverType: receiverType, ctx: sema
@@ -761,9 +722,6 @@ extension LocalDeclTypeChecker {
                 ctx: ctx.sema
             )
             if let chosen = resolved.chosenCallee {
-                // A projected receiver forbids writing through an `in`
-                // parameter (e.g. `xs[0] = v` on `MutableList<out Int>`),
-                // matching the member-call path's variance violation check.
                 if !driver.callChecker.allowsProjectedReceiverUnsafeVariance(
                     chosen, sema: sema, interner: interner
                 ),
@@ -808,7 +766,6 @@ extension LocalDeclTypeChecker {
                         expectedType: uncheckedArrayViewExpectedType
                     )
                 }
-                // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,
                     binding: CallBinding(
@@ -850,8 +807,6 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        // A member `set` without the `operator` modifier cannot serve
-        // `x[i] = v`; reject before the built-in array fallback swallows it.
         if allSetMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0432",
@@ -874,8 +829,6 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // Read-only receivers (List, Map, String, ...) have no `set`; the
-        // built-in fallback below only exists for arrays and mutable collections.
         if sema.types.makeNonNullable(receiverType) == sema.types.stringType {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",

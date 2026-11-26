@@ -84,7 +84,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_java_method_get_parameter_types", "methodRaw"),
         abi.th("__kk_kclass_members", "kclassRaw"),
         abi.th("__kk_kclass_constructors", "kclassRaw"),
-        // MIGRATION-REFLECT-002: KClass.nestedClasses
         abi.th("__kk_kclass_nested_classes", "kclassRaw"),
         abi.nt("__kk_kclass_companion_object", "kclassRaw"),
         abi.nt("__kk_kclass_register_companion", "typeToken companionToken companionNameRaw"),
@@ -97,8 +96,6 @@ public extension RuntimeABISpec {
         abi.th("__kk_kclass_functions", "kclassRaw"),
         abi.th("__kk_kclass_member_functions", "kclassRaw"),
         abi.th("__kk_kclass_declared_member_functions", "kclassRaw"),
-        // KUU-4064: member-extension callables register alongside members but
-        // answer only `memberExtension*`/`declaredMemberExtension*` queries.
         abi.nt("__kk_kclass_register_member_extension", "kclassRaw memberRaw"),
         abi.th("__kk_kclass_member_extension_properties", "kclassRaw"),
         abi.th("__kk_kclass_declared_member_extension_properties", "kclassRaw"),

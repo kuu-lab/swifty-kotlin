@@ -5,11 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3918: `Regex.matches` is declared `infix` in the Kotlin stdlib, so
-    /// `regex matches input` must compile and run identically through both the
-    /// source-injected bundled stdlib and a freshly compiled .kklib artifact.
-    /// The case also covers the `infix` `String.matches(regex)` /
-    /// `CharSequence.matches(regex)` overloads and `IntProgression.step`.
     @Test(arguments: [false, true])
     func testRegexInfixMatchesThroughSourceAndFreshArtifact(fromSource: Bool) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()

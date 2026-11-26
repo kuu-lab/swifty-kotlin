@@ -194,9 +194,6 @@ final class RuntimeHttpHeadersBox {
     }
 }
 
-/// Canonical origin key (scheme, host, effective port) shared by the
-/// same-origin check and the trusted-redirect-origin list so both classify
-/// origins identically.
 private func runtimeOriginKey(_ url: URL?) -> String? {
     guard let url,
           let scheme = url.scheme?.lowercased(),
@@ -277,8 +274,6 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
         guard followRedirects else {
-            // Stop the redirect: deliver the 3xx response to the caller instead
-            // of following the Location header.
             completionHandler(nil)
             return
         }
@@ -293,9 +288,6 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate
         var redirected = request
         if !RuntimeHTTPSessionDelegate.sameOrigin(task.originalRequest?.url, request.url)
             && !isTrustedRedirectTarget(request.url) {
-            // Deny-by-default on a cross-origin redirect: keep only the safe
-            // allowlist so credential-bearing or signing headers cannot leak
-            // to a different origin.
             if let headerFields = redirected.allHTTPHeaderFields {
                 for name in headerFields.keys
                 where !RuntimeHTTPSessionDelegate.crossOriginSafeRequestHeaders.contains(name.lowercased()) {
@@ -387,7 +379,6 @@ private final class RuntimeHTTPSessionDelegate: NSObject, URLSessionDataDelegate
         }
 
         if sizeExceeded {
-            // Error was already recorded as size-exceeded error
         } else if let error = error {
             self.error = error
         } else {
@@ -446,8 +437,6 @@ private func runtimeHTTPClientBox(from raw: Int) -> RuntimeHTTPClientBox? {
     return tryCast(ptr, to: RuntimeHTTPClientBox.self)
 }
 
-/// URI handles remain an internal Network handoff for HTTP request builders.
-/// The public java.net.URI compiler/runtime surface is intentionally removed.
 final class RuntimeNetworkURIBox {
     let components: URLComponents
 
@@ -456,8 +445,6 @@ final class RuntimeNetworkURIBox {
     }
 }
 
-/// Build the URI handle consumed by the HTTP request builder's internal ABI.
-/// This keeps Network tests independent from the removed `kk_uri_new` export.
 func runtimeNetworkURI(from specRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
         let spec = networkString(from: specRaw, caller: #function)
@@ -620,8 +607,6 @@ public func kk_http_client_send(_ clientRaw: Int, _ requestRaw: Int, _ bodyHandl
         sessionConfig.httpCookieStorage = nil
         sessionConfig.urlCredentialStorage = nil
         if config.connectTimeoutMillis > 0 {
-            // URLSession has no TCP-connect-only timeout; map the Java-style
-            // connect timeout to the closest available request-phase bound.
             sessionConfig.timeoutIntervalForRequest = Double(config.connectTimeoutMillis) / 1000
         }
         // Only cap total resource time when both timeouts are bounded; a value of 0

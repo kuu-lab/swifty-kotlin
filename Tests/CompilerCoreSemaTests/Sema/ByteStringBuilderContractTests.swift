@@ -13,8 +13,6 @@ struct ByteStringBuilderContractTests {
     }
 
 
-    /// Sema tests use kirDump, whose process-default artifact lookup is intentionally disabled.
-    /// Pass the published path explicitly and verify the actual imported declarations afterward.
     private func makeContractContext(_ source: String, allowDefaultStdlibLibrary: Bool) throws -> CompilationContext {
         let selectedLibrary = allowDefaultStdlibLibrary
             ? try #require(CompilerOptions.defaultStdlibLibraryPath, "Shared stdlib artifact must be published") : nil

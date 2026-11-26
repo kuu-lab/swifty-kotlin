@@ -30,8 +30,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // Source-mode O2 is tracked by KUU-2241: even a trivial source-mode program
-    // currently fails LLVM verification on a high-arity function invocation.
     @Test(arguments: [false, true])
     func javaClassGetDeclaredMethodsAtO0(fromArtifact: Bool) throws {
         try assertJavaClassGetDeclaredMethods(fromArtifact: fromArtifact, optimization: 0)

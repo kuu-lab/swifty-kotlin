@@ -3,12 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// BUG-206: `?:` was lowered strictly, as `kk_op_elvis(lhs, rhs)` with both
-// operands evaluated up front. The fallback therefore ran even when lhs was
-// non-null, so `x ?: return -1` always returned, `x ?: throw e` always threw,
-// and any side-effecting fallback always fired. It now lowers to the same
-// branch-and-copy shape `&&`/`||` use, with rhs emitted behind a
-// `jumpIfNotNull` over it.
 extension LoweringPassRegressionTests {
     @Test
     func testElvisLowersToShortCircuitBranchInsteadOfStrictRuntimeCall() throws {

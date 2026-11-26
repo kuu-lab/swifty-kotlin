@@ -5,8 +5,6 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let (symbols, types, interner) = (context.symbols, context.types, context.interner)
         let charSequenceSymbol = context.charSequenceSymbol
-        // String.toByteArray / encodeToByteArray are bundled Kotlin source in StringEncoding.kt.
-        // JVM resolves java.math.BigDecimal from the JDK classpath; this shell is only a fallback.
         if includeJavaMathBigDecimal {
             let javaMathPkg = ensurePackage(
                 path: ["java", "math"],
@@ -42,9 +40,6 @@ extension DataFlowSemaPhase {
         types.stringClassSymbol = stringClassSymbol
         symbols.setDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         types.setNominalDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
-        // String constructors are source-backed in StringConstructors.kt. The
-        // nominal shell and its CharSequence relationship remain here because
-        // String is represented specially by the compiler and runtime.
 
         return stringClassSymbol
     }

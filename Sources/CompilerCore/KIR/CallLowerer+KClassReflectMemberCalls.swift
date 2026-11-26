@@ -1,19 +1,3 @@
-/// KClass reflection-aware member-call lowerings for the members that remain
-/// compiler special cases after KSP-496.
-///
-/// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
-/// class-kind flags/`members`/etc. now resolve as ordinary
-/// Kotlin extension declarations
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
-/// through the normal member-call path.
-///
-/// `objectInstance` / `sealedSubclasses` / `constructors` are source-declared interface properties,
-/// implemented by the native singleton and subclass registries.
-///
-/// `findAnnotation<T>()` / `findAssociatedObject<T>()` take a reified type
-/// argument, which this compiler only supports via a small compiler-side
-/// allowlist (like `typeOf<T>()`), so they remain here.
-///
 /// `properties` also remains here: unlike its `member`/`declaredMember`
 /// siblings, it is not a real kotlin-stdlib name, and diff cases rely on
 /// being able to freely shadow it with a real user-declared extension.
@@ -52,23 +36,6 @@ extension CallLowerer {
         return result
     }
 
-    /// KUU-4018: JVM array classes are reified per component type —
-    /// `Integer[].class != String[].class` while `simpleName`/`qualifiedName`
-    /// stay `Array`/`kotlin.Array`. The KClass interner therefore keys
-    /// `Array<E>` class literals on E's component descriptor
-    /// (`__kk_array_component_type`), the same descriptor tagged onto array
-    /// values at allocation — so `Array<Int>::class`, `arrayOf(1)::class`,
-    /// and `T::class` (reified T = `Array<Int>`) share one box, and the
-    /// erased-Array box stays the fallback whenever the element is unknown.
-    ///
-    /// An element that is a reified type parameter erases to its bound on the
-    /// `::class` left-hand side (`Array<T>::class` is `Object[].class` on the
-    /// JVM), so the component is built with `useReifiedToken: false`; a
-    /// reified `T::class` target instead reads the *element* of the captured
-    /// component descriptor via `__kk_array_component_element`.
-    ///
-    /// Returns nil for non-array classifiers and unbound reified captures —
-    /// callers then emit the plain `__kk_kclass_create` / `__kk_kclass_of`.
     func emitArrayKClassComponentExpr(
         classRefTargetType: TypeID,
         sema: SemaModule,
@@ -89,9 +56,6 @@ extension CallLowerer {
             guard let capturedKType = driver.ctx.localValue(for: ktypeSymbol) else {
                 return nil
             }
-            // Captured reified slots are KType boxes (KUU-4022). Derive the
-            // allocation descriptor, then the Array element identity so
-            // `T::class` and `Array<E>::class` intern to the same box.
             let component = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
                 callee: interner.intern("__kk_ktype_component_descriptor"),
@@ -176,8 +140,6 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // isInstance is the only member-call-shaped KClass member; lower its
-        // value argument after the receiver box has been materialized.
         let valueArgs: [KIRExprID] = memberName == "isInstance"
             ? args.map {
                 driver.lowerExpr(
@@ -258,7 +220,6 @@ extension CallLowerer {
             )
         case "isFinal", "isOpen", "isAbstract", "isSealed", "isData",
              "isInner", "isCompanion", "isFun", "isValue":
-            // isFinal -> __kk_kclass_is_final, etc.
             return emitRuntimeCall(
                 callee: "__kk_kclass_is_" + memberName.dropFirst(2).lowercased(),
                 arguments: [kclassExpr],
@@ -290,10 +251,6 @@ extension CallLowerer {
                 fallbackType: sema.types.anyType
             )
         case "findAnnotation":
-            // STDLIB-REFLECT-065: findAnnotation<T>() is a reified intrinsic with
-            // no value parameters — the annotation class to search for comes from
-            // the reified `T` recorded in `findAnnotationSearchType(for:)` (see
-            // the resolved CallBinding), not from the value-argument list.
             let searchType = sema.bindings.findAnnotationSearchType(for: exprID)
                 .map { sema.types.makeNonNullable($0) }
             let token: KIRExprKind
@@ -326,8 +283,6 @@ extension CallLowerer {
                 fallbackType: sema.types.makeNullable(sema.types.anyType)
             )
 
-        // KSP-496: `properties` stays a compiler special case — see the NOTE in
-        // KClasses.kt for why.
         case "properties":
             return emitRuntimeCall(
                 callee: "__kk_kclass_properties",
@@ -342,10 +297,6 @@ extension CallLowerer {
         }
     }
 
-    /// Lowers `kclassVar.findAnnotation<A>()` / `kclassVar.findAssociatedObject<A>()`
-    /// where the receiver is a local variable of type KClass<T>, not a direct
-    /// `T::class` expression. The receiver variable already holds a KClass
-    /// box, so we use it directly.
     func lowerKClassVarReflectMemberCall(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -365,8 +316,6 @@ extension CallLowerer {
             instructions: &instructions
         )
 
-        // isInstance is the only member-call-shaped KClass member; lower its
-        // value argument after the receiver box has been materialized.
         let valueArgs: [KIRExprID] = memberName == "isInstance"
             ? args.map {
                 driver.lowerExpr(
@@ -390,17 +339,6 @@ extension CallLowerer {
         )
     }
 
-    /// Emits the `__kk_kclass_register_metadata` (+ data-class field and
-    /// annotation) registration for a compile-time class literal, reusing the
-    /// *already emitted* `typeTokenExpr` so the registered metadata is keyed
-    /// by the exact same type token as the `__kk_kclass_create` box. This is
-    /// what lets metadata-backed queries (the Kotlin-source `isData`/
-    /// `isSealed`/`isValue`/…, `annotations`, `findAnnotation`,
-    /// `findAssociatedObject`, …) resolve correctly even when the class is
-    /// never constructed.
-    ///
-    /// No-op for non-nominal target types (built-ins, reified type
-    /// parameters) — they carry no class symbol to describe.
     func emitClassLiteralMetadataRegistration(
         classRefTargetType: TypeID,
         typeTokenExpr: KIRExprID,
@@ -430,10 +368,6 @@ extension CallLowerer {
         )
     }
 
-    /// Recursive worker for `emitClassLiteralMetadataRegistration` carrying a
-    /// visited set shared across the transitive supertype closure and the
-    /// sealed-subclass walk so neither can re-emit or loop (e.g. a sealed
-    /// parent reached as a supertype re-listing the child being registered).
     func emitClassLiteralMetadataRegistrationImpl(
         classRefTargetType: TypeID,
         typeTokenExpr: KIRExprID,
@@ -485,13 +419,11 @@ extension CallLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        // Reflection reports Kotlin modality, not the internal inheritance flags.
         let isSealed = symbol.flags.contains(.sealedType)
         let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
         if isAbstract { flags |= 1 << 7 }
         if !isSealed && !isAbstract && !symbol.flags.contains(.openType) { flags |= 1 << 8 }
         if !isSealed && !isAbstract && symbol.flags.contains(.openType) { flags |= 1 << 9 }
-        // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface.
         if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
         if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
         if symbol.kind == .object {
@@ -509,8 +441,6 @@ extension CallLowerer {
             || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
-        // KUU-3828: anonymous object literals have no name on the JVM;
-        // reflection reports null simpleName despite the synthetic fqName.
         if symbol.flags.contains(.synthetic),
            sema.symbols.isObjectLiteralSynthetic(classSymbol) {
             flags |= 1 << 14
@@ -566,12 +496,6 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
 
-        // KUU-1448: `KType.classifier` materializes KClass handles at runtime
-        // from the supertype display names stored in this registration, and
-        // resolves *their* metadata through the same token-keyed registry.
-        // Register the transitive nominal-supertype closure so such a handle
-        // answers `supertypes`/`isSubclassOf` even when the ancestor's own
-        // `T::class` literal (or constructor) never ran.
         emitTransitiveSupertypeKClassMetadataRegistrations(
             for: classSymbol,
             visitedClassSymbols: &visitedClassSymbols,
@@ -634,8 +558,6 @@ extension CallLowerer {
         )
     }
 
-    /// Registers Java-shaped method names from this class's own declarations.
-    /// The runtime keys them by type token, so inherited members remain separate.
     private func emitJavaClassDeclaredMethodsRegistration(
         for classSymbol: SymbolID,
         typeTokenExpr: KIRExprID,
@@ -864,8 +786,6 @@ extension CallLowerer {
             }
             .sorted { lhs, rhs in
                 if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
-                // An initializer-local class belongs to the constructor when
-                // its range ties the enclosing class's declaration range.
                 if lhs.0.kind != rhs.0.kind {
                     if lhs.0.kind == .constructor { return true }
                     if rhs.0.kind == .constructor { return false }
@@ -876,9 +796,6 @@ extension CallLowerer {
         }
 
         func namedEnclosingClass() -> SemanticSymbol? {
-            // KUU-3811: the FunctionN interfaces nest under the
-            // `kotlin.Function` namespace for internal identity only — they
-            // are top-level classifiers with no enclosing/declaring class.
             if sema.types.nominalFunctionInterfaceShape(of: classSymbol) != nil {
                 return nil
             }
@@ -1019,8 +936,6 @@ extension CallLowerer {
         ))
     }
 
-    /// Java reflection renders signed primitives by their JVM keyword and
-    /// unsigned ones by their Kotlin class name.
     private func javaReflectionName(of primitive: PrimitiveType) -> String {
         [.uint, .ulong, .ubyte, .ushort].contains(primitive) ? "kotlin." + primitive.kotlinName : primitive.rawValue
     }
@@ -1046,8 +961,6 @@ extension CallLowerer {
         }
     }
 
-    /// Registers enum entry fields and their runtime-retained annotations.
-    /// Native reflection currently exposes this field subset only.
     private func emitJavaClassDeclaredFieldsRegistration(
         for classSymbol: SymbolID,
         typeTokenExpr: KIRExprID,
@@ -1091,12 +1004,6 @@ extension CallLowerer {
         }
     }
 
-    /// Only nominal-token classifiers participate: builtin bases
-    /// (`kotlin.Any`, `kotlin.String`, primitives, `FunctionN`) are answered
-    /// by the runtime's builtin tables and never carry registry metadata.
-    /// Other registration emitters (constructor allocation, object literals)
-    /// call this with a set pre-seeded by the symbol they just registered so
-    /// a sealed ancestor's subclass walk cannot re-emit it.
     func emitTransitiveSupertypeKClassMetadataRegistrations(
         for classSymbol: SymbolID,
         visitedClassSymbols: inout Set<SymbolID>,
@@ -1129,13 +1036,6 @@ extension CallLowerer {
         }
     }
 
-    /// Returns `true` when `receiverType` is a `kotlin.reflect.KClass<…>` receiver,
-    /// recognizing both internal representations:
-    /// - the dedicated `.kClassType` (produced by `T::class`), and
-    /// - a `.classType` wrapping the `KClass` interface symbol (produced by an
-    ///   explicit `KClass<T>` type annotation or library import).
-    ///
-    /// This mirrors the Sema-side `kClassReceiverArgumentType` so that KClass
     /// member-call lowering fires for both forms. Without the `.classType` arm,
     /// reflection members invoked on a `val k: KClass<T>` variable fall through
     /// to a regular call and emit an undefined `_<member>` symbol at link time.
@@ -1160,7 +1060,6 @@ extension CallLowerer {
             || (symbol.name == kClassName && symbol.fqName.isEmpty)
     }
 
-    /// Runtime KClass boxes carry no Kotlin itable, so implicit-receiver
     /// member calls on them (e.g. `with(k) { isInstance(v) }`) must reach the
     /// runtime bridges directly. Without this remap the call binds to the
     /// abstract member stub and silently returns the default value.

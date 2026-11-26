@@ -69,7 +69,6 @@ extension CallLowerer {
     }
 
 
-    // KSP-423: preserve the Kotlin defaults when a named range argument skips fromIndex.
     func materializeBinarySearchDefaultArguments(
         _ defaultMask: Int64,
         receiverExpr: ExprID,
@@ -200,8 +199,6 @@ extension CallLowerer {
         )
     }
 
-    /// Callees bridged to a C runtime function (such as kk_array_get) are
-    /// normally not dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -221,10 +218,6 @@ extension CallLowerer {
             }
             return arena.exprType(loweredReceiverID)
         }()
-        // Range values are opaque RuntimeRangeBox handles without Kotlin
-        // vtables. The KIR receiver can lose its source type binding, so use
-        // both the best available type and the source range-expression facts
-        // before emitting a virtual call such as LongRange.iterator().
         let isRuntimeRangeReceiver: Bool = {
             guard let receiverExpr, let receiverTypeForDispatch else { return false }
             return MemberRuntimeDispatch.rangeReceiverKind(
@@ -373,7 +366,6 @@ extension CallLowerer {
         let fallbackName = interner.resolve(fallback)
         let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        // Safe calls skip the legacy array-member lowering, so mirror its bridge mapping here.
         if chosenCallee == nil,
            fallbackName == "concatToString",
            callArgumentCount == 0,
@@ -440,10 +432,6 @@ extension CallLowerer {
                ),
                receiverSymbol.fqName == knownNames.kotlinNativeConcurrentWorkerFQName
             {
-                // Worker receiver APIs are declared in bundled Kotlin source,
-                // but their implementation boundary is the native runtime ABI.
-                // Keep source-level resolution and lower the runtime-backed
-                // operations to the existing ABI names.
                 switch fallbackName {
                 case "asCPointer":
                     return interner.intern("kk_worker_as_cpointer")
@@ -546,7 +534,6 @@ extension CallLowerer {
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.isSourceBackedSymbol(chosenCallee) {
-                // Source-backed stdlib migrations lower through the chosen symbol's internal function.
                 return fallback
             }
             if let unresolvedSynthetic = unresolvedSyntheticMemberCallee(
@@ -560,9 +547,6 @@ extension CallLowerer {
             ) {
                 return unresolvedSynthetic
             }
-            // Collection interface members (size property, isEmpty function)
-            // resolved on a concrete receiver (List, Array, Map, Set) must be
-            // lowered to the matching runtime function instead of virtual dispatch.
             if let collectionProperty = unresolvedCollectionMemberCallee(
                 memberName: fallback,
                 receiverType: receiverType,
@@ -607,8 +591,6 @@ extension CallLowerer {
                 return interner.intern("kk_channel_send")
             case "receive":
                 return interner.intern("kk_channel_receive")
-            // KSP-678: close / isClosedForReceive / isClosedForSend are resolved
-            // through bundled Kotlin source, not this synthetic fallback.
             default:
                 break
             }
@@ -842,8 +824,6 @@ extension CallLowerer {
                         : "__kk_double_range_start"
                 )
             case "endInclusive", "endExclusive":
-                // Floating-point boxes store the original upper bound in
-                // `last` for both closed and half-open ranges.
                 return interner.intern(
                     floatingPointElementType == sema.types.floatType
                         ? "__kk_float_range_endInclusive"
@@ -862,9 +842,6 @@ extension CallLowerer {
                         : "__kk_double_range_isEmpty"
                 )
             case "lessThanOrEquals":
-                // KUU-763: tracked floating-point range receivers lower the
-                // IEEE-754 `a <= b` comparison through the typed runtime bridge;
-                // interface-typed receivers use the `_or_null` probe instead.
                 return interner.intern(
                     floatingPointElementType == sema.types.floatType
                         ? "__kk_float_range_lessThanOrEquals"
@@ -921,10 +898,6 @@ extension CallLowerer {
             {
                 switch owner.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass:
-                    // Header collection attaches visible top-level extensions to
-                    // their receiver nominal for member lookup. Their declaration
-                    // FQ name still belongs to the source package, unlike a real
-                    // nominal member whose FQ name is owner + member name.
                     chosenSymbol.fqName != owner.fqName + [chosenSymbol.name]
                 default:
                     true
@@ -951,14 +924,11 @@ extension CallLowerer {
         switch memberName {
         case "contains":
             if elementType == sema.types.ulongType {
-                // KSP-1524: ULong membership stays on the bundled Kotlin
-                // implementation; the signed bridge is not ULong-safe.
                 return nil
             }
             return interner.intern("__kk_range_contains")
         case "isEmpty":
             if elementType == sema.types.ulongType {
-                // KSP-1524: source-backed ULongRange/ULongProgression member.
                 return nil
             }
             return interner.intern("__kk_range_isEmpty")

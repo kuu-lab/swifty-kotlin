@@ -1,6 +1,5 @@
 package java.nio
 
-/** Byte order used by typed ByteBuffer accessors. */
 public enum class ByteOrder {
     BIG_ENDIAN,
     LITTLE_ENDIAN;

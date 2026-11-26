@@ -8,8 +8,6 @@ extension JVMBackendTests {
     func javaBoxedParametersAreDistinctFromPrimitiveOverloads() throws {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
-            // Model a platform classpath that indexes the boxed carrier.
-            // At execution the JVM resolves Boolean from its bootstrap loader.
             try """
             package java.lang; public final class Boolean {}
             """.write(to: root.appendingPathComponent("Boolean.java"), atomically: true, encoding: .utf8)

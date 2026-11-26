@@ -6,7 +6,6 @@ import java.awt.Point
 import java.util.EventListener
 import java.util.EventObject
 
-/** `java.awt.event.ComponentEvent`. */
 public open class ComponentEvent(source: Component, id: Int) : AWTEvent(source, id) {
     public fun getComponent(): Component = source as Component
 
@@ -20,7 +19,6 @@ public open class ComponentEvent(source: Component, id: Int) : AWTEvent(source, 
     }
 }
 
-/** `java.awt.event.FocusEvent`. */
 public open class FocusEvent(source: Component, id: Int) : ComponentEvent(source, id) {
     public companion object {
         public const val FOCUS_FIRST: Int = 1004
@@ -30,7 +28,6 @@ public open class FocusEvent(source: Component, id: Int) : ComponentEvent(source
     }
 }
 
-/** `java.awt.event.InputEvent` — base for mouse and key events. */
 public open class InputEvent(
     source: Component,
     id: Int,
@@ -69,7 +66,6 @@ public open class InputEvent(
     }
 }
 
-/** `java.awt.event.MouseEvent`. */
 public open class MouseEvent(
     source: Component,
     id: Int,
@@ -129,7 +125,6 @@ public open class MouseEvent(
     }
 }
 
-/** `java.awt.event.MouseWheelEvent`. */
 public open class MouseWheelEvent(
     source: Component,
     id: Int,
@@ -150,7 +145,6 @@ public open class MouseWheelEvent(
     }
 }
 
-/** `java.awt.event.KeyEvent`. */
 public open class KeyEvent(
     source: Component,
     id: Int,
@@ -220,7 +214,6 @@ public open class KeyEvent(
     }
 }
 
-/** `java.awt.event.ActionEvent`. */
 public open class ActionEvent(
     source: Any,
     id: Int,
@@ -238,7 +231,6 @@ public open class ActionEvent(
     }
 }
 
-/** `java.awt.event.WindowEvent`. */
 public open class WindowEvent(source: Component, id: Int) : ComponentEvent(source, id) {
     public fun getWindow(): java.awt.Window = source as java.awt.Window
 
@@ -254,9 +246,6 @@ public open class WindowEvent(source: Component, id: Int) : ComponentEvent(sourc
     }
 }
 
-// ---- Listener interfaces --------------------------------------------------
-
-/** `java.awt.event.MouseListener`. */
 public interface MouseListener : EventListener {
     public fun mouseClicked(e: MouseEvent)
     public fun mousePressed(e: MouseEvent)
@@ -265,36 +254,30 @@ public interface MouseListener : EventListener {
     public fun mouseExited(e: MouseEvent)
 }
 
-/** `java.awt.event.MouseMotionListener`. */
 public interface MouseMotionListener : EventListener {
     public fun mouseDragged(e: MouseEvent)
     public fun mouseMoved(e: MouseEvent)
 }
 
-/** `java.awt.event.MouseWheelListener`. */
 public interface MouseWheelListener : EventListener {
     public fun mouseWheelMoved(e: MouseWheelEvent)
 }
 
-/** `java.awt.event.KeyListener`. */
 public interface KeyListener : EventListener {
     public fun keyTyped(e: KeyEvent)
     public fun keyPressed(e: KeyEvent)
     public fun keyReleased(e: KeyEvent)
 }
 
-/** `java.awt.event.FocusListener`. */
 public interface FocusListener : EventListener {
     public fun focusGained(e: FocusEvent)
     public fun focusLost(e: FocusEvent)
 }
 
-/** `java.awt.event.ActionListener`. */
 public interface ActionListener : EventListener {
     public fun actionPerformed(e: ActionEvent)
 }
 
-/** `java.awt.event.WindowListener`. */
 public interface WindowListener : EventListener {
     public fun windowOpened(e: WindowEvent)
     public fun windowClosing(e: WindowEvent)
@@ -305,7 +288,6 @@ public interface WindowListener : EventListener {
     public fun windowDeactivated(e: WindowEvent)
 }
 
-/** `java.awt.event.ComponentListener`. */
 public interface ComponentListener : EventListener {
     public fun componentResized(e: ComponentEvent)
     public fun componentMoved(e: ComponentEvent)
@@ -313,10 +295,6 @@ public interface ComponentListener : EventListener {
     public fun componentHidden(e: ComponentEvent)
 }
 
-// ---- Adapter classes ------------------------------------------------------
-
-/** `java.awt.event.MouseAdapter` — empty implementations of the three mouse
- * listener interfaces. */
 public abstract class MouseAdapter : MouseListener, MouseMotionListener, MouseWheelListener {
     override fun mouseClicked(e: MouseEvent) = Unit
     override fun mousePressed(e: MouseEvent) = Unit
@@ -328,20 +306,17 @@ public abstract class MouseAdapter : MouseListener, MouseMotionListener, MouseWh
     override fun mouseWheelMoved(e: MouseWheelEvent) = Unit
 }
 
-/** `java.awt.event.MouseMotionAdapter` — empty mouse-motion implementation. */
 public abstract class MouseMotionAdapter : MouseMotionListener {
     override fun mouseDragged(e: MouseEvent) = Unit
     override fun mouseMoved(e: MouseEvent) = Unit
 }
 
-/** `java.awt.event.KeyAdapter`. */
 public abstract class KeyAdapter : KeyListener {
     override fun keyTyped(e: KeyEvent) = Unit
     override fun keyPressed(e: KeyEvent) = Unit
     override fun keyReleased(e: KeyEvent) = Unit
 }
 
-/** `java.awt.event.WindowAdapter`. */
 public abstract class WindowAdapter : WindowListener {
     override fun windowOpened(e: WindowEvent) = Unit
     override fun windowClosing(e: WindowEvent) = Unit
@@ -352,13 +327,11 @@ public abstract class WindowAdapter : WindowListener {
     override fun windowDeactivated(e: WindowEvent) = Unit
 }
 
-/** `java.awt.event.FocusAdapter`. */
 public abstract class FocusAdapter : FocusListener {
     override fun focusGained(e: FocusEvent) = Unit
     override fun focusLost(e: FocusEvent) = Unit
 }
 
-/** `java.awt.event.ComponentAdapter`. */
 public abstract class ComponentAdapter : ComponentListener {
     override fun componentResized(e: ComponentEvent) = Unit
     override fun componentMoved(e: ComponentEvent) = Unit

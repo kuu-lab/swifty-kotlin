@@ -62,8 +62,6 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     func initParent() {
         let context = __kk_coroutine_continuation_context(delegate, nil)
         let jobRaw = kk_context_get_job(context)
-        // A launch/async Job is represented by its task identity in the
-        // coroutine context. Its cancellation state lives on completionJob.
         guard let job = runtimeJobHandle(from: jobRaw)
             ?? runtimeAsyncTask(from: jobRaw)?.completionJob else { return }
         lock.lock()
@@ -165,7 +163,6 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         }
     }
 
-    /// Kernel resources must be returned if cancellation wins before delivery.
     func resume(value: Int, onCancellation: @escaping @Sendable () -> Void) {
         resume(runtimeResultSuccess(value), callback: RuntimeCancellationCallback(
             fnPtr: 0, closureRaw: 0, native: { _ in onCancellation() }

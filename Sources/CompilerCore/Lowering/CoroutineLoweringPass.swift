@@ -1,6 +1,5 @@
 
 final class CoroutineLoweringPass: LoweringPass {
-    /// Internal visibility is required for cross-file extension decomposition
     static let name = "CoroutineLowering"
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .propertyLowered
@@ -32,11 +31,7 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_await_cancellation"),
-            // `CoroutineStart.isLazy` reads lower to this external name even
-            // in modules with no other coroutine machinery; the read still
-            // folds to a Boolean constant here.
             ctx.interner.intern("kk_coroutine_start_is_lazy"),
-            // Mutex/Channel bridges already carry a placeholder continuation from KIR.
             ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("__kk_channel_receive_catching"),
             ctx.interner.intern("kk_mutex_lock"),
@@ -82,7 +77,6 @@ final class CoroutineLoweringPass: LoweringPass {
     }
 
     func run(module: KIRModule, ctx: KIRContext) throws {
-        // Lower Flow builder/operators before suspend-function lowering.
         lowerFlowExpressions(module: module, ctx: ctx)
 
         let anyType = ctx.sema?.types.nullableAnyType ?? ctx.sema?.types.anyType
@@ -141,28 +135,17 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("kk_suspend_function_invoke_5"),
             ctx.interner.intern("kk_suspend_function_invoke_6"),
             ctx.interner.intern("kk_suspend_coroutine"),
-            // CORO-004: await / join are real suspend points that consume the
-            // caller continuation so the runtime can resume them without blocking.
             ctx.interner.intern("kk_kxmini_async_await"),
             ctx.interner.intern("kk_job_join"),
             ctx.interner.intern("kk_job_await_completion"),
-            // KUU-2161: Semaphore.acquire parks the caller continuation when no
-            // permit is free so an UNDISPATCHED waiter does not block its starter.
             ctx.interner.intern("kk_semaphore_acquire"),
-            // awaitCancellation() parks a cancellable continuation.
             ctx.interner.intern("kk_await_cancellation"),
-            // Channel send / Mutex lock must suspend instead of blocking UNDISPATCHED callers.
             ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("__kk_channel_receive_catching"),
             ctx.interner.intern("kk_mutex_lock"),
             ctx.interner.intern("__kk_mutex_lock_owner"),
-            // KUU-642: DeepRecursive callRecursive parks the caller continuation
-            // and returns COROUTINE_SUSPENDED so invoke's trampoline loop can
-            // start the next recursive step without growing the native stack.
             ctx.interner.intern("__kk_deep_recursive_scope_callRecursive"),
             ctx.interner.intern("__kk_deep_recursive_function_callRecursive"),
-            // CORO-004: withContext suspends the caller while the dispatched block
-            // runs on another dispatcher; the runtime resumes via callerState.resume.
             kxMiniWithContextCallee,
         ]
         let kxMiniLauncherRuntimeCallees: [InternedString: InternedString] = [
@@ -239,10 +222,6 @@ final class CoroutineLoweringPass: LoweringPass {
                 suspendFunctionNames: suspendFunctionNames,
                 runtimeSuspendCallNames: runtimeSuspendCallNames
             )
-            // KUU-3719: a callee whose suspending calls are all in tail
-            // position owns no ContinuationImpl on JVM — its suspend points
-            // bind the caller's continuation. Mark its lowered symbol so
-            // direct-call sites can share the caller's interception.
             if isInterceptionTransparentBody(
                 originalBody: suspendFunction.body,
                 interner: ctx.interner,

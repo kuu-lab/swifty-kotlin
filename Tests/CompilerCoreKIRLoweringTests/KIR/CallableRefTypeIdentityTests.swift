@@ -115,12 +115,6 @@ struct CallableRefTypeIdentityTests {
         #expect(sema.types.typeContainsAnyTypeParam(signature.returnType))
     }
 
-    /// Since #11613, lambda / anonymous-function values describe themselves by
-    /// their reflective function type (`"() -> kotlin.Int"`, identity flag 0)
-    /// instead of the identity-suffixed `kotlin.Function{N}` marker. Each
-    /// materialized value (raw lambda value, `kk_function_create` box and
-    /// KFunction-tagged wrapper) carries its own description call, so the
-    /// two anonymous function values produce more than two calls in `main`.
     @Test func testFunctionValueDescriptionsIncludeReferenceSignaturesAndFunctionTypes() throws {
         let ctx = makeContextFromSource("""
         fun top(): Int = 7
@@ -144,12 +138,8 @@ struct CallableRefTypeIdentityTests {
             return ctx.interner.resolve(text)
         }
         #expect(descriptions.contains("fun top(): kotlin.Int"))
-        // `{ 1 }` and `fun(): Int { ... }` (plus their boxed/tagged adapter
-        // values) each carry the reflective function-type description.
         #expect(descriptions.filter { $0 == "() -> kotlin.Int" }.count >= 2)
         #expect(!descriptions.contains { $0.hasPrefix("kotlin.Function") })
-        // Function-type descriptions are shared signature text: the identity
-        // flag stays 0 so the runtime does not append an `@hash` suffix.
         #expect(descriptionCalls.allSatisfy { call in
             guard case let .intLiteral(flag) = module.arena.expr(call.arguments[2]) else {
                 return false
@@ -234,10 +224,6 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    /// KUU-3863: signature adaptation (which hides KCallable on the JVM via
-    /// AdaptedFunctionReference) is a different flag from needing an adapter
-    /// thunk at all. A generic `::id` bound to `KFunction1<Int, Int>` needs
-    /// the erased-input ABI wrapper yet still exposes KCallable reflection.
     @Test func testGenericCallableReferenceAdaptsABIButKeepsKCallable() throws {
         let ctx = makeContextFromSource("""
         import kotlin.reflect.KFunction1
@@ -442,20 +428,6 @@ struct CallableRefTypeIdentityTests {
         #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
     }
 
-    // MARK: - Generic call-site type inference tests
-
-    /// KSP-496 (found as a side-effect while validating a property callable-ref
-    /// Sema fix): a property callable reference passed directly into a generic
-    /// call (e.g. `listOf<T>(vararg elements: T)`) used to be type-checked
-    /// against the *unsubstituted* type parameter `T` rather than its own
-    /// natural `KProperty1<Owner, Value>` type, because `inferCallableRefExpr`
-    /// adopted `expectedType` verbatim even when it still mentioned a type
-    /// parameter. Binding the reference's static type to a bare type variable
-    /// made `lowerPropertyReferenceWrapperValue` (which requires a resolved
-    /// `KProperty*` classType) bail out and fall back to a legacy bare-symbol
-    /// callable path that crashes at runtime (calls the raw property accessor
-    /// with no receiver — see `Scripts/diff_cases/kproperty_generic_vararg_inference.kt`
-    /// for the end-to-end runtime regression).
     @Test func testUnboundPropertyRefInGenericVarargCallGetsConcreteKProperty1Type() throws {
         let source = """
         class Counter(val v: Int)
@@ -535,13 +507,6 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
-    /// KUU-3886: a callable reference to a generic declaration needs an
-    /// ABI-only adapter (its erased parameter inputs are boxed before the
-    /// callee sees them), but the bound signature still matches the callee's
-    /// public one — so the value keeps KCallable identity: it must be tagged
-    /// and registered as a KFunction instead of taking the adapted-reference
-    /// identity path that hides reflection metadata and crashes
-    /// `.parameters`/`.returnType` with KSWIFTK-RUNTIME-0001.
     @Test func testKIREmitsKFunctionTagForABIAdaptedGenericCallableRef() throws {
         let source = """
         class Box<T>(val t: T)
@@ -580,13 +545,6 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
-    /// KUU-3863: a generic callable reference stored as KFunctionN needs an
-    /// ABI adapter thunk (the erased T input must be boxed for the call), but
-    /// the thunk keeps the callee's public signature — on the JVM this is a
-    /// plain FunctionReference that still implements KCallable. The lowered
-    /// value must therefore carry the KFunction tag and reflection metadata
-    /// so `.name` resolves through the runtime fast path instead of crashing
-    /// on vtable/itable dispatch.
     @Test func testKIREmitsKCallableMetadataForGenericCallableRef() throws {
         let source = """
         import kotlin.reflect.KFunction1
@@ -614,8 +572,6 @@ struct CallableRefTypeIdentityTests {
             },
             "Generic ::id should register KCallable metadata on the tagged value. Callees: \(callees)"
         )
-        // The function description must be set on the tagged value, not on
-        // the untagged adapter function value.
         #expect(
             kirCalls(to: .functionSetDescription, in: mainBody, interner: ctx.interner).contains {
                 $0.arguments.first == tagged
@@ -628,8 +584,6 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
-    /// A genuinely signature-adapted reference (the bound arity differs from
-    /// the callee's declared parameters) keeps hiding KCallable reflection.
     @Test func testKIRSkipsKFunctionTagForSignatureAdaptedCallableRef() throws {
         let source = """
         fun withDefault(a: Int, b: Int = 9): Int = a + b
@@ -651,10 +605,6 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
-    /// KUU-3863 companion check: a genuinely signature-adapted reference
-    /// (scalar-packed varargs here) still materializes as a plain function
-    /// value — the JVM's AdaptedFunctionReference does not implement
-    /// KCallable — so the adapter-identity path must be preserved.
     @Test func testKIRHidesKCallableForSignatureAdaptedCallableRef() throws {
         let source = """
         fun vsum(vararg xs: Int): Int { var s = 0; for (x in xs) s += x; return s }
@@ -681,14 +631,6 @@ struct CallableRefTypeIdentityTests {
         )
     }
 
-    /// KSP-496 follow-up: a bare `::member` reference to a member property
-    /// of the enclosing class must capture the implicit `this` receiver into
-    /// the generated KProperty wrapper object, the same way an explicit
-    /// `this::member` reference does — otherwise `.get()`/`.set()` on the
-    /// wrapper has no instance to read/write and crashes at runtime. This
-    /// checks the KIR-level signal for that capture: a `kk_array_set` store
-    /// into the wrapper's capture slot, which only exists when there's a
-    /// non-empty capture argument list.
     @Test func testKIRCapturesImplicitReceiverForBareMemberPropertyRef() throws {
         let source = """
         class C(val v: Int) {
@@ -768,7 +710,6 @@ struct CallableRefTypeIdentityTests {
             Issue.record("Second argument to tag call should be string literal 'add'.")
         }
 
-        // Verify the return type argument is the compact Int descriptor.
         if let returnTypeExpr = module.arena.expr(arguments[2]),
            case let .stringLiteral(returnTypeInterned) = returnTypeExpr
         {
@@ -829,11 +770,6 @@ struct CallableRefTypeIdentityTests {
         #expect(!tagCall.canThrow, "Callable ref tagging call should be non-throwing.")
     }
 
-    /// KUU-3810: `::Box.name` reports `<init>` on the JVM, not the class name
-    /// spelled in the source, and the function description renders the
-    /// escaped `<init>` signature (`fun `<init>`(kotlin.Int): Box`). An inner
-    /// class constructor keeps its outer-class dispatch receiver prefix
-    /// (`fun Outer.`<init>`(): Outer.Inner`).
     @Test func testKIRKFunctionTagForConstructorRefUsesInitName() throws {
         let source = """
         import kotlin.reflect.KFunction1

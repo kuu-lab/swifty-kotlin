@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Java's FloatingDecimal does not emit the globally shortest round-tripping
 // decimal: when a length-1 decimal round-trips (p = 1), it selects the
 // closest decimal to the exact value among all length-1-or-2 candidates.

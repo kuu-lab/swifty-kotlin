@@ -4,16 +4,6 @@ import Testing
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// `java.io` stream/reader/writer members lower to `__kk_*` runtime bridges.
-/// A class-typed receiver must dispatch through the registered vtable slot —
-/// the runtime factories (`__kk_string_writer_new`, `__kk_output_stream_bufferedWriter`,
-/// `__kk_*_byteInputStream_*`, …) install those entries on every produced box —
-/// so a Kotlin subclass override (e.g. `DataInputStream.read`,
-/// `FlushingWriter.flush`) is reached instead of a direct `__kk_*` call that
-/// bypassed overrides or panicked on a real object (KSWIFTK-RUNTIME-0001).
-/// KUU-3851 covered `InputStream`/`OutputStream`; KUU-3860 extends the same
-/// treatment to `Writer`/`BufferedWriter` (`w.flush()`/`w.write(text)` on a
-/// `Writer`-typed receiver).
 extension BuildKIRRegressionTests {
     private func virtualCallNamesAndCanThrow(
         from body: [KIRInstruction],
@@ -46,9 +36,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func streamBoxNominalReceiverAlsoDispatchesVirtually() throws {
-        // `ByteArrayInputStream`/`OutputStream`/`Writer` receivers must use the
-        // same slot path — the producer-registered box vtable resolves it to
-        // the identical `__kk_*` bridge.
         let source = """
         import java.io.ByteArrayInputStream
         import java.io.OutputStream
@@ -84,11 +71,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func writerWriteAndCloseOnBaseTypedReceiverDispatchVirtually() throws {
-        // KUU-3860: `Writer.write(text)` and `Writer.close()` on a
-        // `Writer`-typed receiver must route through vtable[0]/vtable[2]
-        // just like `flush` — a `BufferedWriter`/`StringWriter` box resolves
-        // the slot to the `__kk_buffered_writer_*` bridge, while a Kotlin
-        // subclass override wins through the same slot.
         let source = """
         import java.io.Writer
         fun writeProbe(w: Writer, text: String) { w.write(text) }
@@ -115,8 +97,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func sequenceInputStreamOwnMemberStaysDirect() throws {
-        // `SequenceInputStream` is final in the synthetic graph; its own
-        // specialized `__kk_sequence_input_stream_*` bridges remain direct.
         let source = """
         import java.io.SequenceInputStream
         fun seqProbe(s: SequenceInputStream): Int = s.read()
@@ -131,8 +111,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// All `kk_object_register_vtable_method` registrations in the module:
-    /// (slot, methodSymbol) pairs resolved from their constant expressions.
     private func allVtableMethodRegistrations(
         in module: KIRModule,
         interner: StringInterner
@@ -160,15 +138,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // KUU-3860: `Writer.write(text: String)` dispatches through the raw
-    // `__kk_buffered_writer_write` ABI — `(i64 receiver, i64 textHandle,
-    // outThrown)` — because every entry registered for the slot, including
-    // the runtime box entries, uses that ABI. A Kotlin subclass override is
-    // a flat source function whose `String` parameter is the `{ ptr, i64,
-    // i64, i64 }` aggregate, so the slot must register a `kk_itable_bridge_*`
-    // adapter whose outer signature is raw (int word for `text`), not the
-    // flat thunk itself — otherwise the vtable lookup hands a raw handle to
-    // a callee that reads four words of it and crashes.
     @Test
     func writerWriteOverrideRegistersRawABIBridgeInVtableSlot() throws {
         TestStdlibCache.shared.prepare()
@@ -205,9 +174,6 @@ extension BuildKIRRegressionTests {
             .filter { $0.slot == slot }
         #expect(!slotRegistrations.isEmpty)
 
-        // The registered entry must be a synthesized bridge taking the raw
-        // word/handle form for `text`, not the flat-ABI Kotlin thunk and not
-        // the runtime `__kk_*` bridge itself.
         let registeredFunctionNames = slotRegistrations.compactMap {
             module.arena.function(for: $0.method).map { interner.resolve($0.name) }
         }

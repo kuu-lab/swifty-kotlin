@@ -1,16 +1,8 @@
 import Foundation
 
-/// Call-site-independent memoization for opt-in checks. A symbol's
-/// annotations and its owning file are fixed after header collection, and the
-/// only symbols `resolveAnnotationClassSymbol` can return — `.annotationClass`
-/// kinds — are all declared at header time (local symbols defined during type
-/// checking are never annotation classes), so the results cannot go stale
-/// mid-run.
 final class OptInResolutionCache {
     struct RequirementsKey: Hashable {
         let symbolID: SymbolID
-        /// The file `resolveAnnotationClassSymbol` resolves against: the
-        /// symbol's own file when recorded, else the file being checked.
         let fileID: FileID?
     }
 
@@ -56,12 +48,6 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// The full opt-in requirement set `checkOptIn` would report for a
-    /// symbol: its own markers, constructor-alias owner markers, member
-    /// owner propagation, and markers carried by signature types. Member-call
-    /// inference uses this to tell whether a resolved callee already covers
-    /// the markers of an object qualifier whose own check was skipped
-    /// (KUU-4426).
     func resolvedOptInRequirements(
         for symbolID: SymbolID,
         constructorTypeAlias: SymbolID? = nil,
@@ -73,8 +59,6 @@ extension TypeCheckHelpers {
         if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
            let owner = ctx.sema.symbols.parentSymbol(for: symbolID) {
             var markers = Set(requirements.map(\.markerSymbol))
-            // An alias constructor inherits the alias's markers, not those of
-            // its expanded class. The constructor's own markers still apply.
             for requirement in requiredOptInRequirements(for: constructorTypeAlias ?? owner, ctx: ctx)
                 where markers.insert(requirement.markerSymbol).inserted {
                 requirements.append(requirement)
@@ -97,10 +81,6 @@ extension TypeCheckHelpers {
                 requirements.append(requirement)
             }
         }
-        // Signature types remain dynamic: expression bodies can refine a header's
-        // placeholder after the annotation cache has already been populated.
-        // An annotation application's synthetic factory call checks the annotation
-        // class, not a callable signature. Nested explicit calls keep their checks.
         var signatureTypes: [TypeID] = []
         if let propertyType = ctx.sema.symbols.propertyType(for: symbolID) {
             signatureTypes.append(propertyType)
@@ -178,15 +158,7 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        // Only direct supertypes impose the requirement. A subclass that
-        // consents via '@OptIn'/the marker consumes it and does not re-impose
-        // it on its own subclasses; '@SubclassOptInRequired' is the only form
-        // that propagates the requirement further, matching kotlinc.
         var optedInMarkers = activeOptInMarkers(in: ctx)
-        // '@SubclassOptInRequired(M::class)' on the checked class or an
-        // enclosing declaration consents to subclassing M-gated supertypes
-        // within its scope — including nested classes — without consenting to
-        // ordinary usages of M-marked API the way '@OptIn' does.
         var consentingDecl: SymbolID? = symbol
         while let current = consentingDecl {
             let file = sourceFile(for: current, ctx: ctx) ?? currentFile(in: ctx)
@@ -276,9 +248,6 @@ extension TypeCheckHelpers {
         var requirements: [OptInRequirement] = []
         var seenMarkers: Set<SymbolID> = []
 
-        // Only a marker directly applied to an API propagates to its callers.
-        // An experimental annotation's own marker is checked at its application,
-        // type and constructor sites, not at uses of the annotated declaration.
         for annotation in annotations {
             guard let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.annotationFQName,
@@ -330,9 +299,6 @@ extension TypeCheckHelpers {
     ) {
         let markerNames = parseOptInMarkerNames(annotation.arguments)
         if markerNames.isEmpty {
-            // An argument that names no marker at all must not silently become
-            // a no-op. An empty 'markerClass' vararg is legal Kotlin and
-            // imposes no requirement.
             if !annotation.arguments.isEmpty {
                 diagnostics.error(
                     "KSWIFTK-SEMA-SUBCLASS-OPT-IN",
@@ -343,8 +309,6 @@ extension TypeCheckHelpers {
             return
         }
 
-        // 'markerClass' is a vararg: kotlinc checks every entry and requires
-        // opt-in to each listed marker, not just the first.
         let markerFile = sourceFile(for: supertype, ctx: ctx) ?? currentFile(in: ctx)
         for markerName in markerNames {
             guard let markerSymbol = resolveAnnotationClassSymbol(
@@ -418,9 +382,6 @@ extension TypeCheckHelpers {
         )
         var propertyCtx = ctx
         propertyCtx.inheritedOptInMarkers.formUnion(parameterCtx.inheritedOptInMarkers)
-        // A property-site opt-in cannot authorize the original parameter type.
-        // De-duplicate shared markers across this pair without merging their
-        // permission contexts. A vararg's implicit array belongs to its parameter.
         let parameterRequirements = requiredOptInRequirements(
             forTypes: [parameterType], ctx: parameterCtx
         )
@@ -451,17 +412,10 @@ extension TypeCheckHelpers {
 
     func localFunctionOptInContext(_ ctx: TypeInferenceContext) -> TypeInferenceContext {
         var copy = ctx
-        // A local extension changes currentDeclSymbol for receiver resolution,
-        // but its body still inherits the enclosing declaration's opt-ins.
         copy.inheritedOptInMarkers = activeOptInMarkers(in: ctx)
         return copy
     }
 
-    /// Opt-in markers granted by already-resolved annotation records. Local
-    /// function declarations carry their annotations as expression
-    /// annotations (KUU-4290); resolving them to records first keeps import
-    /// aliases (`import kotlin.OptIn as OI`) granting the marker, which the
-    /// source-spelling match in `expressionOptInContext` cannot see.
     func optInMarkers(
         from records: [MetadataAnnotationRecord],
         file: ASTFile?,
@@ -472,12 +426,6 @@ extension TypeCheckHelpers {
         return markers
     }
 
-    /// Resolve the declaration annotations BuildAST forwarded onto a local
-    /// declaration expression (local `fun`, KUU-4290; local val/var and
-    /// destructuring, KUU-4284) into symbol records, mirroring the header
-    /// pass's `registerAnnotations`: short names resolve against the
-    /// enclosing declaration's lexical context so they land on the same FQ
-    /// name a member declaration would record (import aliases included).
     func localDeclarationAnnotationRecords(
         for exprID: ExprID,
         ctx: TypeInferenceContext
@@ -517,10 +465,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Opt-ins granted by `@OptIn` annotations attached to the expression `id`.
-    /// The markers join `inheritedOptInMarkers` on a copied context, so they
-    /// stay active for the expression's whole inference subtree — nested calls
-    /// and lambdas included — without leaking into sibling expressions.
     func expressionOptInContext(_ id: ExprID, ctx: TypeInferenceContext) -> TypeInferenceContext {
         let annotations = ctx.ast.arena.expressionAnnotations(for: id)
         guard !annotations.isEmpty,
@@ -595,8 +539,6 @@ extension TypeCheckHelpers {
                 }
             }
 
-            // If this annotation is itself a @RequiresOptIn marker, it implicitly
-            // grants opt-in for that marker within the annotated declaration's scope.
             if let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.annotationFQName,
                 file: file,
@@ -641,8 +583,6 @@ extension TypeCheckHelpers {
                 }
             }
 
-            // If this annotation is itself a @RequiresOptIn marker, it implicitly
-            // grants opt-in for that marker within the annotated declaration's scope.
             if let annotationSymbol = resolveAnnotationClassSymbol(
                 named: annotation.name,
                 file: file,

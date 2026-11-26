@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2906: nested closures and local declarations retain the accessor's backing field.
     @Test
     func testBackingFieldCaptureAcrossNestedAccessorScopes() throws {
         let artifactPath = try Self.buildStdlibArtifact()

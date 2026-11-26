@@ -4,22 +4,9 @@
 import Foundation
 import Testing
 
-/// RF-TEST-001: fixture 駆動の Codegen 実行テストハーネス。
-///
-/// `Tests/CompilerBackendTests/Fixtures/` 以下を実行時に走査し、`expected.txt` を
-/// 持つ各ディレクトリを 1 fixture として扱う。fixture は同ディレクトリ内の単一
-/// `*.kt` を `kswiftc`（Codegen → Link）でコンパイル・実行し、stdout を
-/// `expected.txt` と比較する。
-///
-/// 新しいケースは fixture ディレクトリ（`<領域>/<ケース名>/<ケース名>.kt` +
-/// `expected.txt`）を追加するだけで自動検出され、テストクラスの編集は不要。
-/// 詳細は `Tests/CompilerBackendTests/Fixtures/README.md` を参照。
 @Suite
 struct CodegenBackendFixtureTests {
 
-    /// 全 fixture を検出して実行する単一エントリポイント。
-    /// 各 fixture の失敗はケースの相対パス付きで報告され、1 件の失敗が他の
-    /// fixture の実行を止めないようにする。
     @Test
     func testCodegenFixturesMatchExpectedStdout() throws {
         let fixtures = try discoverFixtures()
@@ -83,33 +70,23 @@ struct CodegenBackendFixtureTests {
         }
     }
 
-    // MARK: - Fixture discovery
-
-    /// `expected.txt` を持つ fixture ディレクトリの記述子。
     private struct Fixture {
-        /// 実行対象の Kotlin ソース（`fun main()` を持つ）。
         let sourcePath: String
-        /// 期待する stdout。
         let expected: String
-        /// `Fixtures/` からの相対パス（診断・モジュール名生成に使用）。
         let relativePath: String
     }
 
-    /// テストソースの位置から `Fixtures/` ルートを解決する。
-    /// SwiftPM のリソースバンドルに依存せず、`Scripts/diff_cases` を参照する
-    /// 既存テストと同じ `#filePath` 相対方式を採る。
     private static let fixturesRoot: URL = {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
             .appendingPathComponent("Fixtures", isDirectory: true)
     }()
 
-    /// `diff_case.txt` だけを持つ fixture が指す `Scripts/diff_cases` のルート。
     private static let diffCasesRoot: URL = fixturesRoot
-        .deletingLastPathComponent() // CompilerBackendTests/
-        .deletingLastPathComponent() // Tests/
-        .deletingLastPathComponent() // リポジトリルート
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
         .appendingPathComponent("Scripts/diff_cases", isDirectory: true)
 
     private func discoverFixtures() throws -> [Fixture] {
@@ -136,7 +113,6 @@ struct CodegenBackendFixtureTests {
                 .sorted()
             let relativePath = url.path.replacingOccurrences(of: root.path + "/", with: "")
 
-            // 同じプログラムが diff_cases にある場合はコピーを置かず、名前だけを参照する。
             let diffCaseURL = url.appendingPathComponent("diff_case.txt")
             if ktFiles.isEmpty, fm.fileExists(atPath: diffCaseURL.path) {
                 let name = try String(contentsOf: diffCaseURL, encoding: .utf8)
@@ -173,8 +149,6 @@ struct CodegenBackendFixtureTests {
         return fixtures.sorted { $0.relativePath < $1.relativePath }
     }
 
-    // MARK: - Fixture execution
-
     private func runFixture(_ fixture: Fixture) {
         do {
             let outputBase = FileManager.default.temporaryDirectory
@@ -197,7 +171,6 @@ struct CodegenBackendFixtureTests {
         }
     }
 
-    /// 相対パスから安定した識別子（モジュール名）を生成する。
     private static func moduleName(for relativePath: String) -> String {
         let sanitized = relativePath.map { char -> Character in
             char.isLetter || char.isNumber ? char : "_"

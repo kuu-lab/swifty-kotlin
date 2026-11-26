@@ -43,8 +43,6 @@ struct CodegenBackendEnumVarargConstructionTests {
         let source = try String(contentsOf: root.appendingPathComponent(
             "Scripts/diff_cases/enum_entry_vararg_constructor.kt"
         ), encoding: .utf8)
-        // Kotlin/JVM 2.3.10, -Xjdk-release=17. Defaults preserve array identity;
-        // explicit named/spread arrays are copied, and entries initialize once.
         try assertKotlinOutput(
             source,
             moduleName: "EnumVarargConstruction",

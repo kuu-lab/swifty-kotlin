@@ -19,29 +19,22 @@ import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.serializer
 
-/**
- * Entry point for JSON serialization.
- */
 public abstract class Json : StringFormat {
     public override val serializersModule: SerializersModule
         get() = EmptySerializersModule()
 
-    /** Encodes [value] using the supplied [serializer]. */
     public override fun <T> encodeToString(serializer: SerializationStrategy<T>, value: T): String {
         val output = StringBuilder()
         serializer.serialize(JsonEncoder(serializersModule) { output.append(it) }, value)
         return output.toString()
     }
 
-    /** Encodes [value] using its generated or registered serializer. */
     public inline fun <reified T> encodeToString(value: T): String =
         encodeToString(serializer<T>(), value)
 
-    /** Decodes [string] using the supplied [deserializer]. */
     public override fun <T> decodeFromString(deserializer: DeserializationStrategy<T>, string: String): T =
         deserializer.deserialize(JsonDecoder(JsonParser(string).parse(), serializersModule))
 
-    /** Decodes [string] using the generated or registered deserializer. */
     public inline fun <reified T> decodeFromString(string: String): T =
         decodeFromString(serializer<T>(), string)
 

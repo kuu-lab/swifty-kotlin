@@ -27,7 +27,6 @@ public func kk_simple_date_format_parse(_ patternRaw: Int, _ sourceRaw: Int) -> 
     return Int(epochMilliseconds.rounded(.towardZero))
 }
 
-/// `java.text.MessageFormat` date/time sub-formats.
 /// kind: 0=date, 1=time, 2=date+time; style: 0=short, 1=medium, 2=long, 3=full.
 @_cdecl("__kk_messageformat_datetime")
 public func __kk_messageformat_datetime(_ kind: Int, _ style: Int, _ millis: Int, _ localeRaw: Int) -> Int {
@@ -57,9 +56,6 @@ public func __kk_messageformat_datetime(_ kind: Int, _ style: Int, _ millis: Int
     return runtimeMakeStringRaw(formatter.string(from: date))
 }
 
-/// `java.text.MessageFormat` custom date/time patterns (`{n,date,pattern}`).
-/// The pattern uses `SimpleDateFormat`/LDML letters, which Foundation's
-/// `DateFormatter.dateFormat` understands for the common subset.
 @_cdecl("__kk_simple_date_format_format")
 public func __kk_simple_date_format_format(_ patternRaw: Int, _ millis: Int, _ localeRaw: Int) -> Int {
     guard let pattern = runtimeStringFromRaw(patternRaw) else {

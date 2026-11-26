@@ -11,10 +11,6 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // When used as `T::class.simpleName`, the memberCall lowerer
-        // intercepts and emits a direct kk_type_token_simple_name call
-        // instead.  For standalone `T::class` (assigned to a variable,
-        // passed as an argument, etc.) the KClass box is needed.
         if memberName == KnownCompilerNames(interner: interner).className,
            let classRefTargetType = sema.bindings.classRefTargetType(for: exprID)
         {
@@ -65,9 +61,6 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: nameHintExpr, value: .intLiteral(0)))
             }
 
-            // Prefer the sema-bound KClass<T> type and fall back to
-            // KClass<classRefTargetType> so the result always carries the
-            // precise generic parameter instead of degrading to Any.
             let kClassFallback = sema.types.makeKClassType(argument: classRefTargetType)
             let result = arena.appendTemporary(type: boundType ?? kClassFallback
             )

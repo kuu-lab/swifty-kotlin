@@ -1,7 +1,3 @@
-// Map.Entry and MutableMap.MutableEntry are owned by bundled Kotlin source.
-// Bootstrap shells remain available before source headers are collected and
-// for no-stdlib compilation.
-
 extension DataFlowSemaPhase {
     func registerSyntheticMapEntryResiduals(
         symbols: SymbolTable,

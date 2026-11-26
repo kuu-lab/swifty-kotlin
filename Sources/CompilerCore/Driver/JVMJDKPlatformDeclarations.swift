@@ -197,7 +197,10 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/lang/Object", [
                 method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.reference("java/io/File", nullable: true), .string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "getPath", [], .string),
+                method("java/io/File", "getAbsolutePath", [], .string),
+                method("java/io/File", "mkdirs", [], .boolean),
             ]),
             ("java/lang/IllegalAccessError", """
             package java.lang
@@ -519,9 +522,17 @@ extension JVMClasspathIndex {
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {
-                companion object { external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit }
+                companion object {
+                    external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit
+                    external fun <T> reverse(list: kotlin.collections.List<T>): Unit
+                    external fun <T> shuffle(list: kotlin.collections.List<T>): Unit
+                }
             }
-            """, 0x0031, "java/lang/Object", [method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true)]),
+            """, 0x0031, "java/lang/Object", [
+                method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true),
+                method("java/util/Collections", "reverse", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+                method("java/util/Collections", "shuffle", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+            ]),
             ("java/security/InvalidParameterException", """
             package java.security
             open class InvalidParameterException: kotlin.IllegalArgumentException {
@@ -544,9 +555,14 @@ extension JVMClasspathIndex {
                 fun name(): String = null!!
                 companion object {
                     external fun forName(charsetName: String): Charset
+                    external fun defaultCharset(): Charset
                 }
             }
-            """, 0x0401, "java/lang/Object", [method("java/nio/charset/Charset", "name", [], .string), method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true)]),
+            """, 0x0401, "java/lang/Object", [
+                method("java/nio/charset/Charset", "name", [], .string),
+                method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+                method("java/nio/charset/Charset", "defaultCharset", [], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+            ]),
         ]
         let appendableName = "java/lang/Appendable"
         let appendable: JVMValueType = .reference(appendableName, nullable: false)
@@ -677,21 +693,6 @@ extension JVMClasspathIndex {
                                                  contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
             classes[durationName] = info
-        }
-        // The shared frontend already declares File, its constructors and
-        // path. Supply their JDK signatures even with no platform jar.
-        let fileName = "java/io/File"
-        if classes[fileName] == nil {
-            let fileType = JVMValueType.reference(fileName, nullable: false)
-            classes[fileName] = JVMClassInfo(name: fileName, flags: 0x0001, superclass: "java/lang/Object",
-                                           interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
-                method(fileName, "<init>", [.string], fileType),
-                method(fileName, "<init>", [.string, .string], fileType),
-                method(fileName, "<init>", [.reference(fileName, nullable: true), .string], fileType),
-                method(fileName, "getPath", [], .string),
-                method(fileName, "getAbsolutePath", [], .string),
-                method(fileName, "mkdirs", [], .boolean),
-            ])
         }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {

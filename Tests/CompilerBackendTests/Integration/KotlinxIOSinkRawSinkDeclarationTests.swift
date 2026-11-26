@@ -4,7 +4,6 @@
 import Foundation
 import Testing
 
-/// Direct KUU-2612 probes for the Sink and RawSink declaration boundary.
 @Suite(.serialized)
 struct KotlinxIOSinkRawSinkDeclarationTests {
     // IO_API_VALIDATION_PROBE: probe:KUU-2612:sink-rawsink-native-declarations

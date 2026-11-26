@@ -1,4 +1,3 @@
-/// Retains LLVM process state for one Codegen/Link pipeline.
 final class LLVMBackendSession {
     private var bindings: LLVMCAPIBindings?
     private let keepContextAlive: Bool
@@ -10,8 +9,6 @@ final class LLVMBackendSession {
 
     func loadBindings() -> LLVMCAPIBindings? {
         if let bindings { return bindings }
-        // Cache successful loads only; preserve trust checks and the context
-        // lifecycle smoke test on the first load of each compilation.
         let loaded = LLVMCAPIBindings.loadUsable()
         bindings = loaded
         return loaded

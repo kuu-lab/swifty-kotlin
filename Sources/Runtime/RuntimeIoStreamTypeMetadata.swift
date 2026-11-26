@@ -75,9 +75,6 @@ private let ioStringWriterToStringEntry: @convention(c) (Int, UnsafeMutablePoint
     return __kk_string_writer_to_string(raw)
 }
 
-/// Reader-box vtable entry for `java.io.Reader.read(CharArray, Int, Int)` —
-/// forwards to `__kk_reader_read_range`, which resolves the underlying
-/// `RuntimeReaderCharSource` (box fast path or Kotlin-reader vtable source).
 private let ioReaderReadRangeEntry: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw, bufferRaw, offset, count, thrown in
     __kk_reader_read_range(raw, bufferRaw, offset, count, thrown)
@@ -120,12 +117,6 @@ enum RuntimeIoStreamVTableSlot {
     static let writerClose = 2
 }
 
-/// Registers the reader-box nominal type and ancestry the same way
-/// `runtimeRegisterJavaWriter`/`runtimeRegisterIoStream` do for their
-/// producers: without the nominal typeID and `typeParents` edges, `is`/`as`
-/// checks (`kk_op_is`) on raw `RuntimeBufferedReaderBox` handles answered
-/// `false` for `java.io.Reader`, `java.io.BufferedReader`/`InputStreamReader`
-/// and every closeable interface (KUU-3860).
 func runtimeRegisterJavaReader(_ objectRaw: Int, fqName: String, parentFQName: String) {
     let nominalID = runtimeStableNominalTypeID(fqName: fqName)
     runtimeRegisterObjectType(rawValue: objectRaw, classID: nominalID)
@@ -150,10 +141,6 @@ func runtimeRegisterJavaReader(_ objectRaw: Int, fqName: String, parentFQName: S
         )
         _ = kk_object_register_itable_method(objectRaw, interfaceSlot, 0, closeEntry)
     }
-    // Install `Reader.read(CharArray, Int, Int)` (vtable slot
-    // `readerReadChars`) so `reader.read(buf, off, len)` on a Reader-typed
-    // receiver reaches the box through the same entry Kotlin subclasses
-    // dispatch (KUU-4031).
     _ = kk_object_register_vtable_method(
         objectRaw,
         RuntimeIoStreamVTableSlot.readerReadChars,
@@ -206,9 +193,6 @@ func runtimeRegisterJavaWriter(
     return raw
 }
 
-/// Register each runtime stream allocation's nominal type, interface entries,
-/// and fixed vtable bridge slots. The box still has no generated class fields
-/// or KTypeInfo descriptor.
 func runtimeRegisterIoStream(_ object: AnyObject, fqName: String, input: Bool) -> Int {
     let raw = registerRuntimeObject(object, typeID: runtimeStableNominalTypeID(fqName: fqName))
     let baseName = input ? "java.io.InputStream" : "java.io.OutputStream"

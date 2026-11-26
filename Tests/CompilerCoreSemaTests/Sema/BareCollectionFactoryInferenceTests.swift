@@ -5,19 +5,8 @@ import Foundation
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// KUU-4002: kotlinc rejects a bare generic collection factory when neither
-/// its call arguments nor the expected type supply a concrete type argument
-/// ("cannot infer type for type parameter 'T'"). Star projections and `Any?`
-/// are not evidence, but call-argument positions may defer the diagnostic
-/// until the enclosing call's chosen parameter is known — `this(emptyList())`,
-/// `xs.addAll(emptyList())`, and `list + emptyList()` still resolve.
-///
-/// Each test compiles the bundled stdlib from source once, so the cases are
-/// grouped into a few source units instead of one compilation per case.
 @Suite
 struct BareCollectionFactoryInferenceTests {
-    /// Lines marked `// REJECT` must each produce KSWIFTK-SEMA-INFER; the rest
-    /// must not produce any error.
     @Test func bareFactoriesAndWeakContextsAreRejected() throws {
         let ctx = try makeTestContext("""
         fun sizeOf(c: Collection<*>) = c.size
@@ -107,8 +96,6 @@ struct BareCollectionFactoryInferenceTests {
         #expect(errors.isEmpty, "\(errors)")
     }
 
-    /// The prebuilt-artifact path keeps its existing resolution behavior;
-    /// only the source-backed interception reports the new diagnostic.
     @Test func factoriesWithEvidenceAreAcceptedFromArtifact() throws {
         let ctx = try makeTestContext("""
         fun main() {

@@ -1,4 +1,3 @@
-/* Explicit recording retry/update operations. Real CAS remains in the delegate. */
 package kswiftk.atomicfu
 
 public inline fun RecordingAtomicInt.loop(action: (Int) -> Unit): Nothing {

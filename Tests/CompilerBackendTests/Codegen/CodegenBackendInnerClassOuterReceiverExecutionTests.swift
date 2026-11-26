@@ -7,8 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendInnerClassOuterReceiverExecutionTests {
-    // KUU-3574: inherited inner constructors capture outer arguments from the
-    // current class's generic superclass instantiation.
     @Test func innerConstructorUsesOuterTypeArgumentsFromGenericSuperclass() throws {
         try assertKotlinOutput(
             """
@@ -26,8 +24,6 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
     }
 
     @Test func genericInnerClassTypeAndConstructionCaptureOuterArguments() throws {
-        // KUU-3608: an unqualified generic inner class captures its outer type
-        // arguments while keeping its own explicit type arguments.
         try assertKotlinOutput(
             """
             class Outer<OP> {
@@ -88,9 +84,6 @@ struct CodegenBackendInnerClassOuterReceiverExecutionTests {
         }
     }
 
-    /// KUU-2846: a nested inner subclass and a local subclass of an inner
-    /// class declared in an outer scope must capture the current `Child`
-    /// instance. It is a `Father` subtype with its own constructor state.
     @Test func innerSupertypeFromOuterScopeCapturesCurrentReceiver() throws {
         try assertKotlinOutput(
             """

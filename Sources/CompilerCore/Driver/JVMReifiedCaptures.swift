@@ -19,9 +19,6 @@ extension JVMFunctionBuilder {
             let actual = specialize ? program.specialized(type) : type
             switch program.sema.types.kind(of: actual) {
             case let .typeParam(t) where program.isReifiedParameter(actual):
-                // A nested inline member owns its own reified parameters;
-                // those are specialized at that member's call, not captured
-                // while constructing the enclosing object.
                 if let site = program.sema.symbols.symbol(t.symbol)?.declSite,
                    site.start.file == range.start.file, site.start.offset >= range.start.offset, site.end.offset <= range.end.offset { return }
                 found[t.symbol] = program.sema.types.withNullability(.nonNull, for: actual)
@@ -54,8 +51,6 @@ extension JVMFunctionBuilder {
             guard let token = try runtimeReifiedToken(element) else { return nil }
             let array = try reflectiveArray(token.klass, count: constant(.int(0), .int))
             let klass = try jdkCall("java/lang/Object", "getClass", [], token.klass.type, receiver: array)!
-            // An array's component mutability does not constrain its elements
-            // during an erased JVM array check.
             return ReifiedRuntimeToken(klass: klass, nullable: try constant(.boolean(t.nullability == .nullable), .boolean), mutableKind: try constant(.int(0), .int))
         default: return nil
         }
@@ -78,9 +73,6 @@ extension JVMFunctionBuilder {
         return ReifiedRuntimeToken(klass: klass, nullable: nullable, mutableKind: try reifiedMutableKind(klass: klass, name: name))
     }
 
-    /// Class literals erase List and MutableList to the same JDK interface.
-    /// A marker check on a standard read-only value lets the foreign Kotlin
-    /// inliner preserve that distinction without a repository-specific ABI.
     private func reifiedMutableKind(klass: JVMValue, name: String) throws -> JVMValue {
         let result = try constant(.int(0), .int), probe = try value(.reference("java/lang/Object", nullable: true))
         let inspect = label(), end = label()

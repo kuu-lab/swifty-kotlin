@@ -2,8 +2,6 @@ package kotlin.collections
 
 import kotlin.internal.__valuesEqual
 
-// MIGRATION-COL-006
-
 public operator fun <T> Array<T>.contains(element: T): Boolean {
     var i = 0
     val sz = this.size
@@ -14,7 +12,6 @@ public operator fun <T> Array<T>.contains(element: T): Boolean {
     return false
 }
 
-// Primitive arrays compare unboxed elements with Kotlin primitive equality.
 public operator fun BooleanArray.contains(element: Boolean): Boolean {
     var i = 0
     val sz = this.size
@@ -94,7 +91,6 @@ public fun <T> Array<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
-// KUU-1889: keep the standard covariant receiver and stop at the first match.
 public inline fun <T> Array<out T>.indexOfFirst(predicate: (T) -> Boolean): Int {
     var i = 0
     val sz = this.size

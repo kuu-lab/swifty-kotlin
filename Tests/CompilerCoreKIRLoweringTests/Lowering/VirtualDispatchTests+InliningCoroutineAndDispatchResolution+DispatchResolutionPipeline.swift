@@ -17,13 +17,9 @@ extension VirtualDispatchTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            // Run through sema and KIR building
             do {
                 try runToKIR(ctx)
             } catch {
-                // If the frontend doesn't support open/override syntax yet,
-                // this is expected. The isolated unit tests above cover the
-                // lowering behavior independently.
                 return
             }
 
@@ -71,8 +67,6 @@ extension VirtualDispatchTests {
         }
     }
 
-    // MARK: - 16. resolveVirtualDispatch: final class -> static dispatch (no virtualCall)
-
     @Test func testFinalClassMethodUsesStaticDispatch() throws {
         let source = """
         class FinalClass {
@@ -94,12 +88,9 @@ extension VirtualDispatchTests {
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            // Final class (no subtypes in Kotlin) should use static dispatch
             #expect(!hasVirtualCall, "Final class method should use static dispatch (.call), not virtualCall")
         }
     }
-
-    // MARK: - 17. virtualCall with multiple arguments: receiver separate, args correct count
 
     @Test func testVirtualCallWithMultipleArgumentsPreservesCount() throws {
         let interner = StringInterner()
@@ -164,7 +155,6 @@ extension VirtualDispatchTests {
             Issue.record("Expected virtualCall instruction")
             return
         }
-        // Receiver is separate; arguments should have exactly 2 entries
         #expect(arguments.count == 2, "virtualCall should have exactly 2 value arguments (not including receiver)")
         #expect(receiver == receiverExpr, "Receiver should be the original receiver expression")
         #expect(arguments[0] == arg1, "First argument should be arg1")

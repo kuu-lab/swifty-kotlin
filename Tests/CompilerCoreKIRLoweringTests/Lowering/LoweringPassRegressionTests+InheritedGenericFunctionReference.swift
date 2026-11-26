@@ -3,12 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-3864: `Type::member` function references reflect the member in the
-// erased receiver class parameterized by its own type parameters. The
-// callable-reference tag and KParameter metadata must carry the declared
-// signature types substituted through the supertype instantiation
-// (`A : H<A>` → `A?`), while written LHS type arguments are ignored
-// (`H<A>::foo` stays `T?`, `B<Int>::foo` stays `U?`).
 extension LoweringPassRegressionTests {
     @Test
     func testInheritedGenericFunctionReferenceTagsSubstitutedReturnType() throws {
@@ -101,9 +95,6 @@ extension LoweringPassRegressionTests {
                     }
                 }
             }
-            // Erased receiver self types for the INSTANCE slot and declared
-            // member-scope types for the value slots — never the written
-            // `Type::member` arguments (`H<A>`, `B<Int>`, `Int`).
             #expect(parameterTypeNames.contains("A"), "A::foo instance parameter must be A")
             #expect(parameterTypeNames.contains("H<T>"), "H<A>::foo instance parameter must be H<T>")
             #expect(parameterTypeNames.contains("B<U>"), "B<Int>::foo instance parameter must be B<U>")

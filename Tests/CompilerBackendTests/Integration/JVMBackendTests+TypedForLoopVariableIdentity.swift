@@ -54,10 +54,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// A for-loop variable with an explicitly declared reference supertype over
-    /// primitive elements (`for (x: Any in doubleArrayOf(...))`) must keep the
-    /// boxed value in the loop local: boxing it on every read would make
-    /// `x === x` false, unlike kotlinc.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func typedForLoopVariableKeepsBoxedIdentity(mode: EmitMode) throws {
         let source = """

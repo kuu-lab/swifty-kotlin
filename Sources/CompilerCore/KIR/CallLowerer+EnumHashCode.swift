@@ -1,7 +1,4 @@
 extension CallLowerer {
-    /// Enum values are raw ordinals when their static type is concrete. Pass
-    /// the nominal enum ID alongside the ordinal so the runtime can use the
-    /// same identity hash as an enum box after Any erasure.
     func tryEmitEnumHashCodeCall(
         chosenCallee: SymbolID?,
         receiver: MemberCallReceiver,

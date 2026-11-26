@@ -16,7 +16,6 @@ private external fun __processHandleAlive(pid: kotlin.Long): Int
 @KsSymbolName("__kk_process_handle_destroy")
 private external fun __processHandleDestroy(pid: kotlin.Long, forcible: kotlin.Int): Int
 
-/** Flat [pid, ppid, pid, ppid, ...] snapshot of every visible process. */
 @KsSymbolName("__kk_process_handle_table")
 private external fun __processHandleTable(): List<kotlin.Long>
 
@@ -29,11 +28,9 @@ private external fun __processInfoCommandLine(pid: kotlin.Long): String?
 @KsSymbolName("__kk_process_info_arguments")
 private external fun __processInfoArguments(pid: kotlin.Long): Array<String>?
 
-/** Process start time in epoch milliseconds; 0 when unknown. */
 @KsSymbolName("__kk_process_info_start_time")
 private external fun __processInfoStartTime(pid: kotlin.Long): kotlin.Long
 
-/** Total CPU time in nanoseconds; -1 when unknown. */
 @KsSymbolName("__kk_process_info_cpu_time")
 private external fun __processInfoCpuTime(pid: kotlin.Long): kotlin.Long
 
@@ -50,67 +47,43 @@ private external fun __processInfoUser(pid: kotlin.Long): String?
  *   the platform cannot provide are returned as empty [Optional]s.
  */
 public interface ProcessHandle : Comparable<ProcessHandle> {
-    /** Returns the process ID of the process. */
     public fun pid(): kotlin.Long
 
-    /** Returns a snapshot of process information. */
     public fun info(): Info
 
-    /**
-     * Returns a [CompletableFuture] that is completed with this process handle
-     * when the process terminates.
-     */
     public fun onExit(): CompletableFuture<ProcessHandle>
 
-    /** Returns `true` if normal termination is supported. */
     public fun supportsNormalTermination(): kotlin.Boolean
 
-    /** Requests normal termination of the process. */
     public fun destroy(): kotlin.Boolean
 
-    /** Forcibly terminates the process. */
     public fun destroyForcibly(): kotlin.Boolean
 
-    /** Returns `true` if the process is alive. */
     public fun isAlive(): kotlin.Boolean
 
-    /** Returns a snapshot of the current process's direct children. */
     public fun children(): Stream<ProcessHandle>
 
-    /** Returns a snapshot of the current process's descendants. */
     public fun descendants(): Stream<ProcessHandle>
 
-    /** Returns the parent process handle, or an empty optional if none. */
     public fun parent(): Optional<ProcessHandle>
 
-    /** Information about a process. */
     public interface Info {
-        /** Returns the executable pathname of the process, if available. */
         public fun command(): Optional<String>
 
-        /** Returns the command line of the process, if available. */
         public fun commandLine(): Optional<String>
 
-        /** Returns the arguments of the process, if available. */
         public fun arguments(): Optional<Array<String>>
 
-        /** Returns the start time of the process, if available. */
         public fun startInstant(): Optional<Instant>
 
-        /** Returns the total CPU time used by the process, if available. */
         public fun totalCpuDuration(): Optional<Duration>
 
-        /** Returns the user of the process, if available. */
         public fun user(): Optional<String>
     }
 
     public companion object {
         private val currentHandle: ProcessHandle = ProcessHandleImpl(__currentProcessPid())
 
-        /**
-         * Returns a [ProcessHandle] of the process with the given PID, or an
-         * empty [Optional] if no such process exists.
-         */
         public fun of(pid: kotlin.Long): Optional<ProcessHandle> =
             if (__processHandleAlive(pid) != 0) {
                 Optional.of(ProcessHandleImpl(pid))
@@ -118,10 +91,8 @@ public interface ProcessHandle : Comparable<ProcessHandle> {
                 Optional.empty()
             }
 
-        /** Returns a [ProcessHandle] of the current process. */
         public fun current(): ProcessHandle = currentHandle
 
-        /** Returns a snapshot of all live processes. */
         public fun allProcesses(): Stream<ProcessHandle> {
             val table = __processHandleTable()
             val handles = mutableListOf<ProcessHandle>()

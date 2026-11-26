@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2294: default-valued stores must not overwrite writes made by a
-    /// virtual call from the superclass constructor.
     @Test(arguments: [0, 2])
     func testDefaultFieldInitializersPreserveSuperclassVirtualWrites(
         optimization: Int

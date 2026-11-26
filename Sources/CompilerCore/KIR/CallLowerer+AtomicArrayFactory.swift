@@ -155,9 +155,6 @@ extension CallLowerer {
             )
             let actionResult = arena.appendTemporary(type: valueType)
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                // Same first-parameter marshalling as the Array(size, init)
-                // lowerer: contravariant callees such as `(Any) -> Int`
-                // need the index as an erased `Any`-slot box.
                 let needsBoxedIndex: Bool
                 if let signature = sema.symbols.functionSignature(for: callableInfo.symbol),
                    let firstParam = signature.receiverType ?? signature.parameterTypes.first {

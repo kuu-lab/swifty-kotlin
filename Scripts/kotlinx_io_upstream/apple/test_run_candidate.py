@@ -37,5 +37,18 @@ class TestingCountsTests(unittest.TestCase):
             RUN_CANDIDATE.testing_counts(log, {"focusedMethod": 1})
 
 
+class StageCommandTests(unittest.TestCase):
+    def test_names_the_stage_test_product_and_matches_only_expected_methods(self):
+        argv = RUN_CANDIDATE.stage_command(
+            "CompilerBackendTests", "IOAppleInteropExecutionTests", {"lane": 4, "other": 2})
+
+        self.assertEqual(argv[argv.index("--test-product") + 1], "CompilerBackendTests")
+        pattern = argv[argv.index("--filter") + 1]
+        self.assertRegex("CompilerBackendTests.IOAppleInteropExecutionTests/lane(mode:)", pattern)
+        self.assertRegex("CompilerBackendTests.IOAppleInteropExecutionTests/other", pattern)
+        self.assertNotRegex("CompilerBackendTests.IOAppleInteropExecutionTests/laneTwo(mode:)", pattern)
+        self.assertNotRegex("RuntimeTests.IOAppleInteropExecutionTests/lane(mode:)", pattern)
+
+
 if __name__ == "__main__":
     unittest.main()

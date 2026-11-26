@@ -44,14 +44,6 @@ public open class Process internal constructor(private val handle: kotlin.Long) 
 
     public fun waitFor(): Int = __waitForProcess(handle)
 
-    /**
-     * Waits for the process to terminate for up to the given timeout.
-     *
-     * Returns `true` if the process has terminated (including processes that
-     * terminated before this call), and `false` if the timeout elapsed first.
-     * The timeout is converted with [TimeUnit.toNanos], which saturates on
-     * overflow; a non-positive timeout simply polls once, matching the JDK.
-     */
     public fun waitFor(timeout: kotlin.Long, unit: TimeUnit): kotlin.Boolean =
         __waitForProcessTimeout(handle, unit.toNanos(timeout)) != 0
 
@@ -70,15 +62,8 @@ public open class Process internal constructor(private val handle: kotlin.Long) 
         return this
     }
 
-    /** Returns `true`; this runtime always supports normal termination. */
     public fun supportsNormalTermination(): kotlin.Boolean = true
 
-    /**
-     * Returns a [CompletableFuture] that is completed with this process when
-     * it terminates. The future is completed on a daemon thread that waits on
-     * the process, matching the JDK contract that the completion happens
-     * asynchronously.
-     */
     public fun onExit(): CompletableFuture<Process> {
         if (!isAlive) return CompletableFuture.completedFuture(this)
         val future = CompletableFuture<Process>()
@@ -94,13 +79,10 @@ public open class Process internal constructor(private val handle: kotlin.Long) 
 
     public fun toHandle(): ProcessHandle = ProcessHandleImpl(pid())
 
-    /** Reads the child's standard output. Repeated calls return the same stream. */
     public val inputStream: InputStream get() = getInputStream()
 
-    /** Writes to the child's standard input. Repeated calls return the same stream. */
     public val outputStream: OutputStream get() = getOutputStream()
 
-    /** Reads the child's standard error. Repeated calls return the same stream. */
     public val errorStream: InputStream get() = getErrorStream()
 
     public fun getInputStream(): InputStream = __processInputStream(handle)
@@ -109,7 +91,6 @@ public open class Process internal constructor(private val handle: kotlin.Long) 
 
     public fun getErrorStream(): InputStream = __processErrorStream(handle)
 
-    /** JDK `ProcessImpl.toString()` format: `Process[pid=N, exitValue=X]`. */
     override fun toString(): String {
         val exit = if (isAlive) "\"not exited\"" else exitValue().toString()
         return "Process[pid=${pid()}, exitValue=$exit]"

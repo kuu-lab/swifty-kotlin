@@ -9,25 +9,9 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-/**
- * KUU-1940: preserve the distinct HashSet superclass, matching kotlin-jvm.
- *
- * Construction is lowered to the runtime set entry points
- * (`__kk_linked_hash_set_of` for the empty/capacity forms,
- * `__kk_iterable_toMutableSet` for the copy form) by
- * `CollectionLiteralLoweringPass`. Both carry `linkedHashSetRuntimeTypeID`, so
- * the constructed instance answers `is LinkedHashSet<*>` / `is MutableSet<*>`;
- * before BUG-254 the first form used the read-only `__kk_set_of` instead.
- *
- * The `init` block additionally attaches a backing `RuntimeSetBox` to
- * source-allocated instances (including user subclasses) so `MutableSet` member
- * calls operate on real storage.
- */
 @KsSymbolName("__kk_linked_hash_set_init")
 private external fun <E> __kkLinkedHashSetInit(set: LinkedHashSet<E>)
 
-// KSP-1070: MutableIterable.iterator is source-backed and abstract. Keep the
-// concrete LinkedHashSet implementation on the existing set-backed iterator ABI.
 @KsSymbolName("kk_list_iterator")
 private external fun <E> __kkLinkedHashSetIterator(set: LinkedHashSet<E>): MutableIterator<E>
 

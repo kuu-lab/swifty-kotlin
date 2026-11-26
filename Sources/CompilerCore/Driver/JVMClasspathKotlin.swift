@@ -98,17 +98,17 @@ extension JVMClasspathIndex {
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):
             return kotlinSourceType(lower, parameters: parameters)
-        case .function(let inputs, let result, let receiver, let nullable, let suspend, _):
+        case .function(let inputs, let result, let receiver, let nullable, let suspend, let context):
             let inputs = inputs.map { kotlinSourceType($0, parameters: parameters) }.joined(separator: ", ")
             let receiver = receiver.map { kotlinSourceType($0, parameters: parameters) + "." } ?? ""
             let result = kotlinSourceType(result, parameters: parameters)
-            let declaration = (suspend ? "suspend " : "") + receiver + "(" + inputs + ") -> " + result
+            let contextClause = context.isEmpty ? ""
+                : "context(" + context.map { kotlinSourceType($0, parameters: parameters) }.joined(separator: ", ") + ") "
+            let declaration = contextClause + (suspend ? "suspend " : "") + receiver + "(" + inputs + ") -> " + result
             return nullable ? "(" + declaration + ")?" : declaration
         }
     }
 
-    /// Binary names of every class a Kotlin metadata type can reference,
-    /// including generic arguments that JVM erasure drops from descriptors.
     static func kotlinMetadataClassNames(_ type: JVMKotlinType, into names: inout Set<String>) {
         switch type {
         case .named(let name, let arguments, _):

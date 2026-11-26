@@ -3,7 +3,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2345: java.lang.Class.annotations exposes typed runtime annotations with JVM inheritance rules.
     @Test(arguments: [false, true], [0, 2])
     func javaClassAnnotationsAcrossStdlibSurfaces(fromSource: Bool, optimization: Int) throws {
         let source = """

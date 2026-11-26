@@ -5,7 +5,6 @@ public open class NSTimeZone internal constructor(handle: Long) : NSObject(handl
     // is reachable through +timeZoneWithAbbreviation: instead.
     public constructor(name: String) : this(__foundation_timezone_create_name(name))
 
-    /** Non-null in Kotlin/Native: every NSTimeZone vendored by Foundation has a name. */
     public val name: String
         get() = __foundation_timezone_name(__handle)
 
@@ -21,7 +20,6 @@ public open class NSTimeZone internal constructor(handle: Long) : NSObject(handl
     public fun abbreviationForDate(date: NSDate): String? =
         __foundation_timezone_abbreviation_for_date(__handle, date.__handle)
 
-    /** isEqualToTimeZone: compares the zone identity, not just the offset. */
     public fun isEqualToTimeZone(otherTimeZone: NSTimeZone): Boolean =
         __foundation_timezone_is_equal(__handle, otherTimeZone.__handle)
 

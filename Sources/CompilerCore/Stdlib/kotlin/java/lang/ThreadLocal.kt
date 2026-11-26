@@ -21,7 +21,6 @@ private external fun __threadLocalRemove(handle: Long): Unit
 public open class ThreadLocal<T> {
     private val handle: Long = __threadLocalNew()
 
-    // Sema exposes these Java method results as T! in both stdlib modes.
     protected open fun initialValue(): T? = null
 
     public open fun get(): T? {

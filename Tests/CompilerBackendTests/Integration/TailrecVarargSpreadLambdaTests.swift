@@ -3,11 +3,6 @@ import Testing
 
 @Suite(.serialized)
 struct TailrecVarargSpreadLambdaTests {
-    /// KUU-3222: a tailrec function taking a function-type parameter is
-    /// auto-inlined. The inline pass resolved each `fn(...)` invoke to the
-    /// lambda passed at the first call even though tailrec lowering rebinds
-    /// the parameter slot on every loop iteration, so the base case
-    /// dispatched to the stale initial lambda.
     @Test(arguments: [true, false])
     func tailrecVarargSpreadRebindsFunctionParameter(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()

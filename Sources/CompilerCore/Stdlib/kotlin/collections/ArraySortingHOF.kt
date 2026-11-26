@@ -6,9 +6,6 @@ import kotlin.comparisons.naturalOrder
 import kotlin.comparisons.reverseOrder
 import kotlin.comparisons.compareValuesUnchecked
 
-// The sorts are stable O(n log n) merge sorts (see StableSort.kt), matching
-// kotlinc's `sorted*` contract.
-
 private fun checkBinarySearchBounds(size: Int, fromIndex: Int, toIndex: Int) {
     if (fromIndex > toIndex) {
         throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")

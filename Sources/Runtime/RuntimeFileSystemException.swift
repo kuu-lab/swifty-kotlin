@@ -1,10 +1,5 @@
 import Foundation
 
-// Both Kotlin `throw FileAlreadyExistsException(file)` sites and runtime-internal
-// failures allocate the boxes below, so catch-clause dispatch and the `file` /
-// `other` / `reason` accessors observe the same representation regardless of
-// where the exception originated.
-
 /// Builds the `message` text of a filesystem exception the same way
 /// `kotlin.io.FileSystemException` does: `file[ -> other][: reason]`.
 func runtimeFileSystemExceptionMessage(file: String, other: String?, reason: String?) -> String {
@@ -22,9 +17,6 @@ class RuntimeFileSystemExceptionBox: RuntimeThrowableBox {
     let fileRaw: Int
     let otherRaw: Int
     let reason: String?
-    /// Same role as `messageRaw` on `RuntimeThrowableBox` for the `reason`
-    /// accessor: retains the constructor's String handle so `e.reason` keeps
-    /// reference identity; synthesized messages cache their box here lazily.
     var reasonRaw: Int
 
     init(fileRaw: Int, otherRaw: Int, reason: String?, reasonRaw: Int = 0) {
@@ -86,8 +78,6 @@ private func runtimeFileSystemExceptionPath(from raw: Int) -> String? {
     return tryCast(ptr, to: RuntimeFileBox.self)?.path
 }
 
-/// Normalizes a nullable object argument to `0` so the boxes never retain a
-/// null-sentinel handle.
 private func runtimeFileSystemExceptionHandle(_ raw: Int) -> Int {
     normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) == nil ? 0 : raw
 }

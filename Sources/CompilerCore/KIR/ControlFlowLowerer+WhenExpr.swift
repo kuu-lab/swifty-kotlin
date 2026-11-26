@@ -34,7 +34,6 @@ extension ControlFlowLowerer {
                 if ast.arena.whenSubjectTypeRef(for: exprID) != nil,
                    let declaredType = sema.symbols.propertyType(for: subjectSymbol)
                 {
-                    // Copy into declared storage so ABI lowering applies widening/boxing.
                     let slot = arena.appendTemporary(type: declaredType)
                     instructions.append(.copy(from: loweredSubject, to: slot))
                     subjectID = slot
@@ -59,7 +58,6 @@ extension ControlFlowLowerer {
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
 
-        // Vacuously true when branches is empty (only else exists).
         var allBranchesTerminated = true
         for (index, branch) in branches.enumerated() {
             if branch.conditions.count > 1 {
@@ -67,7 +65,6 @@ extension ControlFlowLowerer {
                     branch.conditions, ast: ast, sema: sema, interner: interner
                 )
                 let bodyLabel: Int32 = driver.ctx.makeLoopLabel()
-                // Hoist the true constant outside the loop so it's reused for all non-last conditions.
                 let hoistedTrueID = arena.appendExpr(.boolLiteral(true), type: boolType)
                 instructions.append(.constValue(result: hoistedTrueID, value: .boolLiteral(true)))
 
@@ -120,8 +117,6 @@ extension ControlFlowLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // A `Nothing` guard (`return`/`throw`/`break`/`continue`) never
-                // falls through, so no conditional jump can follow it.
                 if !isTerminatedExpr(guardID, arena: arena, sema: sema) {
                     instructions.append(.jumpIfEqual(lhs: guardID, rhs: falseID, target: nextBranchLabels[index]))
                 }
@@ -208,22 +203,28 @@ extension ControlFlowLowerer {
            case let .isCheck(checkedExprID, _, negated, _) = conditionExpr,
            isSameWhenSubjectExpression(checkedExprID, subjectExprID: subjectExprID, sema: sema)
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let typeTokenLiteral: Int64 = if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
-                RuntimeTypeCheckToken.encode(
-                    type: driver.exprLowerer.runtimeIsCheckTargetType(
+            // Same token path as the plain `x is T` lowering so a reified `T`
+            // resolves to its runtime type token instead of a static literal.
+            let typeToken: KIRExprID
+            if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
+                typeToken = driver.exprLowerer.lowerTypeCheckTokenExpr(
+                    targetType: driver.exprLowerer.runtimeIsCheckTargetType(
                         subjectType: sema.bindings.exprType(for: checkedExprID),
                         targetType: targetType,
                         sema: sema
                     ),
                     sema: sema,
-                    interner: interner
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions
                 )
             } else {
-                RuntimeTypeCheckToken.unknownBase
+                typeToken = arena.appendExpr(
+                    .intLiteral(RuntimeTypeCheckToken.unknownBase),
+                    type: sema.types.make(.primitive(.int, .nonNull))
+                )
+                instructions.append(.constValue(result: typeToken, value: .intLiteral(RuntimeTypeCheckToken.unknownBase)))
             }
-            let typeToken = arena.appendExpr(.intLiteral(typeTokenLiteral), type: intType)
-            instructions.append(.constValue(result: typeToken, value: .intLiteral(typeTokenLiteral)))
 
             let isResult = arena.appendTemporary(type: boolType)
             instructions.append(.call(

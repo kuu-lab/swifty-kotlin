@@ -52,7 +52,6 @@ extension CallLowerer {
                 if sema.bindings.isCollectionHOFLambdaExpr(argExprID) {
                     if let info = driver.ctx.callableValueInfo(for: loweredArgID) {
                         if info.hasClosureParam { return info }
-                        // Typed reified thunks still need the closure decoder.
                     } else {
                         return {
                             guard case let .symbolRef(symbol)? = arena.expr(loweredArgID) else {
@@ -121,10 +120,6 @@ extension CallLowerer {
         return finalArgs
     }
 
-    /// Comparator-taking collection HOFs use the `(comparator, closureRaw)` runtime
-    /// ABI pair. KSP-461 moved every comparator factory to bundled Kotlin source, so
-    /// the comparator is always a `Comparator<T>` object dispatched through its
-    /// itable compare slot and the closure slot is always zero.
     func makeComparatorObjectArgumentPair(
         loweredComparatorID: KIRExprID,
         sema: SemaModule,

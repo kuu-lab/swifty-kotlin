@@ -5,7 +5,6 @@ import Foundation
 import RuntimeABI
 import Testing
 
-/// Regression coverage for imported inline KIR callback result types.
 @Suite
 struct ImportedInlineKIRRegressionTests {
     private static let artifactLock = NSLock()
@@ -76,10 +75,6 @@ struct ImportedInlineKIRRegressionTests {
         }
     }
 
-    /// A callable reference passed to an imported inline function's generic
-    /// function-type parameter is wrapped into an erased function value so its
-    /// boxed arguments are unboxed. Six arguments used to skip the wrapper, so the
-    /// Double arguments reached `add6` as box handles.
     @Test
     func importedInlineInvokesSixArgumentDoubleFunctionReference() throws {
         try withCompiledLibrary(
@@ -382,10 +377,6 @@ struct ImportedInlineKIRRegressionTests {
         }
     }
 
-    /// Names of symbols defined in the library's emitted object files, taken
-    /// from `nm` output (`<addr> <type> <name>` lines; undefined references
-    /// print without an address). Darwin's leading-underscore decoration is
-    /// stripped.
     private static func definedObjectSymbols(in libraryPath: String) throws -> Set<String> {
         let objectsURL = URL(fileURLWithPath: libraryPath).appendingPathComponent("objects")
         let objectFiles = try FileManager.default.contentsOfDirectory(atPath: objectsURL.path)

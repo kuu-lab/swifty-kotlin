@@ -37,8 +37,6 @@ extension JVMClasspathIndex {
                       isStatic: true) != nil
     }
 
-    /// `LazyListScope.items$default`, behind the hand-written
-    /// `LazyListScope.items(count) { ... }` contract.
     var lazyItemsContractMethod: JVMForeignMethod? {
         let lazyPackage = "androidx/compose/foundation/lazy/"
         let descriptor = "(L\(lazyPackage)LazyListScope;ILkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;ILjava/lang/Object;)V"

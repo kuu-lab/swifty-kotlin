@@ -490,9 +490,6 @@ extension DataFlowSemaPhase {
     }
 
 }
-// jscpd:ignore-end
-/// Rows for coroutine member stubs; see `SyntheticMemberRows`. Defaults mirror
-/// `registerSyntheticCoroutineMember`.
 struct SyntheticCoroutineMemberRows {
     let phase: DataFlowSemaPhase
     let ownerSymbol: SymbolID

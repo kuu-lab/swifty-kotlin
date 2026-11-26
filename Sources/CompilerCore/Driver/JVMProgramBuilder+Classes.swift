@@ -172,6 +172,7 @@ extension JVMProgramBuilder {
             }
         }
         try prepareLocalNominalCaptures()
+        try prepareSerialization()
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
@@ -227,10 +228,7 @@ extension JVMProgramBuilder {
             if let c = plan.declaration, !plan.isAnnotation, !plan.isObject, !plan.isAnonymous, plan.enumParent == nil {
                 let owner = sema.symbols.symbol(plan.symbol)!
                 for symbol in sema.symbols.lookupAll(fqName: owner.fqName + [context.interner.intern("<init>")]) {
-                    // The bundled collection registry can retain a synthetic
-                    // constructor shell alongside the JVM source declaration.
                     if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
-                    // An `expect class` shares the FQ name; its constructors are not emitted.
                     if sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
                         || sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.flags.contains(.expectDeclaration) == true { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
@@ -269,8 +267,8 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
-            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
-                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let backingFieldSemanticType = p.explicitBackingField == nil ? propertyType : (sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType)
             let mappedBackingFieldType = try self.type(backingFieldSemanticType)
             let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
                 ?? mappedBackingFieldType
@@ -283,8 +281,8 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collectionGetter = collectionPropertyGetter(plan, name: name)
-            let getterName = plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital)))
-            let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+            let getterName = try explicitAccessorJvmName(for: symbol, target: "get") ?? (plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))))
+            let setterName = try explicitAccessorJvmName(for: symbol, target: "set") ?? (booleanIs ? "set" + name.dropFirst(2) : "set" + capital)
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
             var setter: JVMForeignMethod?
@@ -320,8 +318,6 @@ extension JVMProgramBuilder {
                 && !sema.bindings.callableReferenceBindings.values.contains { reference in
                     reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
                 }
-            // @JvmField inside any object — including a companion — publishes a
-            // static field on that object, matching kotlinc's layout.
             let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let propertyAnnotationRecords = try annotationRecords(for: symbol)
@@ -427,8 +423,6 @@ extension JVMProgramBuilder {
             } else {
                 functions += interfaceDefaultForwarders(plan, existing: functions)
             }
-            // Return types participate in JVM descriptors. Covariant overrides
-            // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
             functions += try collectionDelegationMethods(plan, existing: functions)
             functions += try collectionPropertyAliases(plan, existing: functions)
@@ -469,6 +463,7 @@ extension JVMProgramBuilder {
             let parents = ([plan.superclass] + plan.interfaces).map { parentSignatures[$0] ?? "L" + $0 + ";" }
             result.genericSignature = (result.typeParameters.isEmpty ? "" : "<" + result.typeParameters.map(\.signature).joined() + ">") + parents.joined()
             results.append(result)
+            if let serializer = try serializerClass(for: plan) { results.append(serializer) }
             if let defaultImpls { results.append(defaultImpls) }
         }
         return results

@@ -5,7 +5,6 @@
  */
 package kotlin.jvm
 
-/** Does not emit Java bytecode here. */
 @Target(
     AnnotationTarget.FILE,
     AnnotationTarget.FUNCTION,

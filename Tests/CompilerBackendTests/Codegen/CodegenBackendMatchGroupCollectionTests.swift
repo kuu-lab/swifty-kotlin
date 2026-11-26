@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendMatchGroupCollectionTests {
 
-    // STDLIB-TEXT-TYPE-008: MatchGroupCollection interface — index access, named access, size
     @Test func testMatchGroupCollectionIndexAccess() throws {
         let source = """
         fun main() {
@@ -83,8 +82,6 @@ struct CodegenBackendMatchGroupCollectionTests {
         )
     }
 
-    // Regression for constructor-call lowering: Regex(pattern) must flatten
-    // its String argument and call the __kk_regex_create_flat factory directly.
     @Test func testRegexConstructionFromStringLiteralAndBasicUse() throws {
         let source = """
         fun main() {
@@ -126,8 +123,6 @@ struct CodegenBackendMatchGroupCollectionTests {
         )
     }
 
-    // KSP-1430: direct construction must preserve both primary-constructor
-    // properties without involving a Regex runtime bridge.
     @Test func testMatchGroupConstructorStoresValueAndRange() throws {
         let source = """
         fun main() {

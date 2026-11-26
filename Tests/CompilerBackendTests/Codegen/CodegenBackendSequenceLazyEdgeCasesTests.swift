@@ -5,12 +5,9 @@
 import Foundation
 import Testing
 
-// STDLIB-020: Sequence lazy evaluation order and sequence builder semantics.
-
 @Suite
 struct CodegenBackendSequenceLazyEdgeCasesTests {
 
-    // KUU-1073: infer non-null elements from nullable no-argument callbacks.
     @Test(arguments: [false, true])
     func testNullableGenerateSequenceLambdaInference(allowDefaultStdlibLibrary: Bool) throws {
         let source = try diffCaseSource("generate_sequence_nullable_lambda.kt")
@@ -22,8 +19,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
 
-    // KUU-1325: both stdlib modes must preserve the callback's value argument
-    // and terminate on null, including lambdas without a closure parameter.
     @Test(arguments: [false, true])
     func testSeededGenerateSequenceCallbackABI(allowDefaultStdlibLibrary: Bool) throws {
         let source = try diffCaseSource("generate_sequence_seed_callback_abi.kt")
@@ -195,9 +190,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
 
-    // Same as above, but for a nextFunction with no if/else `null` branch —
-    // this shape doesn't happen to trigger ABILoweringPass's incidental
-    // copy-boxing, so it's a distinct regression risk from the if/else case.
     @Test
     func testGenerateSequenceElementsAreBoxedWithoutIfElseBranch() throws {
         let source = """
@@ -221,7 +213,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
 
-    // 1-arg form generateSequence(nextFunction: () -> T?) — STDLIB-SEQ-002.
     @Test
     func testGenerateSequenceNoArgElementsAreBoxed() throws {
         let source = """
@@ -244,12 +235,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
 
-    // 1-arg form with a captured local var — regression test for a related bug
-    // found alongside the boxing leak: this overload's call used to be built
-    // without expanding the closure to (fnPtr, closureRaw), which silently
-    // dropped captures (closureRaw was padded to 0) and crashed at runtime
-    // with a kk_array_get_inbounds precondition failure for any capturing
-    // closure of this form.
     @Test
     func testGenerateSequenceNoArgWithCapturedStateWorks() throws {
         let source = """
@@ -266,13 +251,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "GenerateSequenceNoArgCapturedState", expected: "[1, 2, 3]\n")
     }
 
-    // Mirrors the sequenceOf(...) mixed-type test above (testSequenceFilterIsInstanceKeepsMatchingTypes),
-    // but for generateSequence: concatenating with a String-producing sequenceOf
-    // gives filterIsInstance<Int> a real, non-Int element to reject, so this
-    // only passes if generateSequence's elements are actually boxed (an unboxed
-    // Int would still coincidentally pass `is Int`, but a genuinely-typed
-    // String element correctly fails it either way — this test's value is
-    // pinning the end-to-end user-facing scenario from the bug report).
     @Test
     func testGenerateSequenceFilterIsInstanceKeepsMatchingTypes() throws {
         let source = """

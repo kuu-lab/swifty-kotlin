@@ -1,21 +1,16 @@
 import Dispatch
 import Foundation
 
-/// Instant is stored as (epochSeconds: Int64, nanoOfSecond: Int32) internally,
-/// matching Kotlin's Instant semantics where nanoOfSecond is in [0, 999_999_999].
 final class RuntimeInstantBox {
     let epochSeconds: Int64
     let nanoOfSecond: Int32
 
     init(epochSeconds: Int64, nanoOfSecond rawNano: Int32) {
-        // Work in Int64 to avoid overflow during intermediate calculations.
         let nano64 = Int64(rawNano)
         let carry: Int64
         if nano64 >= 0 {
             carry = nano64 / 1_000_000_000
         } else {
-            // Floor division for negative values: borrow enough full seconds
-            // so the remainder lands in [0, 999_999_999].
             carry = (nano64 - 999_999_999) / 1_000_000_000
         }
         self.epochSeconds = saturatingAdd(epochSeconds, carry)
@@ -61,9 +56,6 @@ private func runtimeInstantYearString(_ year: Int64) -> String {
     return year >= 10_000 ? "+\(year)" : "\(year)"
 }
 
-/// Renders an Instant using Kotlin 2.3.10's ISO-8601 UTC representation.
-/// This path is used when an Instant reaches Any.toString() or print through
-/// runtime dynamic dispatch, where the Kotlin source extension is not called.
 func runtimeInstantToString(_ instant: RuntimeInstantBox) -> String {
     let secondsPerDay: Int64 = 86_400
     let epochDays = runtimeInstantFloorDiv(instant.epochSeconds, secondsPerDay)
@@ -168,7 +160,6 @@ private let runtimeDistantPastExclusiveEpochSeconds: Int64 = -3_217_862_419_200
 private let runtimeDistantFutureEpochSeconds: Int64 = 3_093_527_980_800
 
 
-/// Thread-safe: Date() reads a system clock and is reentrant.
 @_cdecl("kk_instant_now")
 public func kk_instant_now() -> Int {
     let now = Date()

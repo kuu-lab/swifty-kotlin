@@ -7,8 +7,6 @@
 
 package kotlin.native.runtime
 
-// Kotlin/Native reports the total allocated object size in bytes, excluding
-// system allocator overhead while including alignment and object headers.
 @NativeRuntimeApi
 @SinceKotlin("1.9")
 public class MemoryUsage(

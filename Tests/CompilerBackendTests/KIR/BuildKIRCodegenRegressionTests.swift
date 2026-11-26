@@ -7,7 +7,6 @@ import Testing
 
 @Suite(.serialized)
 struct BuildKIRCodegenRegressionTests {
-    /// Select operations from the canonical ABI family without copying C link names.
     private func abiFunctions(
         _ operations: [String],
         in family: [RuntimeABIFunctionSpec],
@@ -47,7 +46,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// Reject undeclared legacy helpers as well as misspelled runtime targets.
     private func expectDeclaredCallees(in body: [KIRInstruction], context ctx: CompilationContext) throws {
         let sema = try #require(ctx.sema)
         var declared = Set(RuntimeABIExterns.allExterns.map { ctx.interner.intern($0.name) })
@@ -67,7 +65,6 @@ struct BuildKIRCodegenRegressionTests {
             if let linkName {
                 declared.insert(ctx.interner.intern(linkName))
             }
-            // Imported default stubs may have link metadata without a Sema/KIR declaration.
             let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
             if calledSymbols.contains(stubSymbol),
                sema.symbols.functionSignature(for: symbol.id)?.valueParameterHasDefaultValues.contains(true) == true,
@@ -273,8 +270,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-626: `withIndex`/`forEachIndexed` are bundled Kotlin source, so they
-    /// must lower to the source-backed declaration instead of a runtime bridge.
     @Test
     func testBuildKIRLowersListIndexedHelpersToBundledSourceCalls() throws {
         let source = """
@@ -294,9 +289,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-998: Iterable.withIndex() returns the source-backed lazy wrapper;
-    /// acquiring its iterator must stay on the throwing Iterable bridge rather
-    /// than the eager List or legacy range bridge.
     @Test
     func testBuildKIRLowersIterableWithIndexToLazyIterableIteratorBridge() throws {
         let source = """
@@ -321,9 +313,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KSP-977 / KUU-604: exact/custom Iterable and concrete List receivers
-    /// bind to the bundled inline Iterable.forEach declaration. Other
-    /// receiver-specific forEach families keep their existing lowering paths.
     @Test
     func testBuildKIRLowersIterableForEachWithoutHijackingOtherReceivers() throws {
         let source = """
@@ -393,7 +382,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    /// KUU-3483: lazy Iterable receivers must keep zip's source-backed iterator body.
     @Test
     func testBuildKIRKeepsLazyIterableZipSourceBacked() throws {
         let source = """
@@ -495,9 +483,6 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
-    // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
-    // KSP-410: the whole String HOF family is bundled Kotlin source
-    // (StringHOF.kt), so none of it may lower to a `kk_string_*` call anymore.
     @Test
     func testBuildKIRLowersStringHOFToBundledKotlinCallsInsteadOfRuntimeCalls() throws {
         let source = """
@@ -577,7 +562,6 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            // The caller must retain the Kotlin declaration rather than its flat-string bridge.
             try expectSourceBackedCalls(["equals"], in: body, context: ctx)
             let flatEquals = try abiFunctions(["string_equals_flat"], in: RuntimeABISpec.stringFunctions, privateBridge: true)
             let callNames = extractCallees(from: body, interner: ctx.interner)
@@ -776,8 +760,6 @@ struct BuildKIRCodegenRegressionTests {
             ], in: RuntimeABISpec.stringFunctions)
             #expect(sourceOnlyRuntimeAlternatives.allSatisfy { throwFlags[$0.name] == nil })
             #expect(importedFlags("split") != nil)
-            // KSP-414: toInt is imported from the artifact rather than routed
-            // through a public kk_string_toInt_flat helper.
             #expect(importedFlags("toInt")?.allSatisfy { $0 == true } == true)
             let toDouble = try abiFunctions(["string_toDouble_flat"], in: RuntimeABISpec.stringFunctions, privateBridge: true)
             #expect(toDouble.allSatisfy { $0.isThrowing })
@@ -802,8 +784,6 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
-            // negative size), not bare kk_array_new.
             try expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
         }
     }
@@ -834,11 +814,8 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             #expect(containsKotlinCallee("map", in: callNames))
-            // Both signed and unsigned primitive-array calls must bind to source.
             #expect(callNames.filter { isKotlinCallee($0, named: "mapNotNull") }.count == 2)
             #expect(containsKotlinCallee("fold", in: callNames))
-            // Source-backed default lowering may retain the default suffix or
-            // emit the resolved source function name directly.
             #expect(
                 containsKotlinCallee("joinToString", in: callNames) ||
                     containsKotlinCallee("joinToString$default", in: callNames)
@@ -1158,7 +1135,6 @@ struct BuildKIRCodegenRegressionTests {
                     if case .returnUnit = instruction { return true }
                     return false
                 }.count
-                // Only the implicit trailing return of `main` may remain (\(label)).
                 #expect(returnCount <= 1, "\(label): return@ must not return from the enclosing function")
             }
         }

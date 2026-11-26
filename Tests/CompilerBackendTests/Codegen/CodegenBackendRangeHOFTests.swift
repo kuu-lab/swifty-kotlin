@@ -198,9 +198,6 @@ struct CodegenBackendRangeHOFTests {
 
     @Test
     func testCodegenIntRangeReduceIndexed() throws {
-        // reduceIndexed starts with acc=first, then calls lambda with index starting at 1.
-        // (1..4): acc=1, (idx=1,acc=1,val=2)→4, (idx=2,acc=4,val=3)→9, (idx=3,acc=9,val=4)→16
-        // (5..5): single element, acc=5, no iterations → 5
         let source = """
         fun main() {
             println((1..4).reduceIndexed { index, acc, value -> acc + index + value })
@@ -221,13 +218,6 @@ struct CodegenBackendRangeHOFTests {
 
     @Test
     func testCodegenIntRangeReduce() throws {
-        // KSP-1011 regression: a second source-backed `iterator()` declared
-        // on Map (kotlin.collections.Map<out K, V>.iterator()) once widened
-        // the by-simple-name candidate pool that this bundled `reduce`
-        // body's implicit-receiver `iterator()` call resolves against,
-        // binding it to the Map-only implementation for every Iterable
-        // receiver — including this IntRange — and crashing at runtime
-        // instead of computing the sum.
         let source = """
         fun main() {
             println((1..4).reduce { acc, v -> acc + v })
@@ -243,7 +233,6 @@ struct CodegenBackendRangeHOFTests {
 
     @Test
     func testCodegenIntRangeMapIndexedOnDescendingProgression() throws {
-        // (5 downTo 3) = [5,4,3]; mapIndexed {index+value} = [0+5,1+4,2+3] = [5,5,5]
         let source = """
         fun main() {
             println((5 downTo 3).mapIndexed { index, value -> index + value })
@@ -593,6 +582,30 @@ struct CodegenBackendRangeHOFTests {
                 [[a, c], [c, e]]
                 [[1, 2], [2, 3], [3, 4], [4, 5]]
                 [[5, 4], [4, 3], [3, 2], [2, 1]]
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenIntRangeWindowedNamedPartialWindowsUsesDefaultStep() throws {
+        let source = """
+        fun main() {
+            println((1..6).windowed(4, partialWindows = false))
+            println((1..5).windowed(3, partialWindows = true))
+            println((1..6).windowed(4, step = 2, partialWindows = true))
+            println((1..6).windowed(4, step = 2, true))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeWindowedNamedPartialWindows",
+            expected:
+                """
+                [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]]
+                [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5], [5]]
+                [[1, 2, 3, 4], [3, 4, 5, 6], [5, 6]]
+                [[1, 2, 3, 4], [3, 4, 5, 6], [5, 6]]
                 """ + "\n"
         )
     }

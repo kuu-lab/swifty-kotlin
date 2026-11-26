@@ -81,14 +81,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // KSP-CAP-013: `lazy { ... }` (the plain call form, not the `by lazy { }`
-    // property delegate) lowers its initializer lambda through the general
-    // closure-conversion path (a boxed Function0 value), unlike the delegate
-    // form whose initializer is a standalone top-level thunk. Runtime used to
-    // bitcast `RuntimeLazyBox`'s stored initializer straight to a raw thunk
-    // pointer and call it directly, which crashed for this boxed-closure
-    // shape. Also pins that an explicit `Lazy<Int>` expected type resolves
-    // and type-checks correctly end to end (not just at the Sema layer).
     @Test
     func testCodegenCompilesLazyBlockValueRead() throws {
         let source = """
@@ -108,16 +100,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-017: `lazy { ... }` called directly (not via `by`) lowers its
-    // initializer lambda through the general closure-boxing path
-    // (`kk_function_create_0`), unlike `by lazy` member/top-level accessors,
-    // which pass a bare non-capturing function symbol. `RuntimeLazyBox`
-    // previously bit-cast the stored handle straight to a context-free
-    // `KKThunkEntryPoint` and called it, which for the boxed-closure case
-    // jumped into heap data instead of code and crashed with a bad pointer
-    // dereference. Fixed by invoking through `kk_function_invoke_0`, which
-    // unwraps a boxed closure when present and falls back to a bare pointer
-    // otherwise.
     @Test
     func testCodegenCompilesDirectLazyCallValueRead() throws {
         let source = """
@@ -137,9 +119,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // Exercises the boxed-closure initializer with an actual captured
-    // variable, rather than a trivial literal, since a capture-free lambda
-    // could conceivably take a different codegen shape.
     @Test
     func testCodegenCompilesLazyBlockCapturingOuterVariable() throws {
         let source = """
@@ -187,9 +166,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // KSP-781: a local `by lazy` delegate can be captured by a nested lambda.
-    // The delegate factory must be rewritten at declaration lowering time;
-    // a later same-function consumer scan cannot see the nested read.
     @Test
     func testCodegenCompilesLazyDelegateCapturedByNestedLambda() throws {
         let source = """
@@ -211,15 +187,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-017: an explicit `Lazy<T>` type annotation used to resolve to a
-    // dead, non-standard `kotlin.properties.Lazy` interface stub (registered
-    // but otherwise unused) instead of the real `kotlin.Lazy` that `lazy()`/
-    // `lazyOf()` actually return, because unqualified short-name lookup
-    // picked whichever symbol was registered first (registration order, not
-    // import visibility -- `kotlin.properties` isn't even a default import).
-    // This made any explicitly annotated `Lazy<T>` local fail type checking
-    // against `lazyOf(...)`'s inferred type. Fixed by removing the dead
-    // `kotlin.properties.Lazy` registration.
     @Test
     func testCodegenCompilesExplicitlyTypedLazyOfValueRead() throws {
         let source = """
@@ -238,17 +205,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 """ + "\n"
         )
     }
-
-    // MARK: - KSP-CAP-007 / BUG-014: local custom-delegate getValue/setValue
-
-    // `val x by Prop()` inside a function body used to bind `x` to the `Prop()`
-    // instance's own raw handle instead of calling `Prop().getValue(...)` — see
-    // ExprLowerer+ControlFlowAndBlocks.swift's `.localDecl` case. This was
-    // observable for every return type (reference or primitive), since getValue
-    // was never called at all; it was most visibly wrong for primitives, which
-    // printed as a raw object address instead of their value. Member and
-    // top-level delegated properties were unaffected — they already route
-    // through a synthesized getter/setter accessor.
 
     @Test
     func testCodegenLocalCustomDelegateReturnsUnboxedInt() throws {
@@ -320,13 +276,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
-
-    // A class member's `by lazy { ... }` body used to lower into a standalone
-    // function with no way to reach the enclosing instance, so any reference
-    // to an instance member inside the block (here, the primary-constructor
-    // property `label`) silently resolved to nothing instead of the captured
-    // value.
     @Test
     func testMemberLazyDelegateCapturesEnclosingInstanceProperty() throws {
         let source = """
@@ -349,8 +298,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // KSP-781 regression: the body lowered for a member lazy delegate must
-    // retain Sema bindings for both implicit member calls and field reads.
     @Test
     func testMemberLazyDelegateBodyUsesTypedInstanceState() throws {
         let source = """
@@ -382,11 +329,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // The delegate handle (`$delegate_x`, holding the `Lazy` instance) used to
-    // be stored in a single module-global slot shared by every instance of the
-    // class, so constructing a second `Foo` clobbered the first instance's
-    // delegate — both `a.x` and `b.x` observed whichever instance was
-    // constructed last instead of their own captured `label`.
     @Test
     func testMemberLazyDelegateUsesPerInstanceStorage() throws {
         let source = """
@@ -411,15 +353,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 """ + "\n"
         )
     }
-
-    // MARK: - BUG-146: local delegate with a provideDelegate operator
-
-    // `val x by Factory()` where `Factory` exposes `provideDelegate` used to
-    // bind `x` to the `Factory()` instance itself: no provideDelegate call was
-    // emitted and getValue resolved against the wrong receiver, so `println(x)`
-    // printed the factory's raw object handle. The effective delegate is
-    // provideDelegate's return value (same rule as member/top-level delegated
-    // properties in KIRLoweringDriver+ProvideDelegate.swift).
 
     @Test
     func testCodegenLocalProvideDelegateReturnsString() throws {
@@ -482,9 +415,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
 
     @Test
     func testCodegenTopLevelProvideDelegateStillWorks() throws {
-        // Regression guard: top-level provideDelegate already worked through
-        // KIRLoweringDriver+ProvideDelegate.swift and must be unaffected by the
-        // new local-declaration path.
         let source = """
         import kotlin.reflect.KProperty
         class StrDelegate(private val v: String) {
@@ -540,9 +470,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
 
     @Test
     func testCodegenMemberCustomDelegatePrimitiveStillWorks() throws {
-        // Regression guard: member-property custom delegates already worked
-        // before this fix and share DeclTypeChecker+PropertyHelpers.swift's
-        // typeCheckDelegate, whose signature this fix changed.
         let source = """
         class IntProp {
             operator fun getValue(thisRef: Any?, property: Any?): Int = 42
@@ -568,13 +495,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-151: a stdlib delegate's callback lambda declared with a parameter
-    // list (`{ property, old, new -> ... }`) lost its whole body, because the
-    // parameter list and arrow form their own CST statement node that the
-    // block-statement parser could not turn into an expression. The callback
-    // also never observed a value change, because assignment through an
-    // explicit receiver wrote the (unused) backing field slot directly instead
-    // of dispatching to the property's setter accessor.
     @Test
     func testCodegenMemberObservableDelegateReportsChanges() throws {
         let source = """
@@ -608,10 +528,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-151: an `Int`-typed observable callback interpolating its value
-    // parameters used to concatenate the raw values as if they were string
-    // handles, because the synthetic callback parameters were all typed `Any`
-    // and Sema never binds a type to the (unvisited) callback body.
     @Test
     func testCodegenMemberObservableDelegateFormatsIntValues() throws {
         let source = """
@@ -643,10 +559,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-151: the vetoable callback returns a Kotlin `Boolean`, which reaches
-    // the runtime boxed; a boxed `false` is a non-zero handle, so every change
-    // was accepted. Also covers compound assignment, which used to bypass the
-    // delegate entirely by reading and writing the backing field slot.
     @Test
     func testCodegenMemberVetoableDelegateRejectsChanges() throws {
         let source = """
@@ -679,10 +591,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-169: member observable/vetoable callbacks need a boxed Function3
-    // value so the enclosing instance can travel with the three callback
-    // arguments. A raw top-level thunk has no way to resolve implicit member
-    // reads or writes in the callback body.
     @Test
     func testCodegenMemberDelegateCallbacksCaptureEnclosingInstance() throws {
         let source = """
@@ -735,9 +643,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-151: `Delegates.notNull()` reads crashed with
-    // "Property delegate must be assigned before being accessed" even after a
-    // write, because the write never reached `kk_notNull_set_value`.
     @Test
     func testCodegenMemberNotNullDelegateRoundTrips() throws {
         let source = """
@@ -767,8 +672,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-151: the same callback-body loss affected top-level delegated
-    // properties, which lower through a separate initializer path.
     @Test
     func testCodegenTopLevelObservableAndVetoableDelegates() throws {
         let source = """
@@ -804,9 +707,6 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
-    // BUG-267: delegated properties inside object expressions must emit
-    // delegate storage, initializer calls, and synthesized get/set accessors
-    // for both explicit (`o.x`) and implicit (`x` inside a member) receivers.
     @Test
     func testCodegenObjectLiteralLazyDelegateBothReceivers() throws {
         let source = """

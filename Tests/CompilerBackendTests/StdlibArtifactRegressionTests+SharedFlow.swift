@@ -6,15 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KSP-675: `SharedFlow`/`MutableSharedFlow` are bundled Kotlin source, so
-    /// their members must keep working when the consumer only sees them through
-    /// a prebuilt stdlib artifact. Reading `replayCache` through the interface
-    /// needs the imported nominal's generic shape plus its itable property
-    /// getter slot; calling `collect` needs the imported member to stay
-    /// virtually dispatched and to keep the Kotlin (not runtime-bridge)
-    /// argument shape, whose failure modes were an undefined reference to
-    /// `replayCache`, a silently skipped `collect`, and a segfault in the HOF
-    /// adapter.
     @Test
     func testSharedFlowThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -273,10 +264,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-676: `StateFlow`/`MutableStateFlow`/`Flow.stateIn` are bundled Kotlin source, so
-    /// they must keep working when the consumer only sees them through a prebuilt stdlib artifact.
-    /// This covers `value`, `tryEmit`, `emit`, `replayCache`, `collect`, and the `stateIn` extension
-    /// lowered to `kk_flow_collect` on an explicit local receiver.
     @Test
     func testStateFlowThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -427,9 +414,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1599: hot flows must keep their collectors registered while they
-    /// wait for updates, deliver emissions to every subscriber, and release
-    /// each subscription on completion or cancellation.
     @Test(arguments: [false, true])
     func testHotFlowEmissionsReachLiveCollectors(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -839,12 +823,6 @@ extension StdlibArtifactRegressionTests {
                 """)
     }
 
-    /// KUU-2685: `MutableStateFlow.compareAndSet`/`update` must be atomic, and
-    /// collector registration/notification must survive concurrent emit +
-    /// cancellation. The case shares one flow across four `Worker` threads via
-    /// `TransferMode.UNSAFE` so a lost CAS shows up as a short increment total,
-    /// and a live collector must still receive emissions in write order with
-    /// the latest value at the tail.
     @Test(arguments: [false, true])
     func testMutableStateFlowConcurrentUpdates(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil

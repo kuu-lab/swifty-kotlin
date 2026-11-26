@@ -1,12 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4491: `KClass.members` function handles used to record only the
-    /// value-parameter arity with no callable metadata, so `call`/`callBy`
-    /// rejected the dispatch receiver and `parameters` omitted the INSTANCE
-    /// entry. Member handles now seed the same callable-reference metadata
-    /// and invoker, so an unbound member takes its receiver as argument 0 —
-    /// matching `Owner::name` references and the JVM.
     @Test(arguments: [false, true])
     func classMemberFunctionHandlesAcceptDispatchReceiver(fromArtifact: Bool) throws {
         try compileAndRunKotlin(

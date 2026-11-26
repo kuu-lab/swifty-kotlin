@@ -57,8 +57,6 @@ extension BuildKIRRegressionTests {
         let valueOf = try #require(
             sema.symbols.lookup(fqName: companionFQName + [interner.intern("valueOf")])
         )
-        // Synthetic `entries` is owned by the enum class itself, not the
-        // companion (KUU-3544).
         let entries = try #require(
             sema.symbols.lookup(fqName: memoryModelFQName + [interner.intern("entries")])
         )
@@ -94,7 +92,6 @@ extension BuildKIRRegressionTests {
         #expect(extractCallees(from: entriesBody, interner: interner).contains(runtimeCallee(.enumMakeEntriesListCached)))
 
         let valueOfFunction = try findKIRFunction(named: "valueOf", in: module, interner: interner)
-        // The companion receiver is explicit in the lowered KIR signature.
         #expect(valueOfFunction.params.count == 2)
         #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains(runtimeCallee(.stringEqualsFlat)))
     }

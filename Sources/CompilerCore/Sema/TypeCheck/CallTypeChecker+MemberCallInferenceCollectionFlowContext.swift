@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// `didReturnNil` records a `return nil` bail inside an extracted switch
-    /// segment so the caller can stop dispatching exactly where the original
-    /// function would have returned.
     final class MemberCallCollectionFlowContext {
         unowned let checker: CallTypeChecker
         let driver: TypeCheckDriver
@@ -41,9 +38,6 @@ extension CallTypeChecker {
         let isSourceBackedGenericOnEach: Bool
         let isIterableDropFamily: Bool
 
-        // Always assigned before first read inside `inferCollectionHOFSpecial`
-        // (matching the original `let` definite-initialization); the
-        // `errorType` initial values are placeholders that are never observed.
         var collectionElementType: TypeID
         var collectionMapTypes: (key: TypeID, value: TypeID)
         var listResultType: TypeID
@@ -52,8 +46,6 @@ extension CallTypeChecker {
         var sourceBackedIterableAggregateTypeArguments: [TypeID]?
         var sourceBackedIterableAggregateMatchingParameterTypes: [TypeID]?
         var didReturnNil = false
-        /// Accumulator type `R` of a `fold` family call, widened beyond the initial
-        /// value's type when that type still has uninferred (`Nothing`) arguments.
         var foldAccumulatorType: TypeID?
 
         init(

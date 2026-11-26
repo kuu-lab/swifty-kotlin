@@ -5,7 +5,6 @@ import Testing
 
 @Suite(.serialized)
 struct LibraryPrivateDispatchTests {
-    /// KUU-2019: hidden final helpers have no exported vtable entries in a consumer.
     @Test(arguments: [0, 2])
     func parserPrivateHelpersAcrossLibraryBoundary(optimization: Int) throws {
         let level = try #require(OptimizationLevel(rawValue: optimization))

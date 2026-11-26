@@ -1,9 +1,6 @@
 import Foundation
 import RuntimeABI
 
-/// Flat result view of a boxed string handle: shares the box's cached flat
-/// storage so repeated raw→flat bridges of the same value do not accumulate a
-/// fresh buffer per call. Unresolvable handles still flatten to "".
 func runtimeRegisterFlatStringResult(
     _ raw: Int,
     outLength: UnsafeMutablePointer<Int>?,
@@ -21,11 +18,6 @@ func runtimeRegisterFlatStringResult(
     )
 }
 
-/// Runtime-registered strings share the cached unit array on their storage;
-/// other buffers decode scalars until the target index without materializing
-/// the whole array.
-/// `unit` is nil exactly when `index` is out of bounds, and `utf16Length` then
-/// carries the authoritative length for the bounds-error message.
 func runtimeFlatStringCodeUnit(
     data: UnsafePointer<UInt8>?,
     length: Int,
@@ -46,11 +38,6 @@ func runtimeFlatStringCodeUnit(
     return (nil, runtimeKotlinStringUTF16Length(source))
 }
 
-/// Registered strings share the cached unit array; other buffers read only
-/// the leading and trailing UTF-16 units of the decoded string (surrogate
-/// markers mapped exactly like `runtimeKotlinStringUTF16CodeUnits`) plus
-/// whether a second unit exists, never materializing the whole code-unit
-/// array.
 func runtimeFlatStringBoundaryCodeUnits(
     data: UnsafePointer<UInt8>?,
     length: Int,
@@ -108,10 +95,6 @@ public func kk_string_uppercase_flat(
     )
 }
 
-// KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its runtime
-// bridge was removed.
-// KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its runtime
-// bridge was removed.
 @_cdecl("__kk_string_first_flat")
 public func __kk_string_first_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -165,11 +148,6 @@ public func __kk_string_single_flat(
         return Int(unit)
     }
 }
-
-// KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are
-// bundled Kotlin source (StringIndexOf.kt); their flat runtime bridges were removed.
-// KSP-410: find/findLast are bundled Kotlin source (StringHOF.kt); their flat runtime
-// bridges were removed.
 
 @_cdecl("__kk_string_firstOrNull_flat")
 public func __kk_string_firstOrNull_flat(
@@ -383,15 +361,6 @@ public func __kk_string_toUIntOrNull_radix_flat(
     __kk_string_toUIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-// trim/trimStart/trimEnd (whitespace and predicate variants) are bundled
-// Kotlin source; their flat runtime bridges were removed.
-
-// KSP-406: substring/subSequence flat bridges removed with the bundled Kotlin
-// source migration (StringSubstringSlice.kt).
-
-// KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-// (StringTakeDrop.kt); their flat runtime bridges were removed.
-
 @_cdecl("kk_string_replace_flat")
 public func kk_string_replace_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -421,12 +390,3 @@ public func kk_string_replace_flat(
         outHash: outHash
     )
 }
-
-// replace(oldChar,newChar) / replace(oldValue,newValue,ignoreCase) /
-// replace(oldChar,newChar,ignoreCase) are bundled Kotlin source; their flat
-// runtime bridges were removed.
-
-// KSP-413: contentEquals / equals(ignoreCase) are bundled Kotlin source
-// (Stdlib/kotlin/text/StringComparison.kt); the kk_string_contentEquals_flat /
-// kk_string_contentEquals_ignoreCase_flat / kk_string_equalsIgnoreCase_flat
-// bridges were removed.

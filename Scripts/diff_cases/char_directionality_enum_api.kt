@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1110: CharDirectionality uses the standard enum API.
 fun main() {
     println('a'.directionality)

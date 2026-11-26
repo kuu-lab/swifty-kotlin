@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2045: pin the xenocom selector call and Kotlin's maxBy contracts in
-    // both stdlib modes, including projected receivers and non-local returns.
     @Test(arguments: [false, true], [0, 2])
     func testArrayMaxBySourceAndArtifact(
         useStdlibLibrary: Bool,

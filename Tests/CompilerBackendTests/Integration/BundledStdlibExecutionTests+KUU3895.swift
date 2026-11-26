@@ -3,11 +3,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3895: a `Nothing` type inside `typeOf` must render the Kotlin type
-    /// name `kotlin.Nothing` even though its classifier is `java.lang.Void`
-    /// (`Nothing::class == Void::class` on the JVM). The token-0 KClass cache
-    /// must also keep distinct name hints apart: `Nothing?` lowers with the
-    /// `kotlin.Nothing` hint while `Nothing` uses `java.lang.Void`.
     @Test func kuu3895TypeOfNothingRendersKotlinName() throws {
         try compileAndRunKotlin(
             """

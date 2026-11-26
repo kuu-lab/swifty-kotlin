@@ -1,7 +1,3 @@
-/// The declaration shape is stable across the primitive array families: a
-/// top-level Kotlin function with one vararg parameter and a primitive-array
-/// return type. Keep this structural so lowering does not grow one name-based
-/// exception for every migrated factory.
 func isSourceBackedPrimitiveArrayFactory(
     _ symbolID: SymbolID?,
     sema: SemaModule?,
@@ -35,9 +31,6 @@ func isPrimitiveArrayType(
         return false
     }
     let knownNames = KnownCompilerNames(interner: interner)
-    // Only the bundled kotlin.<Name> arrays (and fqName-less synthetic stubs)
-    // share the raw-array runtime representation; a user class that shadows
-    // the imported name is an ordinary nominal type (KUU-3615).
     return classType.args.isEmpty
         && (symbol.fqName.isEmpty
             || symbol.fqName == [interner.intern("kotlin"), symbol.name])
@@ -45,9 +38,6 @@ func isPrimitiveArrayType(
         && knownNames.isArrayLikeName(symbol.name)
 }
 
-/// The local representation of a primitive vararg is its Kotlin primitive
-/// array, not List<T>.  Keep the signature's element type unchanged for call
-/// resolution; only the callee local and packed argument use this type.
 func primitiveVarargArrayType(
     elementType: TypeID,
     sema: SemaModule,
@@ -91,8 +81,6 @@ func referenceVarargArrayType(
     )))
 }
 
-/// Arrays share one runtime storage representation, so lowering must preserve
-/// the static array class at the point where the value is allocated or copied.
 func runtimeArrayNominalTypeID(
     _ type: TypeID?,
     sema: SemaModule,

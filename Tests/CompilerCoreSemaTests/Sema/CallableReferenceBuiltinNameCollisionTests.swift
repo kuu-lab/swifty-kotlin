@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4163: user-defined classifiers whose names collide with primitive or
-/// builtin type names must keep their own identity in qualified type
-/// positions and callable references. `foo.Int`, `Outer.Int`, and bare `Int`
-/// inside package foo all denote the user class, not kotlin.Int; only
-/// `kotlin.Int` itself resolves to the primitive.
 @Suite
 struct CallableReferenceBuiltinNameCollisionTests {
 
@@ -113,8 +108,6 @@ struct CallableReferenceBuiltinNameCollisionTests {
 
     @Test
     func kotlinQualifiedAndBarePrimitiveReferencesKeepWorking() throws {
-        // No user classifier shadows the builtin names in this source, so
-        // `Int::plus` and `kotlin.Int::plus` both denote the primitive.
         let errors = try semaErrors("""
         fun main() {
             val qualified: (kotlin.Int, kotlin.Int) -> kotlin.Int = kotlin.Int::plus

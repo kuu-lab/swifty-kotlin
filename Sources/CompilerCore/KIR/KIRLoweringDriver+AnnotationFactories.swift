@@ -11,8 +11,6 @@ extension KIRLoweringDriver {
             ctx.setCurrentFunctionSymbol(symbol)
             var body: KIRLoweringEmitContext = [.beginBlock]
             let value = lowerExpr(expression, shared: shared, emit: &body)
-            // Instances materialized through annotation reflection render
-            // String/Char members quoted like the JVM proxy toString.
             let markResult = shared.arena.appendTemporary(type: shared.sema.types.intType)
             body.append(.call(
                 callee: shared.interner.intern("__kk_annotation_mark_reflection_materialized"),
