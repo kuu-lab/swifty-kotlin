@@ -11,7 +11,8 @@
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt",
     "kotlin/time/InstantFormatting.kt",
-    "kotlin/time/InstantParsing.kt"
+    "kotlin/time/InstantParsing.kt",
+    "kotlin/text/CharDirectionality/CharDirectionality.kt"
   ],
   "declarations": [
     {
@@ -30,6 +31,12 @@
     {
       "path": "kotlin/time/DurationUnit.kt",
       "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "kotlin/text/CharDirectionality/CharDirectionality.kt",
+      "virtualPath": "<kswiftk-jvm>/char-directionality.kt",
       "excludeFromStdlibBuild": true,
       "commonSource": true
     },
