@@ -438,6 +438,42 @@ extension JVMBackendTests {
     }
 
     @Test
+    func importedAccessorlessJvmFieldsBindToPhysicalFields() throws {
+        let library = """
+        class C {
+            @JvmField val x: String? = null
+            val y: Int
+                get() = 1
+        }
+        object Factory {
+            fun makeC(): C = C()
+        }
+        object O {
+            const val answer: Int = 3
+        }
+        """
+        let consumer = """
+        fun main() {
+            println(Factory.makeC().x?.length ?: 4)
+            println(O.answer)
+        }
+        """
+
+        try withWorkspace { root in
+            try library.write(to: root.appendingPathComponent("lib.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["-nowarn", "lib.kt", "-d", "lib.jar"], root: root)
+            let libraryArtifact = root.appendingPathComponent("lib.jar").path
+            let compiled = try compile(consumer, root: root, mode: .jvmJar, classpath: [libraryArtifact])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            let candidate = try java(["-cp", artifact + ":" + libraryArtifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == "4\n3\n")
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
     func rejectsInvalidInterfaceCompanionJvmFieldShapes() throws {
         for (name, members) in [
             ("var", "@JvmField var x: Int = 3"),

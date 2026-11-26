@@ -168,6 +168,15 @@ extension JVMFunctionBuilder {
                     }
                 }
                 if let property = info.kotlinMemberProperties[name] {
+                    if property.getter.isAccessorlessField,
+                       let importedField = info.fields.first(where: { $0.name == name && $0.descriptor == type.descriptor }),
+                       let fieldType = try? JVMDescriptor.parse("()" + importedField.descriptor).1 {
+                        let field = JVMField(owner: owner, name: name, type: fieldType, access: importedField.access)
+                        var bound = JVMProperty(name: name, type: type, getter: property.getter,
+                                                setter: property.setter, field: field, modifiers: [.public])
+                        bound.accessesForeignField = true
+                        return bound
+                    }
                     return JVMProperty(name: name, type: type, getter: property.getter,
                                        setter: property.setter, field: nil, modifiers: [.public])
                 }

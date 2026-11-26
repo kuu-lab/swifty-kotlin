@@ -267,6 +267,7 @@ public struct JVMForeignMethod: Sendable {
     public var isFinal: Bool = false
     public var isSpecial: Bool = false
     public var takesReceiverAsArgument = false
+    var isAccessorlessField = false
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
