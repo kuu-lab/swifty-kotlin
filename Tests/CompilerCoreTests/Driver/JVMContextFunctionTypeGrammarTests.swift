@@ -44,7 +44,7 @@ import Testing
         let context = makeContextFromSource(source, emit: .jvmJar)
         try LexPhase().run(context)
         try JVMSourceValidationPhase().run(context)
-        #expect(context.diagnostics.hasError)
+        assertExpectedDiagnostics([.error("KSWIFTK-JVM-0001")], in: context)
     }
 }
 #endif
