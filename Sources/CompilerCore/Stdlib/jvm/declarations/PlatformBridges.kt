@@ -1,4 +1,6 @@
 package kotlin.jvm.internal
+fun <T> __jvmReinterpret(value: Any?): T = null!!
+
 fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
 
 fun __jvmFileName(file: java.io.File): String = null!!
