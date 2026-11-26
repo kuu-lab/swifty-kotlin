@@ -273,6 +273,14 @@ extension JVMProgramBuilder {
             ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
+            if path == "<kswiftk-jvm>/grouping.kt" {
+                // Inline Grouping helpers (e.g. foldTo) call sourceIterator/keyOf
+                // on kotlin.collections.Grouping, so bind its interface members.
+                try visit(file.topLevelDecls.filter { id in
+                    if case .interfaceDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
                 // Top-level `String(...)` shims lower directly to the matching
                 // java.lang.String <init> descriptors instead of a kotlin

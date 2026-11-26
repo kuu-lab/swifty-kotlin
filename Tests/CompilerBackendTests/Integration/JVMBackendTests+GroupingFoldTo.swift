@@ -6,8 +6,25 @@ import Testing
 
 extension JVMBackendTests {
     @Test
-    func groupingByFoldToRunsAgainstOfficialRuntime() throws {
+    func groupingByFoldToInlinesAndSupportsNonLocalReturn() throws {
         let source = #"""
+        fun valueTotal(values: List<String>): Int {
+            values.groupingBy { it.length }.foldTo(mutableMapOf<Int, Int>(), 0) { accumulator, value ->
+                if (value.isEmpty()) return -1
+                accumulator + value.length
+            }
+            return 0
+        }
+
+        fun selectorTotal(values: List<String>): Int {
+            values.groupingBy { it.length }.foldTo(
+                mutableMapOf<Int, Int>(),
+                { _, value -> if (value == "stop") return -2; value.length },
+                { _, accumulator, value -> accumulator + value.length }
+            )
+            return 0
+        }
+
         fun main() {
             val grouping = listOf("apple", "banana", "avocado", "blueberry", "cherry")
                 .groupingBy { it.substring(0, 1) }
@@ -27,9 +44,14 @@ extension JVMBackendTests {
                     { key, accumulator, element -> accumulator + key.length + element.length }
                 )
             )
+
+            println(valueTotal(listOf("a", "", "b")))
+            println(valueTotal(listOf("a", "b")))
+            println(selectorTotal(listOf("a", "stop")))
+            println(selectorTotal(listOf("a", "b")))
         }
         """#
-        let expected = "{z=100, a=12, b=15, c=6}\ntrue\n{z=100, a=15, b=24, c=14}\n"
+        let expected = "{z=100, a=12, b=15, c=6}\ntrue\n{z=100, a=15, b=24, c=14}\n-1\n0\n-2\n0\n"
 
         try withWorkspace { root in
             let compiled = try compile(source, root: root, mode: .jvmJar)
