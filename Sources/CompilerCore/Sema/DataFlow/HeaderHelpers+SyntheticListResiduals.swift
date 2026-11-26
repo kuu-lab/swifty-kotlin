@@ -25,23 +25,22 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let listTypeParamName = interner.intern("E")
-        let listTypeParamFQName = listFQName + [listTypeParamName]
-        let listTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: listTypeParamName,
-            fqName: listTypeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+        let listTypeParamSymbol = types.nominalTypeParameterSymbols(for: listInterfaceSymbol).first
+            ?? ensureSyntheticTypeParameterSymbol(
+                named: "E",
+                in: listFQName,
+                symbols: symbols,
+                interner: interner
+            )
         let listTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: listTypeParamSymbol,
             nullability: .nonNull
         )))
-        if !symbols.isSourceBackedSymbol(listInterfaceSymbol) {
+        if types.nominalTypeParameterSymbols(for: listInterfaceSymbol).isEmpty {
             types.setNominalTypeParameterSymbols([listTypeParamSymbol], for: listInterfaceSymbol)
             types.setNominalTypeParameterVariances([.out], for: listInterfaceSymbol)
+        }
+        if !symbols.isSourceBackedSymbol(listInterfaceSymbol) {
             symbols.setDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
             types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
             symbols.setSupertypeTypeArgs(
