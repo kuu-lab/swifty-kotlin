@@ -53,6 +53,12 @@ extension JVMBackendTests {
                 root: root
             )
             try #require(foreignConsumer.exitCode == 0, "\(foreignConsumer.stderr)")
+            let foreignExecution = try java([
+                "-cp", root.appendingPathComponent("foreign-consumer.jar").path + ":" + library.path, "ResultApiKt",
+            ])
+            #expect(foreignExecution.exitCode == 0, "stderr: \(foreignExecution.stderr)")
+            #expect(foreignExecution.stdout == expected)
+            #expect(foreignExecution.stderr.isEmpty)
 
             let consumerSource = """
             fun main() {
