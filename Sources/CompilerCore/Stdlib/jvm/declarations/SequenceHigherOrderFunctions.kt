@@ -15,3 +15,5 @@ inline fun <T> Sequence<T>.none(predicate: (T) -> Boolean): Boolean { for (item 
 inline fun <T> Sequence<T>.count(predicate: (T) -> Boolean): Int { var n = 0; for (item in this) if (predicate(item)) n++; return n }
 inline fun <T> Sequence<T>.first(predicate: (T) -> Boolean): T { for (item in this) if (predicate(item)) return item; throw NoSuchElementException("Sequence contains no element matching the predicate.") }
 inline fun <T> Sequence<T>.firstOrNull(predicate: (T) -> Boolean): T? { for (item in this) if (predicate(item)) return item; return null }
+@kotlin.internal.InlineOnly
+inline fun <T> Sequence<T>?.orEmpty(): Sequence<T> = this ?: emptySequence<T>()
