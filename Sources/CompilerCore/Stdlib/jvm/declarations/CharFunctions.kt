@@ -12,6 +12,7 @@ fun Char.uppercase(): String = null!!
 fun Char.lowercase(): String = null!!
 fun Char.titlecase(): String = null!!
 fun Char.isWhitespace(): Boolean = false
+val Char.directionality: CharDirectionality get() = null!!
 fun Char.digitToInt(radix: Int): Int = 0
 fun Char.toFloat(): Float = 0f
 fun Char.equals(other: Char, ignoreCase: Boolean = null!!): Boolean = null!!
