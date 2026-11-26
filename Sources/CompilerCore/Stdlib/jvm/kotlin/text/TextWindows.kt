@@ -35,24 +35,22 @@ fun CharSequence.windowedSequence(size: Int, step: Int = 1, partialWindows: Bool
 fun <R> CharSequence.windowedSequence(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (CharSequence) -> R): kotlin.sequences.Sequence<R> {
     checkTextWindowSizeStep(size, step)
     val source = this
-    val inputLength = source.length
+    val finalStartExclusive = if (partialWindows) source.length else source.length - size + 1
     return object : kotlin.sequences.Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {
             var start = 0
 
-            private fun hasWindow(): Boolean {
-                if (start >= inputLength) return false
-                return partialWindows || inputLength - start >= size
-            }
+            private fun hasWindow(): Boolean = start < finalStartExclusive
 
             override fun hasNext(): Boolean = hasWindow()
 
             override fun next(): R {
                 if (!hasWindow()) throw NoSuchElementException()
-                val remaining = inputLength - start
-                val end = start + if (remaining < size) remaining else size
-                val result = transform(source.subSequence(start, end))
-                start = if (step > remaining) inputLength else start + step
+                val end = start + size
+                val length = source.length
+                val coercedEnd = if (end < 0 || end > length) length else end
+                val result = transform(source.subSequence(start, coercedEnd))
+                start = if (step > finalStartExclusive - start) finalStartExclusive else start + step
                 return result
             }
         }

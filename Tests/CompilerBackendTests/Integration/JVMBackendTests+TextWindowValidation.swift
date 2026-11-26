@@ -10,5 +10,10 @@ extension JVMBackendTests {
     func textWindowSizesPreserveValidationMessages(name: String, lane: JVMSequenceAuditLane) throws {
         try runSequenceAuditFixture(name, lane: lane)
     }
+
+    @Test(arguments: JVMSequenceAuditLane.allCases)
+    func textWindowSequencesUseCurrentCharSequenceLength(lane: JVMSequenceAuditLane) throws {
+        try runSequenceAuditFixture("text_window_sequence_mutation", lane: lane)
+    }
 }
 #endif
