@@ -114,23 +114,11 @@ struct WasmSuspendLoopControlFlowTests {
         """
         try runner.write(toFile: runnerPath, atomically: true, encoding: .utf8)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: node)
-        process.arguments = [runnerPath, wasmPath]
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        try process.run()
-        process.waitUntilExit()
-        let stdout = String(
-            decoding: outPipe.fileHandleForReading.readDataToEndOfFile(),
-            as: UTF8.self
+        let result = try CommandRunner.run(
+            executable: node,
+            arguments: [runnerPath, wasmPath],
+            timeout: 10
         )
-        let stderr = String(
-            decoding: errPipe.fileHandleForReading.readDataToEndOfFile(),
-            as: UTF8.self
-        )
-        return (stdout, stderr, process.terminationStatus)
+        return (result.stdout, result.stderr, result.exitCode)
     }
 }
