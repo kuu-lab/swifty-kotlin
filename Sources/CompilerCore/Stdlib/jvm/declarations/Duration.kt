@@ -59,3 +59,5 @@ public value class Duration internal constructor(private val rawValue: Long) : C
 public fun Int.toDuration(unit: DurationUnit): Duration = null!!
 public fun Long.toDuration(unit: DurationUnit): Duration = null!!
 public fun Double.toDuration(unit: DurationUnit): Duration = null!!
+
+public val Duration.absoluteValue: Duration get() = null!!

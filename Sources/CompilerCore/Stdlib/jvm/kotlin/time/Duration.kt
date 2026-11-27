@@ -85,3 +85,6 @@ public fun Int.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(
 public fun Long.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(durationRawFromLong(this, unit))
 
 public fun Double.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(durationRawFromDouble(this, durationUnitScale(unit)))
+
+public val Duration.absoluteValue: Duration
+    get() = if (isNegative()) -this else this
