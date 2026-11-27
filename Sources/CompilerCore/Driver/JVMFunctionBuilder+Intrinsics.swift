@@ -782,6 +782,8 @@ extension JVMFunctionBuilder {
             switch member {
             case "message" where args.isEmpty:
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getMessage", [], .reference("java/lang/String", nullable: true), receiver: receiver))
+            case "localizedMessage" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getLocalizedMessage", [], .reference("java/lang/String", nullable: true), receiver: receiver))
             case "cause" where args.isEmpty:
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getCause", [], .reference("java/lang/Throwable", nullable: true), receiver: receiver))
             case "stackTrace" where args.isEmpty:

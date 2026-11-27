@@ -787,6 +787,28 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
     return effectiveRaw
 }
 
+@_cdecl("kk_tag_value_class_box_with_payload")
+public func kk_tag_value_class_box_with_payload(_ boxedRaw: Int, _: Int, _ classID: Int) -> Int {
+    kk_tag_value_class_box(boxedRaw, classID)
+}
+
+@_cdecl("kk_value_class_box_primitive")
+public func kk_value_class_box_primitive(
+    _ payload: Int,
+    _ classID: Int,
+    _ isUnsigned: Int,
+    _ isStatic: Int
+) -> Int {
+    let boxedRaw: Int
+    switch (isUnsigned != 0, isStatic != 0) {
+    case (false, false): boxedRaw = kk_box_long_nonnull(payload)
+    case (false, true): boxedRaw = kk_box_long_nonnull_static(payload)
+    case (true, false): boxedRaw = kk_box_ulong_nonnull(payload)
+    case (true, true): boxedRaw = kk_box_ulong_nonnull_static(payload)
+    }
+    return kk_tag_value_class_box(boxedRaw, classID)
+}
+
 /// Allocates a nominal box for a value class whose *underlying representation
 /// can itself be null* (e.g. `@JvmInline value class V(val x: String?)`,
 /// KUU-3115). `kk_tag_value_class_box` cannot express that case: it passes the
