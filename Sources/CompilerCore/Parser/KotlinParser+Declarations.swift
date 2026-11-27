@@ -189,7 +189,7 @@ extension KotlinParser {
 
         _ = consumeToken(into: &children, range: &range)
         let nameKind = stream.peek().kind
-        let hasName = isCompanionObject ? isCompanionObjectName(nameKind) : isIdentifierLike(nameKind)
+        let hasName = isCompanionObject ? LeanParser.isCompanionObjectName(self, kind: nameKind) : isIdentifierLike(nameKind)
         if hasName {
             _ = consumeToken(into: &children, range: &range)
         } else if !isCompanionObject {
@@ -238,28 +238,6 @@ extension KotlinParser {
             kind: kind,
             range: range.value ?? invalidRange, children
         )
-    }
-
-    private func isCompanionObjectName(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .identifier, .backtickedIdentifier:
-            true
-        case let .softKeyword(keyword):
-            keyword != .when
-        case let .keyword(keyword):
-            switch keyword {
-            case .abstract, .annotation, .catch, .companion, .constructor, .crossinline,
-                 .data, .dynamic, .enum, .external, .final, .finally, .import, .infix,
-                 .inline, .inner, .internal, .lateinit, .noinline, .open, .operator,
-                 .override, .private, .protected, .public, .reified, .sealed, .tailrec,
-                 .vararg, .expect, .actual, .const, .suspend, .value:
-                true
-            default:
-                false
-            }
-        default:
-            false
-        }
     }
 
     private func startsPrimaryConstructorHeader() -> Bool {
