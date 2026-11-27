@@ -34,6 +34,8 @@ public value class Duration private constructor(private val rawValue: Long) : Co
     public fun isPositive(): Boolean = rawValue > 0L
     public fun isInfinite(): Boolean = durationIsInfinite(rawValue)
     public fun isFinite(): Boolean = !isInfinite()
+    public val absoluteValue: Duration
+        get() = if (isNegative()) -this else this
 
     public override fun compareTo(other: Duration): Int = compareDurationRaw(rawValue, other.rawValue)
 
@@ -85,6 +87,3 @@ public fun Int.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(
 public fun Long.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(durationRawFromLong(this, unit))
 
 public fun Double.toDuration(unit: DurationUnit): Duration = Duration.fromRawValue(durationRawFromDouble(this, durationUnitScale(unit)))
-
-public val Duration.absoluteValue: Duration
-    get() = if (isNegative()) -this else this

@@ -212,6 +212,10 @@ extension JVMProgramBuilder {
                               let symbol = sema.bindings.declSymbol(for: member),
                               let semantic = sema.symbols.propertyType(for: symbol) else { continue }
                         let name = context.interner.resolve(property.name)
+                        if name == "absoluteValue" {
+                            textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: "getAbsoluteValue-UwyO8pc", descriptor: "(J)J", parameters: [.long], result: .long, isStatic: true, isInterface: false, isAbstract: false)
+                            continue
+                        }
                         guard name.hasPrefix("inWhole") else { continue }
                         let getter = "get" + name.prefix(1).uppercased() + name.dropFirst() + "-impl"
                         textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "(J)" + (try type(semantic)).descriptor, parameters: [.long], result: try type(semantic), isStatic: true, isInterface: false, isAbstract: false)
