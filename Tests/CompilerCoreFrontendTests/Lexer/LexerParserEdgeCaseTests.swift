@@ -398,12 +398,17 @@ struct LexerParserEdgeCaseTests {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
 
-        func canStartTypeArguments(_ kinds: [TokenKind]) -> Bool {
-            KotlinParser(
+        func canStartTypeArguments(_ kinds: [TokenKind], hasAnchorToken: Bool = true) -> Bool {
+            let parser = KotlinParser(
                 tokens: kinds.map { makeToken(kind: $0) },
                 interner: interner,
                 diagnostics: diagnostics
-            ).canStartTypeArgumentsInternal(hasAnchorToken: true)
+            )
+            let result = parser.canStartTypeArgumentsInternal(hasAnchorToken: hasAnchorToken)
+            #expect(parser.stream.index == 0)
+            #expect(parser.lastConsumedToken == nil)
+            #expect(diagnostics.diagnostics.isEmpty)
+            return result
         }
 
         let typeT = TokenKind.identifier(interner.intern("T"))
@@ -421,6 +426,16 @@ struct LexerParserEdgeCaseTests {
         #expect(!canStartTypeArguments([
             .symbol(.lessThan), .symbol(.dot), typeT, .symbol(.greaterThan), .symbol(.lParen),
         ]))
+        #expect(!canStartTypeArguments([.symbol(.lessThan), typeT, .symbol(.greaterThan)], hasAnchorToken: false))
+        #expect(canStartTypeArguments([.symbol(.lessThan), typeT]))
+        #expect(!canStartTypeArguments([.symbol(.lessThan), typeT, .symbol(.comma)]))
+        #expect(canStartTypeArguments([
+            .symbol(.lessThan), .backtickedIdentifier(interner.intern("T")), .symbol(.greaterThan),
+        ]))
+        for suffix in [Symbol.question, .questionDot, .doubleColon, .colon] {
+            #expect(!canStartTypeArguments([.symbol(.lessThan), .symbol(suffix), typeT, .symbol(.greaterThan)]))
+            #expect(canStartTypeArguments([.symbol(.lessThan), typeT, .symbol(suffix), .symbol(.greaterThan)]))
+        }
 
         let parserE = KotlinParser(
             tokens: [
