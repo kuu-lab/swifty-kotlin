@@ -10,6 +10,7 @@ final class KotlinParser {
     private var nestingLimitReported = false
     var genuineDeclarationLookahead: [Int: Bool] = [:]
     var modifierDeclarationLookahead: [Int: Bool] = [:]
+    var typeArgumentModifierLookahead: [Int: Bool] = [:]
 
     init(tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         stream = TokenStream(tokens)
@@ -251,8 +252,16 @@ final class KotlinParser {
             guard let recovery = LeanParser.topLevelRecovery(parser, before: before) else { return statement }
             var skipped: [SyntaxChild] = []
             var skipRange = RangeAccumulator()
+            let skippedStart = parser.stream.peek().range
             for _ in 0..<recovery.skippedCount {
                 _ = parser.consumeToken(into: &skipped, range: &skipRange)
+            }
+            if recovery.skippedCount > 0 {
+                parser.diagnostics.error(
+                    "KSWIFTK-PARSE-0006",
+                    "Skipped \(recovery.skippedCount) unexpected token(s).",
+                    range: skippedStart
+                )
             }
             if recovery.forceAdvance {
                 _ = parser.consumeToken(into: &skipped, range: &skipRange)
