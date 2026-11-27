@@ -556,16 +556,7 @@ extension KotlinParser {
     }
 
     func isDeclarationStart(_ kind: TokenKind) -> Bool {
-        if kind == .symbol(.at) {
-            return true
-        }
-        if case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) {
-            return true
-        }
-        if case .softKeyword(.context) = kind {
-            return true
-        }
-        return false
+        LeanParser.isDeclarationStart(self, kind: kind)
     }
 
     func isIdentifierLike(_ kind: TokenKind) -> Bool {

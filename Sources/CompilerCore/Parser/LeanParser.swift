@@ -60,7 +60,7 @@ enum LeanParser {
         case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword, objectKeyword
         case fieldKeyword, assign, context, modifier
         case softWhenKeyword, catchKeyword, companionKeyword, constructorKeyword, dynamicKeyword
-        case enumKeyword, finallyKeyword, importKeyword, reifiedKeyword
+        case enumKeyword, finallyKeyword, importKeyword, reifiedKeyword, declarationKeyword
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -117,6 +117,8 @@ enum LeanParser {
         case .keyword(.finally): .finallyKeyword
         case .keyword(.import): .importKeyword
         case .keyword(.reified): .reifiedKeyword
+        case .keyword(.class), .keyword(.interface), .keyword(.fun), .keyword(.val), .keyword(.var),
+             .keyword(.typealias), .keyword(.package): .declarationKeyword
         default: .other
         }
     }
@@ -171,7 +173,7 @@ enum LeanParser {
 
     private enum Policy: UInt8 {
         case labelStart, loopStart, typeNameStart, whenConditionNewline
-        case objectExpression, backingField, ambiguousDeclarationPrefix, companionName
+        case objectExpression, backingField, ambiguousDeclarationPrefix, companionName, declarationStart
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -226,6 +228,10 @@ enum LeanParser {
     static func isCompanionObjectName(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         let soft: UInt8 = if case .softKeyword = kind { 1 } else { 0 }
         return classify(parser, .companionName, first: tokenCode(kind).rawValue, second: soft)
+    }
+
+    static func isDeclarationStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        classify(parser, .declarationStart, first: tokenCode(kind).rawValue)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {
