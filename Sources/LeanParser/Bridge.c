@@ -10,8 +10,10 @@ typedef struct {
 extern void lean_initialize_runtime_module(void);
 extern void lean_initialize_thread(void);
 extern void lean_finalize_thread(void);
-extern lean_object *initialize_ParserProofs_TypeArgumentStart(uint8_t builtin, lean_object *world);
+extern lean_object *initialize_ParserProofs_TypeArgumentOffset(uint8_t builtin, lean_object *world);
 extern uint8_t kswiftk_lean_can_start_type_arguments(size_t context, size_t count, uint8_t has_anchor);
+
+extern size_t kswiftk_lean_offset_past_type_arguments(size_t context, size_t count, size_t start);
 
 static pthread_key_t thread_key;
 
@@ -37,7 +39,7 @@ int kswiftk_lean_parser_init(void) {
     if (pthread_key_create(&thread_key, finalize_thread) != 0) {
         return 0;
     }
-    lean_object *result = initialize_ParserProofs_TypeArgumentStart(1, lean_io_mk_world());
+    lean_object *result = initialize_ParserProofs_TypeArgumentOffset(1, lean_io_mk_world());
     int ok = lean_io_result_is_ok(result);
     lean_dec_ref(result);
     lean_io_mark_end_initialization();
@@ -56,4 +58,13 @@ int32_t kswiftk_lean_parser_can_start_type_arguments(void *state, read_token_fn 
     }
     const parser_callbacks callbacks = { .state = state, .read_token = read_token };
     return kswiftk_lean_can_start_type_arguments((size_t)&callbacks, count, has_anchor);
+}
+
+size_t kswiftk_lean_parser_offset_past_type_arguments(void *state, read_token_fn read_token,
+                                                      size_t count, size_t start) {
+    if (!prepare_thread()) {
+        return SIZE_MAX;
+    }
+    const parser_callbacks callbacks = { .state = state, .read_token = read_token };
+    return kswiftk_lean_offset_past_type_arguments((size_t)&callbacks, count, start);
 }
