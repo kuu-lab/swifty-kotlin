@@ -58,7 +58,7 @@ enum LeanParser {
         case identifier, star, varianceOut, comma, question, questionDot, doubleColon
         case forKeyword, whileKeyword, doKeyword, arrow
         case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword, objectKeyword
-        case fieldKeyword, assign
+        case fieldKeyword, assign, context, modifier
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -104,6 +104,8 @@ enum LeanParser {
         case .keyword(.object): .objectKeyword
         case .softKeyword(.field): .fieldKeyword
         case .symbol(.assign): .assign
+        case .softKeyword(.context): .context
+        case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword): .modifier
         default: .other
         }
     }
@@ -157,7 +159,8 @@ enum LeanParser {
     }
 
     private enum Policy: UInt8 {
-        case labelStart, loopStart, typeNameStart, whenConditionNewline, objectExpression, backingField
+        case labelStart, loopStart, typeNameStart, whenConditionNewline
+        case objectExpression, backingField, ambiguousDeclarationPrefix
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -203,6 +206,10 @@ enum LeanParser {
             parser, .backingField,
             first: tokenCode(kind).rawValue, second: tokenCode(parser.stream.peek(1).kind).rawValue
         )
+    }
+
+    static func isAmbiguousDeclarationPrefix(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        classify(parser, .ambiguousDeclarationPrefix, first: tokenCode(kind).rawValue)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {

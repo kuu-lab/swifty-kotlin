@@ -59,6 +59,14 @@ theorem startsBackingFieldIff :
       first = .fieldKeyword ∧ (next = .assign ∨ next = .colon) := by
   simp [startsBackingField]
 
+def ambiguousDeclarationPrefix : Kind → Bool
+  | .at | .context | .modifier => true
+  | _ => false
+
+theorem ambiguousDeclarationPrefixIff :
+    ambiguousDeclarationPrefix kind = true ↔ kind = .at ∨ kind = .context ∨ kind = .modifier := by
+  cases kind <;> simp [ambiguousDeclarationPrefix]
+
 @[export kswiftk_lean_classify_parser_policy]
 def classify (operation first second : UInt8) : UInt8 :=
   let result := match operation with
@@ -68,6 +76,7 @@ def classify (operation first second : UInt8) : UInt8 :=
     | 3 => whenConditionContinues (decodeKind second) (decodeKind first)
     | 4 => startsObjectExpression (decodeKind first) (decodeKind second)
     | 5 => startsBackingField (decodeKind first) (decodeKind second)
+    | 6 => ambiguousDeclarationPrefix (decodeKind first)
     | _ => false
   if result then 1 else 0
 

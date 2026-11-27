@@ -924,16 +924,7 @@ extension KotlinParser {
     /// `context(...) { ... }` helper call). A single token of lookahead
     /// can't tell these apart.
     func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
-        switch token.kind {
-        case let .keyword(kw):
-            return Self.isDeclarationModifierKeyword(kw)
-        case .softKeyword(.context):
-            return true
-        case .symbol(.at):
-            return true
-        default:
-            return false
-        }
+        LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
     }
 
     enum DeclarationPrefixVerdict: Equatable {
