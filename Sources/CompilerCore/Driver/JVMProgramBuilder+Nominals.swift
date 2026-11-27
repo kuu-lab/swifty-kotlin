@@ -269,6 +269,14 @@ extension JVMProgramBuilder {
         return JVMField(owner: plan.name, name: "$$INSTANCE", type: .reference(plan.name, nullable: false), access: 0x1018)
     }
 
+    func usesOwnerInitializedInterfaceCompanionFields(_ plan: JVMClassPlan) -> Bool {
+        guard let owner = plan.companionOwner, classes[owner]?.isInterface == true else { return false }
+        return plan.properties.contains { entry in
+            guard let field = entry.2.field else { return false }
+            return field.owner == classes[owner]?.name && field.access & 8 != 0 && field.constantValue == nil
+        }
+    }
+
     func nominalBuilder(_ plan: JVMClassPlan, name: String, parameters: [JVMValueType] = [], result: JVMValueType = .unit, staticBody: Bool = false) throws -> JVMFunctionBuilder {
         let declaration = FunDecl(range: (plan.declaration?.range ?? plan.interface!.range), name: context.interner.intern(name), modifiers: [], valueParams: parameters.indices.map { ValueParamDecl(name: context.interner.intern("p\($0)"), type: nil) }, body: .unit)
         let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: JVMFunctionReference(name: name, parameters: parameters, result: result), owner: plan)
@@ -320,7 +328,7 @@ extension JVMProgramBuilder {
         var function = b.finish(constructor: true); function.isPrivate = true; function.access = plan.companionOwner == nil || interfaceCompanionStorage(plan) != nil ? 2 : 0; return function
     }
 
-    func objectInitializer(_ plan: JVMClassPlan) throws -> JVMFunction {
+    func objectInitializer(_ plan: JVMClassPlan, includeInitializers: Bool = true) throws -> JVMFunction {
         let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
         let field = interfaceCompanionStorage(plan) ?? singletonField(plan), object = try b.value(field.type)
         let ctor = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: "()V", parameters: [], result: field.type, isStatic: false, isInterface: false, isAbstract: false)
@@ -328,8 +336,10 @@ extension JVMProgramBuilder {
         b.thisValue = object; b.initializingObject = true
         b.contextualReceivers[plan.symbol] = object
         b.contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: plan.symbol)] = object
-        try emitClassDelegates(plan, builder: b, object: object)
-        try emitInitializers(plan, builder: b, object: object)
+        if includeInitializers {
+            try emitClassDelegates(plan, builder: b, object: object)
+            try emitInitializers(plan, builder: b, object: object)
+        }
         if !b.terminated { b.instructions.append(.returnValue(nil)) }
         var f = b.finish(); f.access = 8; return f
     }
@@ -347,13 +357,23 @@ extension JVMProgramBuilder {
         var functions: [JVMFunction] = []
         if !plan.propertyTokens.isEmpty { functions.append(try propertyTokenInitializer(plan)) }
         if plan.modifiers.contains(.data) { functions += try plan.isObject ? dataObjectMethods(plan, existing: existing) : dataMethods(plan, existing: existing) }
-        if plan.isObject && (plan.companionOwner == nil || interfaceCompanionStorage(plan) != nil) { functions.append(try objectInitializer(plan)) }
+        if plan.isObject && (plan.companionOwner == nil || interfaceCompanionStorage(plan) != nil) {
+            functions.append(try objectInitializer(plan, includeInitializers: !usesOwnerInitializedInterfaceCompanionFields(plan)))
+        }
         if plan.isEnum { functions += try enumMethods(plan) }
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
             if let storage = interfaceCompanionStorage(companion) {
                 let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
                 let object = try b.value(storage.type)
-                b.instructions += [.getStatic(storage, object), .putStatic(singletonField(companion), object), .returnValue(nil)]
+                b.instructions += [.getStatic(storage, object), .putStatic(singletonField(companion), object)]
+                if usesOwnerInitializedInterfaceCompanionFields(companion) {
+                    b.thisValue = object; b.initializingObject = true
+                    b.contextualReceivers[companion.symbol] = object
+                    b.contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: companion.symbol)] = object
+                    try emitClassDelegates(companion, builder: b, object: object)
+                    try emitInitializers(companion, builder: b, object: object)
+                }
+                if !b.terminated { b.instructions.append(.returnValue(nil)) }
                 var function = b.finish(); function.access = 8; functions.append(function)
             } else {
                 functions.append(try objectInitializer(companion))
@@ -397,10 +417,10 @@ extension JVMProgramBuilder {
         if let companionOwner = plan.companionOwner {
             result.properties = result.properties.map { property in
                 guard let field = property.field else { return property }
-                let exposedStaticField = field.access & 8 != 0 && field.owner != plan.name
-                guard field.constantValue != nil || exposedStaticField else { return property }
+                let relocatedStaticField = field.access & 8 != 0 && field.owner != plan.name
+                guard field.constantValue != nil || relocatedStaticField else { return property }
                 var property = property
-                if classes[companionOwner]?.isInterface == true {
+                if classes[companionOwner]?.isInterface == true && field.constantValue != nil {
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue
@@ -408,6 +428,7 @@ extension JVMProgramBuilder {
                     property.field = duplicate
                 } else {
                     property.relocatedField = field
+                    property.isMovedFromInterfaceCompanion = classes[companionOwner]?.isInterface == true
                     property.field = nil
                 }
                 return property

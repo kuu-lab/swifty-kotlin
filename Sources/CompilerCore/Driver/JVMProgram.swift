@@ -266,6 +266,8 @@ public struct JVMForeignMethod: Sendable {
     public let isAbstract: Bool
     public var isFinal: Bool = false
     public var isSpecial: Bool = false
+    public var takesReceiverAsArgument = false
+    var isAccessorlessField = false
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
@@ -338,6 +340,7 @@ public struct JVMProperty {
     public var customGetter: Bool = false
     public var customSetter: Bool = false
     var isDirectField = false
+    public var isMovedFromInterfaceCompanion = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false

@@ -324,6 +324,28 @@ extension JVMProgramBuilder {
     }
 
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
+        if plan.companionOwner.flatMap({ classes[$0]?.isInterface }) == true {
+            let hasInterfaceCompanionJvmField = propertyIDs.contains { id in
+                guard case .propertyDecl = ast.arena.decl(id),
+                      let symbol = sema.bindings.declSymbol(for: id) else { return false }
+                return sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmField.qualifiedName }
+            }
+            if hasInterfaceCompanionJvmField {
+                for id in propertyIDs {
+                    guard case let .propertyDecl(p) = ast.arena.decl(id),
+                          let symbol = sema.bindings.declSymbol(for: id) else { continue }
+                    let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmField.qualifiedName }
+                    guard exposedField,
+                          !p.isVar,
+                          !p.modifiers.contains(.const),
+                          p.getter == nil,
+                          p.setter == nil,
+                          p.modifiers.intersection([.private, .protected, .internal]).isEmpty else {
+                        throw JVMFrontendError(message: "JVM @JvmField properties in interface companions must all be public final vals annotated with @JvmField.", range: p.range)
+                    }
+                }
+            }
+        }
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
@@ -390,7 +412,11 @@ extension JVMProgramBuilder {
                 }
             let staticObjectField = exposedField && plan.isObject
             let ownerInitializedCompanion = plan.companionOwner != nil && interfaceCompanionStorage(plan) == nil
-            let staticObjectFieldOwner = staticObjectField && ownerInitializedCompanion ? (plan.companionOwner.flatMap { classes[$0]?.name } ?? plan.name) : plan.name
+            let interfaceCompanionFieldOwner = staticObjectField
+                && plan.companionOwner.flatMap({ classes[$0]?.isInterface }) == true
+                ? plan.companionOwner.flatMap { classes[$0]?.name }
+                : nil
+            let staticObjectFieldOwner = staticObjectField && (ownerInitializedCompanion || interfaceCompanionFieldOwner != nil) ? (plan.companionOwner.flatMap { classes[$0]?.name } ?? plan.name) : plan.name
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let propertyAnnotationRecords = try annotationRecords(for: symbol)
             let fieldAnnotations = propertyAnnotationRecords.filter { $0.useSiteTarget == nil || $0.useSiteTarget == "field" }
@@ -402,6 +428,7 @@ extension JVMProgramBuilder {
                 | (fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
             let field = hasField && p.delegateExpression == nil ? JVMField(owner: staticObjectFieldOwner, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
+            property.isDirectField = interfaceCompanionFieldOwner != nil
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
             property.usesPrivateBackingField = usesPrivateBackingField

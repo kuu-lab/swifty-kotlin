@@ -187,6 +187,15 @@ extension JVMFunctionBuilder {
                     }
                 }
                 if let property = info.kotlinMemberProperties[name] {
+                    if property.getter.isAccessorlessField,
+                       let importedField = info.fields.first(where: { $0.name == name && $0.descriptor == type.descriptor }),
+                       let fieldType = try? JVMDescriptor.parse("()" + importedField.descriptor).1 {
+                        let field = JVMField(owner: owner, name: name, type: fieldType, access: importedField.access)
+                        var bound = JVMProperty(name: name, type: type, getter: property.getter,
+                                                setter: property.setter, field: field, modifiers: [.public])
+                        bound.accessesForeignField = true
+                        return bound
+                    }
                     return JVMProperty(name: name, type: type, getter: property.getter,
                                        setter: property.setter, field: nil, modifiers: [.public])
                 }
@@ -358,7 +367,10 @@ extension JVMFunctionBuilder {
             let simple = qualifier.split(separator: ".").last.map(String.init) ?? qualifier
             return JVMClasspathIndex.collectionNames[simple] == interface && (qualifier == simple || qualifier == "kotlin.collections." + simple)
         }
-        let candidates = owner.interfaces.filter { interface in
+        let receiverOwner = thisValue?.type.referenceName.flatMap { name in
+            program.classes.values.first { $0.name == name }
+        } ?? owner
+        let candidates = receiverOwner.interfaces.filter { interface in
             (qualifier == nil || matchesQualifier(interface, qualifier!)) && inherits(interface, method.owner, visited: [])
         }
         guard let target = candidates.first else {
@@ -371,7 +383,47 @@ extension JVMFunctionBuilder {
         }
         selected = JVMForeignMethod(owner: target, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: true, isAbstract: method.isAbstract, isSpecial: true)
         selected.isSuspend = method.isSuspend
-        return selected
+        guard receiverOwner.name != owner.name else { return selected }
+
+        // invokespecial on an interface default is only legal when the
+        // containing class directly inherits that interface. Relocated
+        // interface-companion initializers run on the outer interface, so call
+        // a synthetic static bridge on the companion instead; the bridge is in
+        // the companion class and can legally perform the super call.
+        let key = receiverOwner.name + "|" + target + "|" + method.name + method.descriptor
+        if let bridge = program.interfaceSuperBridges[key] { return bridge }
+        let receiverType = JVMValueType.reference(receiverOwner.name, nullable: false)
+        let bridgeParameters = [receiverType] + method.parameters
+        let bridgeDescriptor = "(" + bridgeParameters.map(\.descriptor).joined() + ")" + method.result.descriptor
+        let bridgeName = "access$super$" + method.name + "$" + String(program.interfaceSuperBridges.count)
+        var locals: [JVMValue] = [], slot = 0
+        for type in bridgeParameters {
+            locals.append(JVMValue(slot: slot, type: type))
+            slot += type.width
+        }
+        var bridgeResult: JVMValue?
+        if method.result != .unit {
+            bridgeResult = JVMValue(slot: slot, type: method.result)
+            locals.append(bridgeResult!)
+        }
+        let bridgeFunction = program.rawFunction(
+            receiverOwner.name,
+            name: bridgeName,
+            parameters: bridgeParameters,
+            result: method.result,
+            access: 0x1009,
+            locals: locals,
+            instructions: [
+                .foreignCall(selected, receiver: locals[0], arguments: Array(locals.dropFirst().prefix(method.parameters.count)), result: bridgeResult),
+                .returnValue(bridgeResult),
+            ]
+        )
+        program.syntheticFunctions[receiverOwner.name, default: []].append(bridgeFunction)
+        var bridge = JVMForeignMethod(owner: receiverOwner.name, name: bridgeName, descriptor: bridgeDescriptor, parameters: bridgeParameters, result: method.result, isStatic: true, isInterface: false, isAbstract: false)
+        bridge.takesReceiverAsArgument = true
+        bridge.isSuspend = method.isSuspend
+        program.interfaceSuperBridges[key] = bridge
+        return bridge
     }
     func implicitPropertyReceiver(_ property: JVMProperty, at id: ExprID) throws -> JVMValue {
         if property.getter.parameters.isEmpty || property.getter.composePropertyABI(hasReceiver: false) { return try instance(id) }
@@ -505,7 +557,7 @@ extension JVMFunctionBuilder {
         }
         guard let valueType = setter.parameters.last else { throw fail("JVM property setter has no value parameter.") }
         arguments.append(try convert(converted, to: valueType))
-        let dispatch = try propertyDispatch(property, receiver: receiver, at: id)
+        let dispatch = setter.takesReceiverAsArgument ? nil : try propertyDispatch(property, receiver: receiver, at: id)
         instructions.append(.foreignCall(setter, receiver: dispatch, arguments: arguments, result: nil))
     }
     func propertyCompound(_ property: JVMProperty, receiver: JVMValue, op: CompoundAssignOp, rhs: ExprID, id: ExprID, special: Bool = false, superReceiver: ExprID? = nil) throws -> JVMValue? {
@@ -556,7 +608,7 @@ extension JVMProgramBuilder {
             accessorTypeParameters = try typeParameters(propertyParameterSymbols, declarations: declaration.typeParams)
         }
         var functions: [JVMFunction] = []
-        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField && !property.isDirectField {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers
