@@ -128,6 +128,14 @@ extension JVMFunctionBuilder {
                 }
             return owner.flatMap { program.properties[$0] }
         }
+        func isThrowableLocalizedMessage(_ semanticSymbol: SemanticSymbol, symbol: SymbolID) -> Bool {
+            let fqName = semanticSymbol.fqName.map { context.interner.resolve($0) }
+            if fqName == ["kotlin", "Throwable", "localizedMessage"] { return true }
+            guard fqName == ["kotlin", "localizedMessage"],
+                  let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
+                  case let .classType(receiverClass) = sema.types.kind(of: receiverType) else { return false }
+            return sema.symbols.symbol(receiverClass.classSymbol)?.fqName == program.knownNames.kotlinThrowableFQName
+        }
         if let symbol = sema.bindings.identifierSymbol(for: id), let property = sourceProperty(for: symbol) { return property }
         if let call = sema.bindings.callBinding(for: id) {
             if let property = sourceProperty(for: call.chosenCallee) { return property }
@@ -142,6 +150,17 @@ extension JVMFunctionBuilder {
                 let type: JVMValueType = .reference("java/lang/Object", nullable: true)
                 let getter = JVMForeignMethod(owner: "kotlin/coroutines/intrinsics/IntrinsicsKt", name: "getCOROUTINE_SUSPENDED", descriptor: "()Ljava/lang/Object;", parameters: [], result: type, isStatic: true, isInterface: false, isAbstract: false)
                 return JVMProperty(name: "COROUTINE_SUSPENDED", type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+            }
+            if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
+               isThrowableLocalizedMessage(semanticSymbol, symbol: symbol),
+               let propertyType = sema.symbols.propertyType(for: symbol),
+               let type = try? program.type(propertyType) {
+                let getter = JVMForeignMethod(
+                    owner: "java/lang/Throwable", name: "getLocalizedMessage",
+                    descriptor: "()Ljava/lang/String;", parameters: [], result: type,
+                    isStatic: false, isInterface: false, isAbstract: false
+                )
+                return JVMProperty(name: "localizedMessage", type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
             }
             if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
                let parent = sema.symbols.parentSymbol(for: symbol),

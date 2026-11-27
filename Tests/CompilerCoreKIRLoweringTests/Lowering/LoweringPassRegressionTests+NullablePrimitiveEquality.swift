@@ -93,14 +93,31 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
-    func testNullableValueClassReturnBoxesAndTagsPayload() throws {
+    func testNullableValueClassReturnPreservesTypedLongBox() throws {
         let source = """
         value class Counter(val raw: Long)
         fun sentinelNullableReturn(c: Counter): Counter? = c
         """
         let callees = try loweredCallees(for: source, function: "sentinelNullableReturn", includeStdlib: false)
-        #expect(callees.contains(RuntimeCall.boxLongNonnullStatic.name))
-        #expect(callees.contains(RuntimeCall.tagValueClassBox.name))
+        #expect(callees.contains(RuntimeCall.valueClassBoxPrimitive.name))
+        #expect(!callees.contains(RuntimeCall.boxLongNonnullStatic.name))
+        #expect(!callees.contains(RuntimeCall.tagValueClassBoxWithPayload.name))
+    }
+
+    @Test
+    func testNullableValueClassReturnPassesPrimitiveBoxFlags() throws {
+        let source = """
+        value class Counter(val raw: Long)
+        value class UnsignedCounter(val raw: ULong)
+        fun sentinelLongReturn(c: Counter): Counter? = c
+        fun sentinelULongReturn(c: UnsignedCounter): UnsignedCounter? = c
+        """
+        let flags = try loweredValueClassPrimitiveBoxFlags(
+            for: source,
+            functions: ["sentinelLongReturn", "sentinelULongReturn"]
+        )
+        #expect(flags["sentinelLongReturn"] == [[0, 1]], "Long boxing must be signed and static: \(flags)")
+        #expect(flags["sentinelULongReturn"] == [[1, 1]], "ULong boxing must be unsigned and static: \(flags)")
     }
 
     @Test(arguments: ["c == expected", "expected == c", "c != expected", "expected != c"])
@@ -133,6 +150,34 @@ extension LoweringPassRegressionTests {
             callees = extractCallees(from: function.body, interner: interner)
         }
         return callees
+    }
+
+    private func loweredValueClassPrimitiveBoxFlags(
+        for source: String,
+        functions functionNames: [String]
+    ) throws -> [String: [[Int64]]] {
+        var flagsByFunction: [String: [[Int64]]] = [:]
+        let ctx = try loweringContext(from: source, includeStdlib: false)
+        let module: KIRModule = try #require(ctx.kir)
+        let boxCallee = ctx.interner.intern(RuntimeCall.valueClassBoxPrimitive.name)
+        for functionName in functionNames {
+            let function = try findKIRFunction(named: functionName, in: module, interner: ctx.interner)
+            let calls = function.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      callee == boxCallee
+                else { return nil }
+                return arguments
+            }
+            #expect(calls.count == 1, "Expected one primitive value-class box call in \(functionName): \(calls)")
+            flagsByFunction[functionName] = calls.map { arguments in
+                #expect(arguments.count == 4, "Primitive value-class box call must have four arguments: \(arguments)")
+                return arguments.suffix(2).compactMap { argument in
+                    guard case let .intLiteral(value)? = module.arena.expr(argument) else { return nil }
+                    return value
+                }
+            }
+        }
+        return flagsByFunction
     }
 
     @Test
