@@ -427,6 +427,7 @@ enum WasmRuntimeHelpers {
         "kk_nullable_primitive_ne",
         "kk_tag_value_class_box",
         "kk_tag_value_class_box_with_payload",
+        "kk_value_class_box_primitive",
         "kk_value_class_box",
         "kk_value_class_unbox",
         "kk_throwable_is_cancellation",
@@ -928,6 +929,9 @@ enum WasmRuntimeHelpers {
         case "kk_tag_value_class_box_with_payload":
             extraLocals = 0
             emitValueClassPayloadTagBody(&code, ctx: ctx)
+        case "kk_value_class_box_primitive":
+            extraLocals = 0
+            emitValueClassBoxBody(&code, ctx: ctx)
         case "kk_value_class_box":
             extraLocals = 1
             emitValueClassBoxBody(&code, ctx: ctx)

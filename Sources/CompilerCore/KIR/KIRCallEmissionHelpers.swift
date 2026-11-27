@@ -680,14 +680,20 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
             emitPlainBoxCall()
             return
         }
-        let boxedTemp = arena.appendTemporary(type: resultType)
-        instructions.append(.call(callee: boxCallee, arguments: [value], result: boxedTemp, canThrow: false))
         let intType = types.make(.primitive(.int, .nonNull))
         let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
         instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        let isUnsigned = boxCallee == interner.intern("kk_box_ulong_nonnull")
+            || boxCallee == interner.intern("kk_box_ulong_nonnull_static")
+        let isStatic = boxCallee == interner.intern("kk_box_long_nonnull_static")
+            || boxCallee == interner.intern("kk_box_ulong_nonnull_static")
+        let isUnsignedExpr = arena.appendExpr(.intLiteral(isUnsigned ? 1 : 0), type: intType)
+        instructions.append(.constValue(result: isUnsignedExpr, value: .intLiteral(isUnsigned ? 1 : 0)))
+        let isStaticExpr = arena.appendExpr(.intLiteral(isStatic ? 1 : 0), type: intType)
+        instructions.append(.constValue(result: isStaticExpr, value: .intLiteral(isStatic ? 1 : 0)))
         instructions.append(.call(
-            callee: interner.intern("kk_tag_value_class_box_with_payload"),
-            arguments: [boxedTemp, value, classIDExpr],
+            callee: interner.intern("kk_value_class_box_primitive"),
+            arguments: [value, classIDExpr, isUnsignedExpr, isStaticExpr],
             result: result,
             canThrow: false
         ))

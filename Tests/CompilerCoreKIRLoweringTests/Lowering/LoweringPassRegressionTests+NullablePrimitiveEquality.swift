@@ -99,8 +99,9 @@ extension LoweringPassRegressionTests {
         fun sentinelNullableReturn(c: Counter): Counter? = c
         """
         let callees = try loweredCallees(for: source, function: "sentinelNullableReturn", includeStdlib: false)
-        #expect(callees.contains(RuntimeCall.boxLongNonnullStatic.name))
-        #expect(callees.contains(RuntimeCall.tagValueClassBoxWithPayload.name))
+        #expect(callees.contains(RuntimeCall.valueClassBoxPrimitive.name))
+        #expect(!callees.contains(RuntimeCall.boxLongNonnullStatic.name))
+        #expect(!callees.contains(RuntimeCall.tagValueClassBoxWithPayload.name))
     }
 
     @Test(arguments: ["c == expected", "expected == c", "c != expected", "expected != c"])

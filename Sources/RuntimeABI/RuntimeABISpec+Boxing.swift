@@ -30,6 +30,7 @@ public extension RuntimeABISpec {
         abi.nt("kk_unbox_char", "obj"),
         abi.nt("kk_tag_value_class_box", "boxedRaw classID"),
         abi.nt("kk_tag_value_class_box_with_payload", "boxedRaw payload classID"),
+        abi.nt("kk_value_class_box_primitive", "payload classID isUnsigned isStatic"),
         abi.nt("kk_value_class_box", "payload classID"),
         abi.nt("kk_value_class_unbox", "rawValue classID"),
     ]

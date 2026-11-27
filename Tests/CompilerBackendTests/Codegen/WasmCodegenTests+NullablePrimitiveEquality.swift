@@ -108,14 +108,14 @@ extension WasmCodegenTests {
         compare("kk_nullable_primitive_eq", boxedFloatNaNOne, boxedFloatNaNTwo, 0)
 
         let addressPayload = int(4096)
-        let taggedAddressPayload = call("kk_tag_value_class_box_with_payload", [
-            call("kk_box_long_nonnull", [addressPayload]), addressPayload, counterClassID,
+        let taggedAddressPayload = call("kk_value_class_box_primitive", [
+            addressPayload, counterClassID, int(0), int(0),
         ])
-        let taggedAddressPayloadCopy = call("kk_tag_value_class_box_with_payload", [
-            call("kk_box_long_nonnull", [int(4096)]), int(4096), counterClassID,
+        let taggedAddressPayloadCopy = call("kk_value_class_box_primitive", [
+            int(4096), counterClassID, int(0), int(1),
         ])
-        let taggedMinimumPayload = call("kk_tag_value_class_box_with_payload", [
-            call("kk_box_long_nonnull", [null]), null, counterClassID,
+        let taggedMinimumPayload = call("kk_value_class_box_primitive", [
+            null, counterClassID, int(0), int(0),
         ])
         compare("kk_nullable_primitive_eq", taggedAddressPayload, taggedAddressPayloadCopy, 0)
         compare("kk_nullable_primitive_eq", taggedAddressPayload, taggedMinimumPayload, 0)
