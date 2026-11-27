@@ -2472,7 +2472,9 @@ final class JVMClasspathIndex {
             source += (isMutable ? "var" : "val") + " `\(name)`: \(kotlinKeywordEscapedType(property.sourceType))"
             if !info.isInterface || composable {
                 source += "\(annotations)\(readonly) get() = null!!"
-                if isMutable { source += " set(value) {}" }
+                if isMutable {
+                    source += property.setter?.isProtected == true ? " protected set(value) {}" : " set(value) {}"
+                }
             }
             source += "\n"
         }

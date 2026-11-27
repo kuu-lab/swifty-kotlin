@@ -933,6 +933,16 @@ struct JVMClassReader {
                 })
                 // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
                 let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
+                if isHiddenByDeprecation {
+                    let accessors = Set([
+                        getter.name + getter.descriptor,
+                        property.setterName.flatMap { name in
+                            property.setterDescriptor.map { name + $0 }
+                        },
+                    ].compactMap { $0 })
+                    info.methods.removeAll { accessors.contains($0.name + $0.descriptor) }
+                    continue
+                }
                 let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
@@ -953,8 +963,7 @@ struct JVMClassReader {
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
                     let setter = methods.first {
-                        (!$0.isProtected || property.isProtected) && !$0.isStatic
-                            && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
+                        !$0.isStatic && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
                     }
                     info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
                 }

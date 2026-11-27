@@ -17,14 +17,27 @@ extension JVMBackendTests {
                 lateinit var publicGeneric: T
             }
 
+            open class ProtectedSetterValues {
+                lateinit var name: String
+                    protected set
+            }
+
             open class ProtectedOpenValues {
                 protected open var value: String? = "open"
+            }
+
+            open class ProtectedVisibilityValues {
+                @Deprecated("removed", level = DeprecationLevel.HIDDEN)
+                protected open var legacy: String = "old"
+
+                @get:JvmSynthetic
+                protected open val syntheticValue: String = "synthetic"
             }
 
             class Payload
 
             open class ProtectedPayloadHolder {
-                @JvmField protected var payload: Payload? = null
+                @JvmField protected var payloads: List<Payload>? = null
             }
 
             class PublicLateinitSimple {
@@ -59,16 +72,30 @@ extension JVMBackendTests {
                 let field = try #require(providerInfo.fields.first { $0.name == name })
                 #expect(!providerInfo.isRuntimeInstanceField(field))
             }
+            let setterInfo = try readProviderClass("fixture/ProtectedSetterValues.class")
+            let setterProperty = try #require(setterInfo.kotlinMemberProperties["name"])
+            #expect(!setterProperty.getter.isProtected)
+            #expect(setterProperty.setter?.isProtected == true)
             let openPropertyInfo = try readProviderClass("fixture/ProtectedOpenValues.class")
             #expect(openPropertyInfo.kotlinMemberProperties["value"] != nil)
+            let visibilityInfo = try readProviderClass("fixture/ProtectedVisibilityValues.class")
+            #expect(visibilityInfo.kotlinMemberProperties["legacy"] == nil)
+            #expect(!visibilityInfo.methods.contains { $0.name == "getLegacy" })
+            #expect(visibilityInfo.kotlinMemberProperties["syntheticValue"] != nil)
+            let payloadInfo = try readProviderClass("fixture/ProtectedPayloadHolder.class")
+            let payloadField = try #require(payloadInfo.fields.first { $0.name == "payloads" })
+            #expect(payloadField.descriptor == "Ljava/util/List;")
+            #expect(payloadInfo.kotlinFieldProperties["payloads"]?.sourceType?.contains("Payload") == true)
 
             let runtime = try ownStdlibLibrary()
             let classpath = [dependency.path, runtime.path]
             let consumer = """
             package consumer
             import fixture.ProtectedValues
+            import fixture.ProtectedSetterValues
             import fixture.ProtectedOpenValues
             import fixture.ProtectedPayloadHolder
+            import fixture.ProtectedVisibilityValues
             import fixture.PublicLateinitGeneric
             import fixture.PublicLateinitSimple
 
@@ -89,13 +116,21 @@ extension JVMBackendTests {
                 fun writePublicGeneric(value: String) { publicGeneric = value }
             }
 
+            class SetterDerived : ProtectedSetterValues() {
+                fun writeName(value: String) { name = value }
+            }
+
             class OpenDerived : ProtectedOpenValues() {
                 fun readValue(): String? = value
                 fun writeValue(value: String?) { this.value = value }
             }
 
+            class VisibilityDerived : ProtectedVisibilityValues() {
+                fun readSynthetic(): String = syntheticValue
+            }
+
             class PayloadDerived : ProtectedPayloadHolder() {
-                fun readPayload(): Any? = payload
+                fun readPayload(): Any? = payloads
             }
 
             fun main() {
@@ -117,6 +152,10 @@ extension JVMBackendTests {
                 println(open.readValue())
                 open.writeValue(null)
                 println(open.readValue() == null)
+                val setter = SetterDerived()
+                setter.writeName("ready-setter")
+                println(setter.name)
+                println(VisibilityDerived().readSynthetic())
                 println(PayloadDerived().readPayload() == null)
                 val simple = PublicLateinitSimple()
                 try {
@@ -152,7 +191,32 @@ extension JVMBackendTests {
             try #require(exit == 0, "\(diagnostics.map(\.message))")
             let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "consumer.ConsumerKt"])
             #expect(run.exitCode == 0, "\(run.stderr)")
-            #expect(run.stdout == "initial\ntrue\nchanged\nchanged\ntrue\nsuper\nbacked\ntrue\nopen\ntrue\ntrue\nuninitialized-simple\nready-simple\nuninitialized-generic\nready-generic\nuninitialized\nready\n")
+            #expect(run.stdout == "initial\ntrue\nchanged\nchanged\ntrue\nsuper\nbacked\ntrue\nopen\ntrue\nready-setter\nsynthetic\ntrue\nuninitialized-simple\nready-simple\nuninitialized-generic\nready-generic\nuninitialized\nready\n")
+
+            let unrelatedSetter = """
+            package consumer
+            import fixture.ProtectedSetterValues
+            fun read(value: ProtectedSetterValues): String = value.name
+            fun write(value: ProtectedSetterValues) { value.name = "unrelated" }
+            """
+            let (_, setterExit, setterDiagnostics) = try m22Build(
+                root: root, sources: [("UnrelatedSetter.kt", unrelatedSetter)], name: "unrelated-setter.jar", classpath: classpath
+            )
+            #expect(setterExit == 1, "\(setterDiagnostics.map(\.message))")
+            #expect(setterDiagnostics.filter { $0.severity == .error }.map(\.code) == ["KSWIFTK-SEMA-0041"])
+
+            let hiddenProperty = """
+            package consumer
+            import fixture.ProtectedVisibilityValues
+            class HiddenDerived : ProtectedVisibilityValues() {
+                fun readHidden(): String = legacy
+            }
+            """
+            let (_, hiddenExit, hiddenDiagnostics) = try m22Build(
+                root: root, sources: [("HiddenProperty.kt", hiddenProperty)], name: "hidden-property.jar", classpath: classpath
+            )
+            #expect(hiddenExit == 1, "\(hiddenDiagnostics.map(\.message))")
+            #expect(hiddenDiagnostics.contains { $0.message.contains("legacy") })
 
             let unrelated = """
             package consumer
