@@ -9,7 +9,7 @@ extension TypeArgumentsLeanParityTests {
         let lexed = lex(source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
 
-        #expect(LeanParser.whenConditionContinuesAfterLineBreak(parser, kind: parser.stream.peek().kind) == expected)
+        #expect(LeanParser.whenConditionContinuesAfterLineBreak(parser) == expected)
         #expect(parser.stream.index == 0)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
     }

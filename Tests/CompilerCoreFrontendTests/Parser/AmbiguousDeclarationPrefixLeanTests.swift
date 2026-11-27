@@ -23,7 +23,7 @@ extension TypeArgumentsLeanParityTests {
         let lexed = lex("anchor " + source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
         parser.lastConsumedToken = parser.stream.advance()
-        #expect(parser.isAmbiguousDeclarationPrefix(parser.stream.peek()) == accepts)
+        #expect(LeanParser.isAmbiguousDeclarationPrefix(parser, kind: parser.stream.peek().kind) == accepts)
         #expect(parser.stream.index == 1)
         #expect(parser.lastConsumedToken == lexed.tokens[0])
         #expect(parser.genuineDeclarationLookahead.isEmpty)
