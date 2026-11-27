@@ -157,32 +157,23 @@ extension LoweringPassRegressionTests {
         functions functionNames: [String]
     ) throws -> [String: [[Int64]]] {
         var flagsByFunction: [String: [[Int64]]] = [:]
-        try withTemporaryFiles(contents: [source]) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .object, includeStdlib: false)
-            try runToLowering(ctx)
-
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "Unexpected errors for \(path): \(errors.map(\.message))")
+        let ctx = try loweringContext(from: source, includeStdlib: false)
+        let module: KIRModule = try #require(ctx.kir)
+        let boxCallee = ctx.interner.intern(RuntimeCall.valueClassBoxPrimitive.name)
+        for functionName in functionNames {
+            let function = try findKIRFunction(named: functionName, in: module, interner: ctx.interner)
+            let calls = function.body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      callee == boxCallee
+                else { return nil }
+                return arguments
             }
-
-            let module: KIRModule = try #require(ctx.kir)
-            let boxCallee = ctx.interner.intern(RuntimeCall.valueClassBoxPrimitive.name)
-            for functionName in functionNames {
-                let function = try findKIRFunction(named: functionName, in: module, interner: ctx.interner)
-                let calls = function.body.compactMap { instruction -> [KIRExprID]? in
-                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          callee == boxCallee
-                    else { return nil }
-                    return arguments
-                }
-                #expect(calls.count == 1, "Expected one primitive value-class box call in \(functionName): \(calls)")
-                flagsByFunction[functionName] = calls.map { arguments in
-                    #expect(arguments.count == 4, "Primitive value-class box call must have four arguments: \(arguments)")
-                    return arguments.suffix(2).compactMap { argument in
-                        guard case let .intLiteral(value)? = module.arena.expr(argument) else { return nil }
-                        return value
-                    }
+            #expect(calls.count == 1, "Expected one primitive value-class box call in \(functionName): \(calls)")
+            flagsByFunction[functionName] = calls.map { arguments in
+                #expect(arguments.count == 4, "Primitive value-class box call must have four arguments: \(arguments)")
+                return arguments.suffix(2).compactMap { argument in
+                    guard case let .intLiteral(value)? = module.arena.expr(argument) else { return nil }
+                    return value
                 }
             }
         }
