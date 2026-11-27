@@ -107,18 +107,18 @@ struct TypeArgumentsLeanParityTests {
         let uncached = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: DiagnosticEngine())
         _ = uncached.parseTypeArguments()
         #expect(uncached.stream.index == modifierStart)
-        #expect(uncached.modifierDeclarationLookahead.count == limit)
-        #expect(uncached.modifierDeclarationLookahead[afterModifiers - 1] == true)
+        #expect(uncached.typeArgumentModifierLookahead.count == limit)
+        #expect(uncached.typeArgumentModifierLookahead[afterModifiers - 1] == true)
         let budgetDiagnostic = uncached.diagnostics.diagnostics.first { $0.code == "KSWIFTK-PARSE-0007" }
         #expect(budgetDiagnostic?.primaryRange == lexed.tokens[afterModifiers].range)
         #expect(uncached.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0007", "KSWIFTK-PARSE-0005"])
 
         let cached = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: DiagnosticEngine())
-        cached.modifierDeclarationLookahead[afterModifiers] = false
+        cached.typeArgumentModifierLookahead[afterModifiers] = false
         _ = cached.parseTypeArguments()
         #expect(cached.stream.atEOF())
-        #expect(cached.modifierDeclarationLookahead.count == limit + 1)
-        #expect(cached.modifierDeclarationLookahead[modifierStart] == false)
+        #expect(cached.typeArgumentModifierLookahead.count == limit + 1)
+        #expect(cached.typeArgumentModifierLookahead[modifierStart] == false)
         #expect(cached.diagnostics.diagnostics.isEmpty)
 
         let annotation = lex("<T\n" + String(repeating: "@A ", count: limit + 1) + "T>")

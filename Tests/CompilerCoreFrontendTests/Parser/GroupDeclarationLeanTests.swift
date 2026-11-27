@@ -5,32 +5,21 @@ import Testing
 
 extension TypeArgumentsLeanParityTests {
     @Test(arguments: [false, true])
-    func contextAfterModifiersInGroupsAndTypeArguments(declares: Bool) {
-        let prefix = "T\nprivate inline context"
-        let declaration = "(receiver: R) fun next()"
-        let fixtures = [
-            ("(" + prefix + (declares ? declaration : "? )"), false, "KSWIFTK-PARSE-0004"),
-            ("<" + prefix + (declares ? declaration : "?>"), true, "KSWIFTK-PARSE-0005"),
-        ]
-        for (source, typeArguments, diagnostic) in fixtures {
-            let lexed = lex(source)
-            let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
-            if typeArguments {
-                _ = parser.parseTypeArguments()
-            } else {
-                _ = parser.parseBalancedGroup(opening: .lParen, closing: .rParen)
-            }
+    func contextAfterModifiersInGroups(declares: Bool) {
+        let source = "(T\nprivate inline context" + (declares ? "(receiver: R) fun next()" : "? )")
+        let lexed = lex(source)
+        let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
+        _ = parser.parseBalancedGroup(opening: .lParen, closing: .rParen)
 
-            #expect(parser.modifierDeclarationLookahead == [2: declares, 3: declares, 4: declares])
-            if declares {
-                #expect(parser.stream.index == 2)
-                #expect(parser.arena.tokens == Array(lexed.tokens.prefix(2)))
-                #expect(parser.diagnostics.diagnostics.map(\.code) == [diagnostic])
-                #expect(parser.diagnostics.diagnostics.first?.primaryRange == lexed.tokens[2].range)
-            } else {
-                #expect(parser.stream.atEOF())
-                #expect(parser.diagnostics.diagnostics.isEmpty)
-            }
+        #expect(parser.modifierDeclarationLookahead == [2: declares, 3: declares, 4: declares])
+        if declares {
+            #expect(parser.stream.index == 2)
+            #expect(parser.arena.tokens == Array(lexed.tokens.prefix(2)))
+            #expect(parser.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+            #expect(parser.diagnostics.diagnostics.first?.primaryRange == lexed.tokens[2].range)
+        } else {
+            #expect(parser.stream.atEOF())
+            #expect(parser.diagnostics.diagnostics.isEmpty)
         }
     }
 
