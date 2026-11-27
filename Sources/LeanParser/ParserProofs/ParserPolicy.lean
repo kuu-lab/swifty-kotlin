@@ -92,6 +92,26 @@ theorem startsDeclarationIff :
         List Kind) := by
   cases kind <;> simp [startsDeclaration]
 
+def continuesHeader (includeBlock classColon delegation : Bool) (kind : Kind) : Bool :=
+  (includeBlock && (kind == .colon || kind == .openAngle || kind == .whereKeyword)) ||
+    (classColon && kind == .openParen) || (delegation && kind == .byKeyword)
+
+def stopsDeclarationHeaderAtNewline (newline includeBlock classColon delegation : Bool) (kind : Kind) : Bool :=
+  newline && (if includeBlock then !continuesHeader includeBlock classColon delegation kind else startsDeclaration kind)
+
+theorem continuesHeaderIff :
+    continuesHeader includeBlock classColon delegation kind = true ↔
+      (includeBlock = true ∧ (kind = .colon ∨ kind = .openAngle ∨ kind = .whereKeyword)) ∨
+      (classColon = true ∧ kind = .openParen) ∨ (delegation = true ∧ kind = .byKeyword) := by
+  simp [continuesHeader, or_assoc]
+
+theorem stopsDeclarationHeaderAtNewlineIff :
+    stopsDeclarationHeaderAtNewline newline includeBlock classColon delegation kind = true ↔
+      newline = true ∧
+        ((includeBlock = true ∧ continuesHeader true classColon delegation kind = false) ∨
+         (includeBlock = false ∧ startsDeclaration kind = true)) := by
+  cases includeBlock <;> simp [stopsDeclarationHeaderAtNewline]
+
 @[export kswiftk_lean_classify_parser_policy]
 def classify (operation first second : UInt8) : UInt8 :=
   let result := match operation with
@@ -104,6 +124,8 @@ def classify (operation first second : UInt8) : UInt8 :=
     | 6 => ambiguousDeclarationPrefix (decodeKind first)
     | 7 => isCompanionName (decodeKind first) (second != 0)
     | 8 => startsDeclaration (decodeKind first)
+    | 9 => stopsDeclarationHeaderAtNewline (second &&& 8 != 0) (second &&& 1 != 0)
+        (second &&& 2 != 0) (second &&& 4 != 0) (decodeKind first)
     | _ => false
   if result then 1 else 0
 
