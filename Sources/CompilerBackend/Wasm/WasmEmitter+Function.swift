@@ -29,9 +29,43 @@ final class WasmFunctionEmission {
     private var arena: KIRArena { ctx.kir.arena }
 
     func emitBody() throws -> [UInt8] {
-        try computeIntervals()
-        assignLocals()
+        do {
+            try computeIntervals()
+            assignLocals()
+            try emitStructuredBody()
+        } catch let error as WasmEmitterError {
+            switch error {
+            case .nonLaminarControlFlow:
+                intervals.removeAll()
+                activeStack.removeAll()
+                code = WasmCode()
+                localIndexByExpr.removeAll()
+                paramLocalBySymbol.removeAll()
+                assignLocals()
+                // Coroutine resume dispatch can enter a loop body from outside its structured block.
+                let programCounterLocal = nextLocal
+                nextLocal += 1
+                try emitDispatcherBody(programCounterLocal: programCounterLocal)
+            }
+        } catch {
+            throw error
+        }
 
+        var body = WasmCode()
+        let localCount = nextLocal - function.params.count
+        if localCount > 0 {
+            body.u(1)
+            body.u(UInt64(localCount))
+            body.op(WasmValType.i64.rawValue)
+        } else {
+            body.u(0)
+        }
+        body.append(code)
+        body.op(WasmOpcode.end)
+        return body.bytes
+    }
+
+    private func emitStructuredBody() throws {
         var opensAt: [Int: [LabelInterval]] = [:]
         var closesAt: [Int: [LabelInterval]] = [:]
         for interval in intervals {
@@ -68,19 +102,176 @@ final class WasmFunctionEmission {
             activeStack.removeLast()
             code.end()
         }
+    }
 
-        var body = WasmCode()
-        let localCount = nextLocal - function.params.count
-        if localCount > 0 {
-            body.u(1)
-            body.u(UInt64(localCount))
-            body.op(WasmValType.i64.rawValue)
-        } else {
-            body.u(0)
+    private struct DispatchBlock {
+        let start: Int
+        let end: Int
+    }
+
+    private func emitDispatcherBody(programCounterLocal: Int) throws {
+        let bodyCount = function.body.count
+        guard bodyCount > 0 else { return }
+
+        var labelPositions: [Int32: Int] = [:]
+        var leaders: Set<Int> = [0]
+        for (index, instruction) in function.body.enumerated() {
+            switch instruction {
+            case let .label(label):
+                if labelPositions[label] == nil { labelPositions[label] = index }
+                leaders.insert(index)
+            case .jump, .jumpIfEqual, .jumpIfNotNull:
+                if index + 1 < bodyCount { leaders.insert(index + 1) }
+            case .rethrow, .returnUnit, .returnValue, .nonLocalReturn, .resumeNonLocalReturn:
+                if index + 1 < bodyCount { leaders.insert(index + 1) }
+            default:
+                break
+            }
         }
-        body.append(code)
-        body.op(WasmOpcode.end)
-        return body.bytes
+
+        let starts = leaders.sorted()
+        let blocks = starts.enumerated().map { index, start in
+            DispatchBlock(
+                start: start,
+                end: starts.indices.contains(index + 1) ? starts[index + 1] : bodyCount
+            )
+        }
+        let blockIndexByStart = Dictionary(
+            uniqueKeysWithValues: starts.enumerated().map { ($0.element, $0.offset) }
+        )
+        var blockByLabel: [Int32: Int] = [:]
+        for (label, position) in labelPositions {
+            guard let blockIndex = blockIndexByStart[position] else {
+                throw WasmEmitterError.nonLaminarControlFlow(
+                    ctx.interner.resolve(function.name)
+                )
+            }
+            blockByLabel[label] = blockIndex
+        }
+
+        code.i64Const(0)
+        code.localSet(programCounterLocal)
+        code.openLoop()
+        code.openBlock()
+        for _ in blocks {
+            code.openBlock()
+        }
+        code.localGet(programCounterLocal)
+        code.op(WasmOpcode.i32WrapI64)
+        code.brTable(Array(0..<blocks.count), defaultDepth: blocks.count)
+
+        for (blockIndex, block) in blocks.enumerated() {
+            code.end()
+            let dispatchDepth = blocks.count - blockIndex
+            for instructionIndex in block.start..<block.end {
+                let instruction = function.body[instructionIndex]
+                guard instructionIndex == block.end - 1 else {
+                    try emitInstruction(instruction)
+                    continue
+                }
+
+                switch instruction {
+                case let .jump(target):
+                    try emitDispatcherJump(
+                        to: target,
+                        blockByLabel: blockByLabel,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth
+                    )
+
+                case let .jumpIfEqual(lhs, rhs, target):
+                    resolveValue(lhs)
+                    resolveValue(rhs)
+                    code.op(WasmOpcode.i64Eq)
+                    code.openIf()
+                    try emitDispatcherJump(
+                        to: target,
+                        blockByLabel: blockByLabel,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth + 1
+                    )
+                    code.end()
+                    emitDispatcherFallthrough(
+                        from: blockIndex,
+                        blocks: blocks,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth
+                    )
+
+                case let .jumpIfNotNull(value, target):
+                    resolveValue(value)
+                    code.i64Const(0)
+                    code.op(WasmOpcode.i64Ne)
+                    resolveValue(value)
+                    code.i64Const(WasmModuleContext.WasmLayout.nullSentinel)
+                    code.op(WasmOpcode.i64Ne)
+                    code.op(WasmOpcode.i32And)
+                    code.openIf()
+                    try emitDispatcherJump(
+                        to: target,
+                        blockByLabel: blockByLabel,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth + 1
+                    )
+                    code.end()
+                    emitDispatcherFallthrough(
+                        from: blockIndex,
+                        blocks: blocks,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth
+                    )
+
+                case .rethrow, .returnUnit, .returnValue, .nonLocalReturn, .resumeNonLocalReturn:
+                    try emitInstruction(instruction)
+
+                default:
+                    try emitInstruction(instruction)
+                    emitDispatcherFallthrough(
+                        from: blockIndex,
+                        blocks: blocks,
+                        programCounterLocal: programCounterLocal,
+                        branchDepth: dispatchDepth
+                    )
+                }
+            }
+        }
+
+        code.end()
+        code.end()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+    }
+
+    private func emitDispatcherJump(
+        to label: Int32,
+        blockByLabel: [Int32: Int],
+        programCounterLocal: Int,
+        branchDepth: Int
+    ) throws {
+        guard let targetBlock = blockByLabel[label] else {
+            throw WasmEmitterError.nonLaminarControlFlow(
+                ctx.interner.resolve(function.name)
+            )
+        }
+        code.i64Const(Int64(targetBlock))
+        code.localSet(programCounterLocal)
+        code.br(branchDepth)
+    }
+
+    private func emitDispatcherFallthrough(
+        from blockIndex: Int,
+        blocks: [DispatchBlock],
+        programCounterLocal: Int,
+        branchDepth: Int
+    ) {
+        if blockIndex + 1 < blocks.count {
+            code.i64Const(Int64(blockIndex + 1))
+            code.localSet(programCounterLocal)
+            code.br(branchDepth)
+        } else {
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+        }
     }
 
     private func assignLocals() {
