@@ -126,7 +126,9 @@ inductive GroupStep where
   let token := input.get index
   if let some stop := groupStopAt index stack token.kind false then return .stop stop
 
-  let outer := stack.length == 1
+  let outer := match stack with
+    | [_] => true
+    | _ => false
   let prefixEnd ← if parameters && outer && !state.prefixComplete && token.newline then do
       if ← queries.declarationAt index then queries.valuePrefixEnd index else pure state.prefixEnd
     else pure state.prefixEnd

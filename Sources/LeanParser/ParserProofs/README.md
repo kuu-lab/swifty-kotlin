@@ -24,10 +24,14 @@ Run these commands from the repository root to generate the 791-case oracle
 and exercise the Swift parser with the bundled Lean library:
 
 ```bash
-bash Scripts/build_lean.sh
-oracle=$(mktemp)
-(cd Sources/LeanParser && lake env lean --run ../../Tests/Formal/TypeArguments.lean) > "$oracle"
-KSWIFTK_TYPE_ARGUMENTS_ORACLE="$oracle" bash Scripts/swift_test.sh --no-parallel \
-  --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/'
-rm -f "$oracle"
+(
+    set -e
+    unset CDPATH
+    bash Scripts/build_lean.sh
+    oracle=$(mktemp)
+    trap 'rm -f "$oracle"' EXIT
+    (cd Sources/LeanParser && lake env lean --run ../../Tests/Formal/TypeArguments.lean) > "$oracle"
+    KSWIFTK_TYPE_ARGUMENTS_ORACLE="$oracle" bash Scripts/swift_test.sh --no-parallel \
+      --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/'
+)
 ```
