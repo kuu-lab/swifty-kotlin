@@ -1,6 +1,7 @@
 extension KotlinParser {
     func parseTypeArguments() -> NodeID {
         guard let result = LeanParser.scanTypeArguments(self) else {
+            reportUnavailableLeanParser()
             return arena.appendNode(kind: .typeArgs, range: invalidRange, [])
         }
         var children: [SyntaxChild] = []
@@ -19,6 +20,14 @@ extension KotlinParser {
     }
 
     func canStartTypeArgumentsInternal(hasAnchorToken: Bool) -> Bool {
-        LeanParser.canStartTypeArguments(self, hasAnchorToken: hasAnchorToken)
+        guard let result = LeanParser.canStartTypeArguments(self, hasAnchorToken: hasAnchorToken) else {
+            reportUnavailableLeanParser()
+            return false
+        }
+        return result
+    }
+
+    func reportUnavailableLeanParser() {
+        LeanParser.reportUnavailable(diagnostics, at: stream.peek().rangeIfAvailable)
     }
 }

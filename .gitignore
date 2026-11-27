@@ -28,3 +28,5 @@ firebase-debug.log
 
 # compiler build outputs (accidentally committed in #9136)
 *.kklib/
+
+/Sources/CompilerCore/Parser/LeanParserBuildIdentity.swift

@@ -12,6 +12,9 @@ struct VerifyLeanParser: BuildToolPlugin {
         #else
         let libraries = ["liblean_parser.so", "libleanshared.so"]
         #endif
+        let buildIdentity = context.package.directoryURL
+            .appendingPathComponent("Sources/CompilerCore/Parser/LeanParserBuildIdentity.swift")
+        let inputs = (libraries + [".build-id"]).map { resources.appendingPathComponent($0).path } + [buildIdentity.path]
         return [
             .prebuildCommand(
                 displayName: "Verify bundled Lean parser",
@@ -30,7 +33,7 @@ struct VerifyLeanParser: BuildToolPlugin {
                     mkdir -p "$output"
                     """,
                     "verify-lean-parser", output.path,
-                ] + libraries.map { resources.appendingPathComponent($0).path },
+                ] + inputs,
                 outputFilesDirectory: output
             )
         ]

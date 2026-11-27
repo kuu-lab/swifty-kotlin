@@ -1080,16 +1080,19 @@ extension KotlinParser {
         return .complete(cursor)
     }
 
-    private static let declarationLookaheadWorkLimit = 4096
+    static let declarationLookaheadWorkLimit = 4096
+
+    func reportDeclarationLookaheadBudget(at offset: Int) {
+        diagnostics.error(
+            "KSWIFTK-PARSE-0007",
+            "Declaration prefix exceeds the parser lookahead limit; recovering at this boundary.",
+            range: stream.peek(offset).rangeIfAvailable
+        )
+    }
 
     func consumeDeclarationLookaheadWork(_ work: inout Int, at offset: Int) -> Bool {
         guard work < Self.declarationLookaheadWorkLimit else {
-            let token = stream.peek(offset)
-            diagnostics.error(
-                "KSWIFTK-PARSE-0007",
-                "Declaration prefix exceeds the parser lookahead limit; recovering at this boundary.",
-                range: token.rangeIfAvailable
-            )
+            reportDeclarationLookaheadBudget(at: offset)
             return false
         }
         work += 1

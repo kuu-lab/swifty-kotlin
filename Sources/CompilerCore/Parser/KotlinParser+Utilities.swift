@@ -541,7 +541,7 @@ extension KotlinParser {
         }
     }
 
-    func isDeclarationKeyword(_ keyword: Keyword) -> Bool {
+    static func isDeclarationKeyword(_ keyword: Keyword) -> Bool {
         if Self.isDeclarationModifierKeyword(keyword) {
             return true
         }

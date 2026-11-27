@@ -170,4 +170,94 @@ final class KotlinParser {
             )
         )
     }
+
+    final class FileAssembly {
+        private let parser: KotlinParser
+        private var children: [SyntaxChild] = []
+        private var range = RangeAccumulator()
+        private var pendingImports: [SyntaxChild] = []
+        private var importRange = RangeAccumulator()
+        private var pendingItem: (node: NodeID, start: SourceRange)?
+
+        init(_ parser: KotlinParser) {
+            self.parser = parser
+        }
+
+        var cursor: Int { parser.stream.index }
+
+        func parseItem(_ dispatch: LeanParser.TopLevelDispatch) -> SyntaxNode? {
+            guard pendingItem == nil else { return nil }
+            let start = parser.stream.peek().range
+            let node: NodeID
+            switch dispatch {
+            case .packageHeader: node = parser.parsePackageHeader()
+            case .importHeader: node = parser.parseImportHeader()
+            case .declaration: node = parser.parseDeclaration()
+            case .statement: node = parseTopLevelStatement()
+            case .eof: return nil
+            }
+            pendingItem = (node, start)
+            return parser.arena.node(node)
+        }
+
+        func emitItem(_ action: LeanParser.FilePlacementAction, separators: Int) -> Int? {
+            guard let item = pendingItem, separators <= parser.stream.tokens.count - cursor else { return nil }
+            pendingItem = nil
+            if action.lateImport {
+                parser.diagnostics.error(
+                    "KSWIFTK-PARSE-0017",
+                    "Imports are only allowed in the beginning of file.",
+                    range: item.start
+                )
+            }
+            if action.flushImports {
+                flushPendingImports()
+            }
+            let itemRange = parser.arena.node(item.node).range
+            if action.appendImport {
+                pendingImports.append(.node(item.node))
+                importRange.append(itemRange)
+            } else {
+                children.append(.node(item.node))
+            }
+            range.append(itemRange)
+            for _ in 0..<separators {
+                _ = parser.consumeToken(into: &children, range: &range)
+            }
+            return cursor
+        }
+
+        func finish(_ action: LeanParser.FilePlacementAction) -> NodeID {
+            if action.flushImports {
+                flushPendingImports()
+            }
+            return parser.arena.appendNode(
+                kind: action.rootKind, range: range.value ?? parser.invalidRange, children
+            )
+        }
+
+        private func flushPendingImports() {
+            let node = parser.arena.appendNode(
+                kind: .importList, range: importRange.value ?? parser.invalidRange, pendingImports
+            )
+            children.append(.node(node))
+            pendingImports.removeAll(keepingCapacity: true)
+            importRange = RangeAccumulator()
+        }
+
+        private func parseTopLevelStatement() -> NodeID {
+            let before = cursor
+            let statement = parser.parseStatement(inBlock: false)
+            guard let recovery = LeanParser.topLevelRecovery(parser, before: before) else { return statement }
+            var skipped: [SyntaxChild] = []
+            var skipRange = RangeAccumulator()
+            for _ in 0..<recovery.skippedCount {
+                _ = parser.consumeToken(into: &skipped, range: &skipRange)
+            }
+            if recovery.forceAdvance {
+                _ = parser.consumeToken(into: &skipped, range: &skipRange)
+            }
+            return parser.arena.appendNode(kind: .statement, range: skipRange.value ?? parser.invalidRange, skipped)
+        }
+    }
 }

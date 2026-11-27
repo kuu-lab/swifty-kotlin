@@ -37,8 +37,9 @@ build_dir=$(mktemp -d "$resource_dir/.build.XXXXXX")
 trap 'rm -rf "$build_dir"' EXIT
 
 (cd "$source_dir" && "$lean_prefix/bin/lake" build)
+modules=("$source_dir"/ParserProofs/*.lean "$source_dir"/ParserProofs/Runtime/*.lean)
 generated=()
-for module in "$source_dir"/ParserProofs/*.lean; do
+for module in "${modules[@]}"; do
     relative=${module#"$source_dir"/}
     generated+=("$source_dir/.lake/build/ir/${relative%.lean}.c")
 done
@@ -50,3 +51,18 @@ fi
 cp "$lean_prefix/LICENSE" "$resource_dir/Lean-LICENSE"
 cp "$lean_prefix/LICENSES" "$resource_dir/Lean-LICENSES"
 mv "$build_dir/$library" "$resource_dir/$library"
+
+fingerprint=$(
+    {
+        printf '%s\n' "$version" "$lean_prefix" "${CC:-cc}" "$(uname -sm)"
+        shasum -a 256 "${modules[@]}" "$source_dir/Bridge.c" Scripts/build_lean.sh
+    } | shasum -a 256 | cut -d ' ' -f 1
+)
+printf 'enum LeanParserBuildIdentity {\n    static let fingerprint = "%s"\n}\n' \
+    "$fingerprint" > "$build_dir/LeanParserBuildIdentity.swift"
+printf '%s\n' "$fingerprint" > "$build_dir/stamp"
+swift_identity=Sources/CompilerCore/Parser/LeanParserBuildIdentity.swift
+if ! cmp -s "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"; then
+    mv "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"
+fi
+mv "$build_dir/stamp" "$resource_dir/.build-id"
