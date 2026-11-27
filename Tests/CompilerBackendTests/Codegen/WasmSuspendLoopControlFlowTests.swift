@@ -31,16 +31,17 @@ struct WasmSuspendLoopControlFlowTests {
 
         fun retry(): Boolean = false
 
-        fun main() {
+        fun main(): Int {
             var last = 0
             for (i in 1..3) {
                 last = i
             }
-            println(last)
 
             do {
                 if (retry()) continue
             } while (if (retry()) continue else false)
+
+            return last
         }
         """
 
@@ -72,10 +73,53 @@ struct WasmSuspendLoopControlFlowTests {
 
             let wasm = try Data(contentsOf: URL(fileURLWithPath: wasmPath))
             #expect(Array(wasm.prefix(8)) == [0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00])
-            if let execution = try WasmCodegenTests().runUnderNode(Array(wasm)) {
+            if let execution = try runExportedMainUnderNode(Array(wasm)) {
                 #expect(execution.status == 0)
                 #expect(execution.stdout == "3\n")
             }
         }
+    }
+
+    private func runExportedMainUnderNode(
+        _ bytes: [UInt8]
+    ) throws -> (stdout: String, stderr: String, status: Int32)? {
+        guard let node = WasmCodegenTests().nodePath() else { return nil }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("wasm-suspend-join-all-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let wasmPath = dir.appendingPathComponent("test.wasm").path
+        let runnerPath = dir.appendingPathComponent("run.mjs").path
+        try Data(bytes).write(to: URL(fileURLWithPath: wasmPath))
+        let runner = """
+        import { WASI } from "node:wasi";
+        import fs from "node:fs";
+        const wasi = new WASI({ version: "preview1", args: [], env: {}, returnOnExit: true });
+        const { instance } = await WebAssembly.instantiate(
+          fs.readFileSync(process.argv[2]),
+          { wasi_snapshot_preview1: wasi.wasiImport }
+        );
+        console.log(instance.exports.main().toString());
+        """
+        try runner.write(toFile: runnerPath, atomically: true, encoding: .utf8)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: node)
+        process.arguments = [runnerPath, wasmPath]
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+        try process.run()
+        process.waitUntilExit()
+        let stdout = String(
+            decoding: outPipe.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self
+        )
+        let stderr = String(
+            decoding: errPipe.fileHandleForReading.readDataToEndOfFile(),
+            as: UTF8.self
+        )
+        return (stdout, stderr, process.terminationStatus)
     }
 }
