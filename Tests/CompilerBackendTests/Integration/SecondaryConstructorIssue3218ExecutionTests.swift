@@ -35,10 +35,10 @@ struct SecondaryConstructorIssue3218ExecutionTests {
 
     private func source(named fileName: String) throws -> String {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Integration/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repository root
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let sourceURL = repositoryRoot.appendingPathComponent("Scripts/diff_cases/\(fileName)")
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }

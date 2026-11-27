@@ -17,9 +17,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         let isRangeIteratorMigrationMember = knownNames.rangeMigrationMemberNames.contains(calleeName)
 
-        // An unqualified member call inside an extension body has no receiver
-        // expression to bind. Use the extension receiver carried by the type
-        // inference context in that case.
         let receiverType = sema.bindings.exprType(for: receiverID) ?? ctx.implicitReceiverType
         let isOpenEndRangeReceiver = receiverType.map {
             driver.helpers.isOpenEndRangeType($0, sema: sema, interner: interner)
@@ -110,9 +107,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Let normal overload resolution report invalid labels instead of
-        // accepting them through the legacy range fallback. The source-backed
-        // contains overloads all use Kotlin's `value` parameter name.
         if (isTypedIntRangeReceiver || isTypedLongRangeReceiver || isTypedUIntRangeReceiver),
            calleeName == knownNames.contains,
            args.contains(where: { argument in
@@ -123,17 +117,12 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Nullable membership must be handled by overload resolution, not the
-        // legacy fallback which accepts any element type without a binding.
         if calleeName == knownNames.contains, args.count == 1,
            sema.types.nullability(of: driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)) == .nullable
         {
             return nil
         }
 
-        // KSP-453: IntRange/IntProgression HOFs now have bundled Kotlin source
-        // implementations; prefer source-backed resolution instead of the legacy
-        // hardcoded range-member fallback.
         if let sourceType = bindSourceRangeHOFCall(
             id,
             calleeName: calleeName,
@@ -168,8 +157,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: floatingPointResult)
             return floatingPointResult
         }
-        // Only endpoint and membership operations above apply to floating-point
-        // ranges. Leave other names to ordinary member/extension resolution.
         guard !sema.bindings.isFloatingPointRangeExpr(receiverID) else {
             return nil
         }
@@ -265,10 +252,6 @@ extension CallTypeChecker {
                 locals: &locals,
                 expectedType: expectation.expectedType
             )
-            // STDLIB-090: `map`'s declared expected type is `Any` (a permissive
-            // upper bound for lambda inference), but the lambda body still infers
-            // its own tightest type. Read that back so `(1..n).map { ... }` reports
-            // `List<R>` instead of always widening to `List<Any>`.
             if calleeName == knownNames.mapMember,
                case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(lambdaArgExpr)
             {
@@ -543,8 +526,6 @@ extension CallTypeChecker {
             || argumentType == sema.types.ushortType
     }
 
-    /// Unary +/- is treated like a bare signed integer literal because the
-    /// parser represents it as a wrapper expression.
     func isContextualizableIntegerLiteral(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
         switch expr {
@@ -561,10 +542,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Kotlin contextualizes a suffixed unsigned literal to ULong when the
-    /// ULongRange.contains(ULong) member is the applicable overload. Keep the
-    /// literal form distinguishable from an explicitly typed UInt so the
-    /// source-backed UInt bridge cannot steal member priority.
     func isContextualizableUnsignedIntegerLiteral(_ exprID: ExprID, ast: ASTModule) -> Bool {
         guard let expr = ast.arena.expr(exprID) else { return false }
         if case .uintLiteral = expr {
@@ -691,9 +668,6 @@ extension CallTypeChecker {
                 if rangeKind == .longRange,
                    isContextualizableIntegerLiteral(argument.expr, ast: ctx.ast)
                 {
-                    // Kotlin gives an unsuffixed literal the Long context of
-                    // LongRange.contains(Long), even when an Int extension is
-                    // also visible at the call site.
                     return driver.inferExpr(
                         argument.expr,
                         ctx: ctx,
@@ -1024,7 +998,13 @@ extension CallTypeChecker {
                 if calleeName == knownNames.fold || calleeName == knownNames.foldIndexed {
                     expectedType = nil
                 } else if calleeName == knownNames.windowed {
-                    expectedType = (index == 1 ? sema.types.intType : (index == 2 ? sema.types.booleanType : nil))
+                    let windowedParameterIndex: Int = {
+                        guard let label = arg.label else { return index }
+                        if interner.resolve(label) == "step" { return 1 }
+                        if interner.resolve(label) == "partialWindows" { return 2 }
+                        return index
+                    }()
+                    expectedType = (windowedParameterIndex == 1 ? sema.types.intType : (windowedParameterIndex == 2 ? sema.types.booleanType : nil))
                 } else if calleeName == knownNames.chunked || calleeName == knownNames.take || calleeName == knownNames.drop {
                     expectedType = sema.types.intType
                 } else {
@@ -1044,9 +1024,26 @@ extension CallTypeChecker {
             substitutions[typeVar] = concreteR
         }
 
+        // Named arguments (e.g. `windowed(4, partialWindows = false)`) must map
+        // to their declared parameter, not to their source position; otherwise
+        // the omitted defaults (`step`) are mis-detected and the value lands in
+        // the wrong parameter.
         var parameterMapping: [Int: Int] = [:]
-        for index in args.indices {
-            parameterMapping[index] = index
+        var nextPositionalParameter = 0
+        for (index, arg) in args.enumerated() {
+            if let label = arg.label,
+               let namedIndex = signature.valueParameterSymbols.firstIndex(where: {
+                   sema.symbols.symbol($0)?.name == label
+               })
+            {
+                parameterMapping[index] = namedIndex
+                // A positional argument following a named one continues from
+                // the parameter after it (`windowed(4, step = 2, true)`).
+                nextPositionalParameter = namedIndex + 1
+            } else {
+                parameterMapping[index] = nextPositionalParameter
+                nextPositionalParameter += 1
+            }
         }
 
         let resolved = ResolvedCall(
@@ -1436,8 +1433,6 @@ extension CallTypeChecker {
         isULongRange: Bool,
         returnsProgression: Bool = false
     ) -> TypeID {
-        // Primitive range reversed()/step() return progression classes. Retaining
-        // the range type here selects range-only toString and HOF overloads.
         if returnsProgression {
             let progressionName: String
             if isLongRange {

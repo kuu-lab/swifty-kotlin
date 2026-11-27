@@ -300,6 +300,7 @@ public final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             phaseTimer: ctx.phaseTimer,
             parallelJobs: parallelJobs,
+            maxInstructionsPerObjectPartition: ctx.options.codegenPartitionInstructions,
             session: session ?? LLVMBackendSession()
         )
     }
@@ -393,6 +394,7 @@ public final class CodegenPhase: CompilerPhase {
         }
 
         var initBodyFunctions: [KIRFunction] = []
+        var standaloneBodyFunctions: [KIRFunction] = []
         var serializedSymbols: Set<SymbolID> = []
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else {
@@ -401,11 +403,25 @@ public final class CodegenPhase: CompilerPhase {
             let functionName = ctx.interner.resolve(function.name)
             let isInitBody = ctx.options.target.isWasm
                 && Self.isLibraryInitBodyName(functionName)
-            guard function.isInline || isInitBody else {
+            // On wasm the artifact's .o is never linked, so a non-inline
+            // function's body must ship as serialized KIR keyed by its link
+            // name; otherwise a declaration call from a consumer has no body
+            // to materialize and `WasmEmitter` stubs it to `0`. Open,
+            // abstract, and overriding members stay out: their vtable/itable
+            // slots and direct calls resolve through wasm helper thunks that
+            // a materialized body would displace.
+            let isStandaloneBody = ctx.options.target.isWasm
+                && !function.isInline
+                && !function.isInlineOnly
+                && !function.isSuspend
+                && !function.body.isEmpty
+                && Self.isMaterializableWasmFunction(function.symbol, symbols: sema.symbols)
+            guard function.isInline || isInitBody || isStandaloneBody else {
                 continue
             }
             let mangled: String
-            if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
+            if isInitBody || isStandaloneBody,
+               let linkName = functionLinkNamesBySymbol[function.symbol] {
                 mangled = linkName
             } else if let symbol = sema.symbols.symbol(function.symbol) {
                 mangled = mangler.mangle(
@@ -424,13 +440,16 @@ public final class CodegenPhase: CompilerPhase {
             if isInitBody {
                 initBodyFunctions.append(function)
             }
+            if isStandaloneBody {
+                standaloneBodyFunctions.append(function)
+            }
         }
 
         // On wasm the artifact's .o is never linked, so functions that
-        // init-family bodies call (object constructors, top-level `val`
-        // factories) must ship too or their side effects silently drop at
-        // materialization. Serialize the transitive closure keyed by the
-        // callee's deterministic link name.
+        // init-family or standalone bodies call (object constructors, direct
+        // super implementations, top-level `val` factories) must ship too or
+        // their side effects silently drop at materialization. Serialize the
+        // transitive closure keyed by the callee's deterministic link name.
         if ctx.options.target.isWasm {
             var functionsBySymbol: [SymbolID: KIRFunction] = [:]
             for decl in module.arena.declarations {
@@ -439,34 +458,113 @@ public final class CodegenPhase: CompilerPhase {
                 }
                 functionsBySymbol[function.symbol] = function
             }
-            var worklist = initBodyFunctions
-            var seen = serializedSymbols
+            var worklist = initBodyFunctions + standaloneBodyFunctions
+            var visited: Set<SymbolID> = []
             while let function = worklist.popLast() {
+                guard visited.insert(function.symbol).inserted else {
+                    continue
+                }
                 let body = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                     ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                     ?? function.body
                 for instruction in body {
-                    guard let target = Self.calledFunctionSymbol(instruction),
-                          let targetFunction = functionsBySymbol[target],
-                          seen.insert(target).inserted,
-                          let linkName = functionLinkNamesBySymbol[target]
-                              ?? sema.symbols.externalLinkName(for: target),
-                          !linkName.isEmpty else {
+                    guard let call = Self.calledFunctionSymbol(instruction),
+                          let targetFunction = functionsBySymbol[call.symbol],
+                          Self.isTransitiveWasmBodyDependency(
+                              call.symbol,
+                              symbols: sema.symbols,
+                              isDirectCall: call.isDirectCall
+                          ) else {
                         continue
                     }
-                    try writeKirbin(function: targetFunction, mangled: linkName)
+                    let target = call.symbol
+                    if !serializedSymbols.contains(target),
+                       let linkName = functionLinkNamesBySymbol[target]
+                           ?? sema.symbols.externalLinkName(for: target),
+                       !linkName.isEmpty
+                    {
+                        try writeKirbin(function: targetFunction, mangled: linkName)
+                        serializedSymbols.insert(target)
+                    }
                     worklist.append(targetFunction)
                 }
             }
         }
     }
 
-    private static func calledFunctionSymbol(_ instruction: KIRInstruction) -> SymbolID? {
+    /// A function is a member when its owner's FQ name is exactly its own FQ
+    /// name minus the last segment and that owner is not a package. Top-level
+    /// extension functions can carry the receiver type as their registered
+    /// parent without being members of it, so the parent kind alone is not
+    /// enough.
+    private static func isTopLevelFunction(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+        guard let info = symbols.symbol(symbol), info.kind == .function else {
+            return false
+        }
+        guard let parent = symbols.parentSymbolIfKnown(for: symbol),
+              let parentInfo = symbols.symbol(parent),
+              parentInfo.kind != .package
+        else {
+            return true
+        }
+        return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
+    }
+
+    // Direct calls, including super calls, are statically bound and can use
+    // the ordinary receiver ABI. Virtual dispatch stays on the vtable/itable
+    // helper surface so a materialized body cannot displace a member thunk.
+    private static func isTransitiveWasmBodyDependency(
+        _ symbol: SymbolID,
+        symbols: SymbolTable,
+        isDirectCall: Bool
+    ) -> Bool {
+        guard let info = symbols.symbol(symbol) else {
+            return true
+        }
+        guard info.kind == .function else {
+            return true
+        }
+        if isDirectCall {
+            return !info.flags.contains(.memberExtension)
+        }
+        return isMaterializableWasmFunction(symbol, symbols: symbols)
+    }
+
+    // Open or overriding members still belong to the vtable/itable helper
+    // surface. Member extensions are excluded as well: their two-receiver ABI
+    // does not match the single receiver shape serialized for ordinary members.
+    private static func isMaterializableWasmFunction(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+        guard let info = symbols.symbol(symbol), info.kind == .function else {
+            return false
+        }
+        if isTopLevelFunction(symbol, symbols: symbols) {
+            return true
+        }
+        guard !info.flags.contains(.overrideMember),
+              !info.flags.contains(.openType),
+              !info.flags.contains(.abstractType),
+              !info.flags.contains(.memberExtension),
+              let parent = symbols.parentSymbolIfKnown(for: symbol),
+              let parentInfo = symbols.symbol(parent),
+              parentInfo.kind != .interface
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func calledFunctionSymbol(
+        _ instruction: KIRInstruction
+    ) -> (symbol: SymbolID, isDirectCall: Bool)? {
         switch instruction {
-        case let .call(symbol, _, _, _, _, _, _, _), let .virtualCall(symbol, _, _, _, _, _, _, _):
-            symbol
+        case let .call(symbol, _, _, _, _, _, _, _):
+            guard let symbol else { return nil }
+            return (symbol, true)
+        case let .virtualCall(symbol, _, _, _, _, _, _, _):
+            guard let symbol else { return nil }
+            return (symbol, false)
         default:
-            nil
+            return nil
         }
     }
 
@@ -810,6 +908,7 @@ public final class CodegenPhase: CompilerPhase {
             includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             includePrecomputedStdlibSynthesis: ctx.options.stdlibOnly,
+            serializationClasses: sema.serializationClasses,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,

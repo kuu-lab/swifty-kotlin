@@ -7,8 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendRegexEdgeCasesTests {
 
-    // KUU-635: Regex.split(input, limit) adds the pre-match segment (possibly
-    // empty) for zero-width matches and rejects negative limits.
     @Test
     func testCodegenRegexSplitWithLimitZeroWidthAndNegativeLimit() throws {
         let source = """

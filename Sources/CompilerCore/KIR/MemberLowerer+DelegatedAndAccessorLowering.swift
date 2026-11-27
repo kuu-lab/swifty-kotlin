@@ -56,8 +56,6 @@ extension MemberLowerer {
         var params: [KIRParameter] = []
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
 
-        // Member extension accessors take the dispatch receiver before the
-        // extension receiver, matching ordinary extension-property accessors.
         if extensionReceiverType != nil,
            let ownerSymbol,
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -98,15 +96,8 @@ extension MemberLowerer {
 
         let returnType: TypeID
         let accessorName: InternedString
-        // Sema's typeCheckDelegate resolves getValue/setValue through the ordinary
-        // operator convention for every delegate kind now (lazy/observable/vetoable/
-        // notNull included, since Lazy/ReadWriteProperty implementations declare
-        // real getValue/setValue members) -- there is no separate "custom" path
-        // anymore, just the one resolved-symbol dispatch below.
         let customGetValueSymbol = sema.symbols.delegateGetValueSymbol(for: propertySymbol)
         let customSetValueSymbol = sema.symbols.delegateSetValueSymbol(for: propertySymbol)
-        // Only used for KIR dumps/LLVM instruction naming -- the actual call target
-        // is `symbol: customGetValueSymbol`/`customSetValueSymbol` below.
         let getValueName = interner.intern("getValue")
         let setValueName = interner.intern("setValue")
         let getterReturnsTypeParameter = customGetValueSymbol
@@ -293,12 +284,6 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    /// Delegate conventions dispatch through the interface or class slot when
-    /// the resolved member can be overridden. A factory may return an abstract
-    /// delegate type even though the runtime object supplies the implementation.
-    /// The delegate handle's static type is erased to `Any` in `$delegate_x`
-    /// storage, so this always uses the dynamic (runtime type ID) itable
-    /// lookup rather than a statically-known slot.
     func dispatchedDelegateMemberCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -355,8 +340,6 @@ extension MemberLowerer {
         return .call(symbol: symbol, callee: callee, arguments: captures + arguments, result: result, canThrow: false)
     }
 
-    /// Class/interface instance delegates live inside the heap-allocated object,
-    /// while enum delegates use a per-entry global slot because enum values are
     /// ordinal-backed. Top-level and `object`-member delegates intentionally
     /// keep a single shared instance backed by a real global — but *local*
     /// objects (object literals and named local `object` decls) are per-instance
@@ -377,8 +360,6 @@ extension MemberLowerer {
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
            let storageName = sema.symbols.symbol(delegateStorageSymbol)?.name
         {
-            // Enum values are ordinal-backed, so their delegate handles live
-            // in per-entry globals and are read through the enum storage helper.
             let helperName = EnumPropertyHelperNames.placeholder(
                 prefix: EnumPropertyHelperNames.getterPrefix,
                 ownerSymbol: ownerSymbol,
@@ -472,11 +453,6 @@ extension MemberLowerer {
     /// regardless of whether the declaration happens to sit inside a member
     /// function (where an unrelated implicit receiver for the *enclosing class*
     /// may be active).
-    ///
-    /// Takes a plain `[KIRInstruction]` (rather than `KIRLoweringEmitContext`,
-    /// as `buildKPropertyStub` below does) because callers here are inlining
-    /// into an *already-existing* function body being lowered by `ExprLowerer`,
-    /// not building a standalone synthetic accessor function from scratch.
     func buildLocalDelegateAccessorArgs(
         localSymbol: SymbolID,
         sema: SemaModule,
@@ -522,8 +498,6 @@ extension MemberLowerer {
         )
     }
 
-    /// Getter signature: `([dispatch,] receiver) -> PropertyType`
-    /// Setter signature: `([dispatch,] receiver, value: PropertyType) -> Unit`
     func lowerAccessorBody(
         accessorBody: FunctionBody,
         propertySymbol: SymbolID,
@@ -565,7 +539,6 @@ extension MemberLowerer {
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
         var params: [KIRParameter] = []
 
-        // Member extensions carry dispatch first, then extension (bare `this`).
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
         if extensionReceiverType != nil,
            let ownerSymbol,
@@ -632,8 +605,6 @@ extension MemberLowerer {
         case .getter:
             returnType = propertyType
             accessorName = interner.intern("get")
-            // Keep `field` bound to its backing-field symbol so ExprLowerer can
-            // resolve it through the active receiver's instance layout.
         case .setter:
             returnType = sema.types.unitType
             accessorName = interner.intern("set")
@@ -646,8 +617,6 @@ extension MemberLowerer {
             // and the backing field symbol.
             let semaSetterValueSymbol = SyntheticSymbolScheme.semaSetterValueSymbol(for: propertySymbol)
             driver.ctx.setLocalValue(valueExprID, for: semaSetterValueSymbol)
-            // Keep `field` bound to its backing-field symbol so ExprLowerer can
-            // resolve it through the active receiver's instance layout.
         }
 
         var typeTokenBindings: [(SymbolID, KIRExprID)] = []
@@ -800,10 +769,6 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    /// Concrete classes and object literals need a getter accessor for every
-    /// property that overrides an interface property so its getter can be
-    /// registered into the interface's itable and dispatched through an
-    /// interface-typed receiver.
     func synthesizeStoredPropertyGetterAccessor(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
@@ -814,12 +779,6 @@ extension MemberLowerer {
     ) {
         guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
         let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        // Enum values are ordinal-backed and have no instance fields: their
-        // stored properties live in the per-entry storage read by the enum
-        // property helper, so the getter (registered into itables for
-        // interface-typed reads) forwards there.
-        // Abstract enum properties have no storage of their own (entry
-        // bodies implement them), so they keep no forwarding accessor.
         let isEnumOwned = ownerSym.kind == .enumClass
             && sema.symbols.symbol(propertySymbol)?.flags.contains(.abstractType) != true
         let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey]
@@ -848,8 +807,6 @@ extension MemberLowerer {
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
         let result = arena.appendTemporary(type: propType)
         if ownerSym.kind == .object {
-            // Named singleton properties use global storage, even when their
-            // getters retain a receiver parameter for interface dispatch.
             body.append(.loadGlobal(result: result, symbol: fieldKey))
         } else if let fieldOffset, !isEnumOwned {
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
@@ -893,10 +850,6 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
-    /// BUG-227: every class whose stored property ever needs virtual dispatch
-    /// (the open/abstract root of an override chain, or a link further down it)
-    /// needs a setter accessor so a write through a base-typed reference can
-    /// dispatch to it the same way a read dispatches to the getter.
     func synthesizeStoredPropertySetterAccessor(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
@@ -907,8 +860,6 @@ extension MemberLowerer {
     ) {
         guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
         let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        // Abstract enum properties have no storage of their own (entry
-        // bodies implement them), so they keep no forwarding accessor.
         let isEnumOwned = ownerSym.kind == .enumClass
             && sema.symbols.symbol(propertySymbol)?.flags.contains(.abstractType) != true
         let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey]
@@ -982,10 +933,6 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
-    /// The stub is never executed — interface property reads dispatch through
-    /// the itable — but it gives the dispatch site a concrete internal function
-    /// whose signature matches the registered implementing getters, exactly as
-    /// abstract interface methods emit a unit-returning stub.
     func synthesizeInterfacePropertyGetterStub(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,

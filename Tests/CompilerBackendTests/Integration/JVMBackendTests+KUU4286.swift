@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-4286: `kotlin.internal.LowPriorityInOverloadResolution` must resolve
-    /// on the JVM lane so the kotlinx-datetime deprecated-ctor-shim pattern
-    /// compiles. The annotation only steers overload resolution, so the emit
-    /// side drops it instead of requiring a classfile plan.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4286LowPriorityCtorShimCompilesAndRuns(mode: EmitMode) throws {
         let source = """

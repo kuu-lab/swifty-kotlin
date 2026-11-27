@@ -1,4 +1,6 @@
 package kotlin.jvm.internal
+fun <T> __jvmReinterpret(value: Any?): T = null!!
+
 fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
 
 fun __jvmFileName(file: java.io.File): String = null!!
@@ -41,6 +43,7 @@ fun __jvmNewline() {}
 fun __jvmWhitespace(value: Char): Boolean = false
 fun __jvmSpaceChar(value: Char): Boolean = false
 fun __jvmIsDigit(value: Char): Boolean = false
+fun __jvmDirectionality(value: Char): Int = 0
 fun __jvmIsUpperCase(value: Char): Boolean = false
 fun __jvmIsLowerCase(value: Char): Boolean = false
 fun __jvmSubstring(value: String, start: Int, end: Int): String = null!!
@@ -115,6 +118,7 @@ fun __jvmAtomicReference(value: Any?): Any = null!!
 fun __jvmAtomicGet(state: Any): Any? = null
 fun __jvmAtomicCAS(state: Any, expected: Any?, value: Any?): Boolean = false
 fun __jvmResume(continuation: kotlin.coroutines.Continuation<*>, value: Any?) {}
+suspend fun <T> __jvmSuspendCoroutineUninterceptedOrReturn(block: (kotlin.coroutines.Continuation<T>) -> Any?): T = null!!
 fun __jvmLatch(count: Int = 1): Any = null!!
 fun __jvmCountDown(latch: Any) {}
 fun __jvmAwait(latch: Any) {}
@@ -197,6 +201,8 @@ fun __jvmDeepHash(values: Array<Any?>): Int = 0
 fun __jvmDeepString(values: Array<Any?>): String = null!!
 fun <T> __jvmCopyArray(array: Array<T>, size: Int): Array<T> = null!!
 fun __jvmUtf8String(bytes: ByteArray, charset: String): String = null!!
+fun __jvmUtf8Bytes(value: String, charset: String): ByteArray = null!!
+fun __jvmMalformedInputException(inputLength: Int): Throwable = null!!
 fun <T> __jvmUnmodifiableSet(value: Set<T>): Set<T> = null!!
 fun __jvmUIntDivide(first: Int, second: Int): Int = 0
 fun __jvmUIntRemainder(first: Int, second: Int): Int = 0
@@ -215,10 +221,10 @@ fun <T> __jvmCopySet(collection: kotlin.collections.Collection<T>): kotlin.colle
 fun __jvmArrayCapacityError(): Throwable = null!!
 
 fun __jvmPowDouble(base: Double, exponent: Double): Double = 0.0
-// Collection builder platform edges; completion checks stay in Kotlin.
 fun <T> __jvmNewListCapacity(capacity: Int): MutableList<T> = null!!
 fun <T> __jvmNewSetCapacity(capacity: Int): MutableSet<T> = null!!
 fun <K, V> __jvmNewMapCapacity(capacity: Int): MutableMap<K, V> = null!!
+fun <K, V> __jvmNewHashMapCapacity(capacity: Int): java.util.HashMap<K, V> = null!!
 fun <T> __jvmListAdd(list: MutableList<T>, index: Int, element: T) {}
 fun <T> __jvmListAddAll(list: MutableList<T>, index: Int, elements: Collection<T>): Boolean = false
 fun <T> __jvmListIterator(list: MutableList<T>, index: Int): java.util.ListIterator<T> = null!!

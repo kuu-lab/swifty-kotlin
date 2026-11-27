@@ -6,7 +6,6 @@ import Testing
 
 @Suite
 struct ValueClassUnboxingTests {
-    // MARK: - Value class flag propagation
 
     @Test
     func testValueModifierSetsValueTypeFlag() throws {
@@ -45,7 +44,6 @@ struct ValueClassUnboxingTests {
         if let underlyingType {
             let kind = sema.types.kind(of: underlyingType)
             if case .primitive(.int, .nonNull) = kind {
-                // Expected
             } else {
                 Issue.record("Expected underlying type to be Int, got \(kind)")
             }
@@ -94,12 +92,8 @@ struct ValueClassUnboxingTests {
         #expect(underlyingType != nil, "inline class should record an underlying type")
     }
 
-    // MARK: - Value class unboxing lowering
-
     @Test
     func testValueClassConstructorRewrittenToCopy() throws {
-        // The ValueClassUnboxingPass is now enabled and rewrites constructor
-        // calls for value classes into .copy instructions.
         let source = """
         value class Meter(val amount: Int)
 
@@ -113,14 +107,11 @@ struct ValueClassUnboxingTests {
 
         let module = try #require(ctx.kir)
 
-        // The pass name should be recorded.
         #expect(
             module.executedLowerings.contains("ValueClassUnboxing"),
             "ValueClassUnboxing pass should have been recorded"
         )
 
-        // After unboxing, constructor calls for value classes should be
-        // eliminated (rewritten to .copy or removed entirely).
         var hasValueClassConstructorCall = false
         for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
@@ -152,8 +143,6 @@ struct ValueClassUnboxingTests {
 
     @Test
     func testValueClassPropertyAccessRewrittenToCopy() throws {
-        // Property access on a value class via kk_array_get_inbounds should be
-        // rewritten to a copy instruction after unboxing.
         let source = """
         value class Meter(val amount: Int)
 
@@ -166,8 +155,6 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
         let kk_array_get_inbounds = LoweringTestRuntime.callee("array_get_inbounds", interner: interner)
 
-        // After unboxing, there should be no kk_array_get_inbounds calls
-        // on value class receivers.
         var hasArrayGetOnValueClass = false
         for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
@@ -194,8 +181,6 @@ struct ValueClassUnboxingTests {
 
     @Test
     func testValueClassNoHeapAllocation() throws {
-        // After unboxing, kk_object_new calls for value class instances
-        // should be eliminated.
         let source = """
         value class Meter(val amount: Int)
 
@@ -211,7 +196,6 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
         let kk_object_new = LoweringTestRuntime.callee("object_new", interner: interner)
 
-        // Scan for kk_object_new calls whose result has a value class type
         var hasValueClassAlloc = false
         for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
@@ -236,7 +220,6 @@ struct ValueClassUnboxingTests {
 
     @Test
     func testNonValueClassNotAffected() throws {
-        // Regular classes should not be affected by the unboxing pass.
         let source = """
         class Box(val value: Int)
 
@@ -252,7 +235,6 @@ struct ValueClassUnboxingTests {
         let interner = ctx.interner
         let kk_object_new = LoweringTestRuntime.callee("object_new", interner: interner)
 
-        // Regular classes should still have kk_object_new calls.
         var hasObjectNew = false
         for function in findAllKIRFunctions(in: module) {
             for instruction in function.body {
@@ -269,8 +251,6 @@ struct ValueClassUnboxingTests {
             "Regular class should still use kk_object_new for allocation"
         )
     }
-
-    // MARK: - Validation diagnostics
 
     @Test
     func testValueClassMultipleParamsEmitsDiagnostic() throws {

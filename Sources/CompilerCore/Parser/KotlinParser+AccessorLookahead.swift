@@ -1,6 +1,4 @@
 extension KotlinParser {
-    /// Used to absorb newline-separated accessor lines into the property
-    /// declaration CST node.
     func isPropertyAccessorStart(allowsBodyless: Bool = true) -> Bool {
         var offset = 0
         var hasVisibilityModifier = false
@@ -37,9 +35,6 @@ extension KotlinParser {
             let isLegacyDefaultSetter = hasVisibilityModifier
                 && stream.peek(offset).kind == .softKeyword(.set)
             guard allowsBodyless || isLegacyDefaultSetter else { return false }
-            // A default accessor has no parameter list or body. Annotations
-            // may precede either accessor, including `@JvmName(...) get` on
-            // an expect property; keep it attached to that property.
             let afterAccessor = stream.peek(offset + 1)
             return afterAccessor.kind == .eof
                 || afterAccessor.kind == .symbol(.semicolon)
@@ -117,8 +112,6 @@ extension KotlinParser {
         return false
     }
 
-    /// Explicit backing field declaration (Kotlin 2.0 feature):
-    /// `field = ""` or `field: String = ""`.
     func isExplicitBackingFieldStart(_ token: Token) -> Bool {
         guard case .softKeyword(.field) = token.kind else { return false }
         let next = stream.peek(1)

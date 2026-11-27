@@ -14,8 +14,6 @@ import kotlin.internal.__valuesEqual
 // diff oracle's kotlinc-jvm reference, where java.util.LinkedHashMap extends
 // java.util.HashMap) instead of a typealias onto an unrelated interface.
 
-// KUU-1941: base implementations use a native storage handle, while calls on
-// the Kotlin object retain interface dispatch to user overrides.
 @KsSymbolName("__kk_hash_map_storage")
 private external fun <K, V> __hashMapStorage(map: HashMap<K, V>): MutableMap<K, V>
 

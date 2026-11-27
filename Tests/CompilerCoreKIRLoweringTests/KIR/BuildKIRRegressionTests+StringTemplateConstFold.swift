@@ -4,13 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-3180: `"1234$a"` where `a` is a member `const val` is a
-    /// compile-time constant on the JVM — folded into one interned literal,
-    /// so identical non-const initializers in different objects share one
-    /// string instance (`A.bNonConst === B.bNonConst` in kt9532). The object
-    /// initializer must emit the folded literal instead of a runtime
-    /// `__kk_string_concat_flat`, which would allocate a fresh string per
-    /// object and break referential equality.
     @Test func testBuildKIRFoldsConstStringTemplateInObjectInitializer() throws {
         let ctx = makeContextFromSource("""
         object A {
@@ -39,10 +32,6 @@ extension BuildKIRRegressionTests {
         })
     }
 
-    /// The same template must remain a runtime concatenation when the
-    /// interpolated property is NOT `const`: a plain `val` is not a
-    /// compile-time constant on the JVM, and folding it would wrongly intern
-    /// a string the JVM allocates per evaluation (`A.s !== B.s` there).
     @Test func testBuildKIRKeepsNonConstStringTemplateAsRuntimeConcat() throws {
         let ctx = makeContextFromSource("""
         val a: String = "$"
@@ -65,10 +54,6 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains(runtimeCallee(.stringConcatFlat)))
     }
 
-    /// A folded `+`/template outside `const val` follows the runtime rules:
-    /// IEEE floating-point equality (`-0.0 == 0.0`, `NaN != NaN`), and an
-    /// unfoldable numeric `+` such as `1u + 2u` stays arithmetic instead of
-    /// being rendered as the concat text "12".
     @Test func testBuildKIRNonConstStringFoldUsesRuntimeSemantics() throws {
         let ctx = makeContextFromSource("""
         fun main() {

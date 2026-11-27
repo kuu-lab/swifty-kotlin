@@ -6,10 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-4542: source-defined `Throwable` subclasses must stringify through
-    /// the same `ClassName: message` path as kotlinc for direct, `Any`-erased,
-    /// and `Throwable`-static receivers, while preserving overrides and cause
-    /// identity.
     @Test
     func testThrowableSubclassToStringDispatch() throws {
         let artifactPath = try Self.buildStdlibArtifact()

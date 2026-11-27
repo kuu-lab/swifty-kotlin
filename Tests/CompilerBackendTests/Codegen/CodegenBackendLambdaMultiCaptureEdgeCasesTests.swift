@@ -4,14 +4,6 @@
 import Foundation
 import Testing
 
-/// KSP-466: A trailing lambda passed to `require`/`check` (lowered via the
-/// "legacy" closure-raw ABI in CallLowerer+ClosureAdapters.swift) that
-/// captures 2+ distinct locals produced wrong interpolated values, and
-/// captures beyond a certain count crashed with an out-of-bounds
-/// `kk_array_get_inbounds` panic. Root cause: the call site forwarded only
-/// `captureArguments.first` (the raw first captured value) instead of boxing
-/// multiple captures into a closure object, while the lambda body always
-/// expected a boxed closure object once it had 2+ captures.
 @Suite
 struct CodegenBackendLambdaMultiCaptureEdgeCasesTests {
 
@@ -71,9 +63,6 @@ struct CodegenBackendLambdaMultiCaptureEdgeCasesTests {
         )
     }
 
-    /// This is the exact minimal repro from the KSP-466 bug report: three
-    /// distinct captures inside a member function used to crash with
-    /// `kk_array_get_inbounds precondition failed`.
     @Test
     func testCodegenRequireLambdaThreeCapturesInMemberFunctionReturnsCorrectValuesWithoutCrashing() throws {
         let source = """

@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// `java.lang.ref.Reference<T>.get()` erases to `Object` in the classfile;
-    /// the classpath stub must keep the class type variable so that
-    /// `WeakReference<String>.get()` resolves to `String` (KUU-4612).
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func weakReferenceGetPreservesClassTypeArgument(mode: EmitMode) throws {
         try withWorkspace { root in
@@ -40,9 +37,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// A bounded class type variable (`Box<T extends Number>`) erases to its
-    /// bound in the descriptor, so the stub must keep the erased bound rather
-    /// than the unbounded type parameter for parameter binding to match.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func boundedClassTypeVariableKeepsErasedBinding(mode: EmitMode) throws {
         try withWorkspace { root in
@@ -85,10 +79,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// Methods inherited from a hidden parent keep the erased signature: the
-    /// parent's type variables belong to a different scope than the child's,
-    /// so copying the Signature attribute across the owner rewrite would
-    /// resolve them against unrelated child type parameters.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func hiddenParentTypeVariablesDoNotLeakIntoChildStub(mode: EmitMode) throws {
         try withWorkspace { root in

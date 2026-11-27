@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-1919/KUU-3060: Pattern/Matcher APIs preserve JVM region and matching semantics.
     @Test(arguments: [false, true])
     func testJavaRegexPatternMatcherRegion(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -74,7 +73,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1339/KUU-2919: Unit retains singleton identity and rendering at erased boundaries.
     @Test(arguments: [false, true])
     func testUnitReturnSingleton(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -206,11 +204,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-007: imported source-backed stdlib extension functions
-    /// (e.g. `Duration.compareTo`) must be visible in the consumer's default-import
-    /// scope so member-style calls resolve to the concrete extension instead of
-    /// falling back to a broad short-name lookup that also sees `Comparable<T>.compareTo`
-    /// and reports an ambiguous overload.
     @Test
     func testDurationCompareToSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -249,10 +242,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-008: `java.io.Closeable` imported as a synthetic nominal
-    /// anchor from a prebuilt stdlib artifact must retain its `kotlin.io.Closeable`
-    /// supertype so that user implementations are recognised as `Closeable` and
-    /// `.use {}` resolves and runs correctly.
     @Test
     func testCloseableUseSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -299,11 +288,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-018: `Random.nextBytes(size: Int)` is an open method with
-    /// multiple `nextBytes` overloads. The shared stdlib artifact's vtable slot
-    /// layout must round-trip with enough type information to disambiguate
-    /// overloads that have the same arity, so that `nextBytes(size)` dispatches to
-    /// the correct `nextBytes(array)` implementation instead of an unmapped slot.
     @Test
     func testRandomNextBytesSizeSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -341,13 +325,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-KOTLIN-VERSION: `kotlin.KotlinVersion` is bundled Kotlin
-    /// source (`Stdlib/kotlin/KotlinVersion.kt`) whose only runtime dependency
-    /// is the `__kk_kotlin_version_current` build-time constant. Through the
-    /// shared artifact the class arrives as an imported (synthetic-flagged)
-    /// symbol, which used to make `println(version)` fall back to
-    /// `kk_any_to_string` and print `<object 0x...>` instead of dispatching the
-    /// imported `toString()` override.
     @Test
     func testKotlinVersionThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -407,17 +384,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-707: symbols loaded from a precompiled stdlib library artifact carry
-    /// both `.importedLibrary` and `.synthetic`, so `require`/`check`/`assert`'s
-    /// `ContractNonNullEffect` (which powers `require(x != null)`-style smart-cast
-    /// narrowing) must still be attached to those symbols and not skipped by a
-    /// synthetic-only filter. Regression test for a bug introduced while
-    /// relocating `patchSourceBackedPreconditionContractEffects` out of the
-    /// now-deleted `HeaderHelpers+SyntheticPreconditionStubs.swift`: narrowing
-    /// after `require`/`check` silently stopped resolving when compiling a
-    /// consumer module against a shared `.kklib` artifact (the exact mode
-    /// `Scripts/diff_kotlinc.sh` uses), while the inline-bundled-source
-    /// compilation path kept working.
     @Test
     func testPreconditionSmartCastThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

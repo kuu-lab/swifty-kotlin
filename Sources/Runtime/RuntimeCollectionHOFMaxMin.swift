@@ -2,8 +2,6 @@
 @_cdecl("kk_list_take")
 public func kk_list_take(_ listRaw: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    // The negative-count path returns a fresh empty list alongside the
-    // exception, so the error write stays manual inside the bridge closure.
     return runtimeThrowingBridge(outThrown) {
         if count < 0 {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(

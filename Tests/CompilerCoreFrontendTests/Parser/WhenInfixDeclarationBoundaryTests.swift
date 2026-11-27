@@ -3,7 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-1927: retain the infix suffix after `when` without absorbing declarations.
 @Suite
 struct WhenInfixDeclarationBoundaryTests {
     struct TestCase: CustomTestStringConvertible {

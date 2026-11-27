@@ -8,12 +8,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Creates an atomic long array of the requested size, initialized to zero.
- *
- * The allocation remains in the runtime box; this declaration provides the
- * source-backed stdlib entry point for the existing runtime ABI.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 @KsSymbolName("kk_atomic_long_array_create")

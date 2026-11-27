@@ -2,12 +2,6 @@ import Testing
 
 @Suite(.serialized)
 struct UnaryPlusMutableLocalAliasTests {
-    /// KUU-3098: unary `+` forwarded its operand's KIR id verbatim, so `+n`
-    /// on a bare local read aliased that local's storage register instead of
-    /// snapshotting its value. A `val a = +b` initializer then observed `b`'s
-    /// later reassignment, `+b + b++` evaluated the lhs after the increment,
-    /// `return +b` saw a mutating `finally`'s write, and `var a = +b` let a
-    /// write to `a` corrupt `b`.
     @Test(arguments: [true, false])
     func unaryPlusOnLocalSnapshotsValue(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

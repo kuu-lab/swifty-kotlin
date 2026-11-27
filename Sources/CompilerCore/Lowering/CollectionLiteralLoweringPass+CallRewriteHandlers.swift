@@ -56,30 +56,9 @@ extension CollectionLiteralConstructionLoweringPass {
             return CollectionCallRewriteResult(instructions: instructions)
         }
 
-        // RF-LOWER-CALL-012 dropped the sibling branch that rewrote a Map
-        // receiver's `map` / `filter` / `forEach` / `mapValues` / `mapKeys` /
-        // `filterKeys` / `filterValues` / `flatMap` / `any` / `all` / `none` /
-        // `maxByOrNull` / `minByOrNull` to a `kk_map_*` runtime entry point. It
-        // never fired: every one of those names, once resolved to the bundled
-        // Kotlin source in `MapHOF.kt` (KSP-430), is short-circuited by
-        // the source-backed preservation gate in `+CallRewrite.swift`
-        // before `rewriteHigherOrderCollectionCall` is ever called, and
-        // `filterKeys` / `filterValues` / `maxByOrNull` / `minByOrNull` were
-        // additionally excluded by `isCollectionHOFMemberName` above, which
-        // never listed them. The deleted branch's targets (`kk_map_map`,
-        // `kk_map_filter`, `kk_map_mapValues`, `kk_map_mapKeys`,
-        // `kk_map_filterKeys`, `kk_map_filterValues`, `kk_map_flatMap`,
-        // `kk_map_any`, `kk_map_all`, `kk_map_none`, `kk_map_forEach`,
-        // `kk_map_maxByOrNull`, `kk_map_minByOrNull`) have no `@_cdecl` left in
-        // `Sources/Runtime` either — only `RuntimeCollectionHOF430MapShims.swift`
-        // test shims still declare them. `MapHOFLoweringRoutingTests` pins the
-        // routing itself; see `+CallRewrite.swift` for the policy-side note.
         return nil
     }
 
-    // `filterNot` / `mapNotNull` are not listed: `.list` has no runtime link
-    // for either (RF-LOWER-CALL-008) and Map has no such member at all, so
-    // every branch below already answers nil for them on any receiver.
     private func isCollectionHOFMemberName(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables

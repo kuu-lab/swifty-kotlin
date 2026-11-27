@@ -1,6 +1,3 @@
-/// Find lexical captures in serialized lambda bodies, including references
-/// used only by a nested lambda. Signature indices are unique within a file;
-/// intersecting with the outer bindings excludes the lambda's own locals.
 package struct KlibLambdaCaptureAnalysis {
     private let module: KlibIrModule
     private let fileIndex: Int

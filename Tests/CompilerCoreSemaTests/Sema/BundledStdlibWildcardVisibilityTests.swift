@@ -3,7 +3,6 @@ import Testing
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// KUU-1032: invisible wildcard imports must not shadow public default imports.
 @Suite
 struct BundledStdlibWildcardVisibilityTests {
     @Test(arguments: [false, true], ["", "import kotlinx.io.*", "import kotlinx.io"])
@@ -82,13 +81,6 @@ struct BundledStdlibWildcardVisibilityTests {
         }
     }
 
-    /// KUU-4232: an `internal` declaration in the bundled stdlib module must
-    /// not win the same-package classifier tier over a visible
-    /// wildcard-imported declaration. The bundled stdlib keeps internal
-    /// classifiers such as `kotlinx.coroutines.flow.ChannelFlowImpl`;
-    /// upstream-style sources declare their own same-named classifier in a
-    /// subpackage and import it with a wildcard, as `ChannelAsFlow` does in
-    /// kotlinx-coroutines Channels.kt.
     @Test
     func samePackageInternalStdlibDeclDoesNotShadowWildcardImport() throws {
         try withTemporaryFiles(contents: [
@@ -118,10 +110,6 @@ struct BundledStdlibWildcardVisibilityTests {
         }
     }
 
-    /// KUU-4232: skipping invisible internal candidates must not swallow the
-    /// visibility diagnostic when no visible alternative exists — kotlinc
-    /// still resolves the inaccessible classifier and reports the access
-    /// error.
     @Test
     func internalStdlibDeclWithoutAlternativeStillReportsInvisibleAccess() throws {
         try withTemporaryFile(contents: """

@@ -56,7 +56,9 @@ struct JVMTextOperation {
         add("trimIndent")
         add("replaceIndent", [p("newIndent", .string, "empty")])
         add("lines", sourceResult: "List<String>", result: list, receiver: "CharSequence", jvmReceiver: sequence)
+        add("prependIndent", [p("indent", .string, "indent")])
         add("trimMargin", [p("marginPrefix", .string, "margin")])
+        add("replaceIndentByMargin", [p("newIndent", .string, "empty"), p("marginPrefix", .string, "margin")])
         for name in ["uppercase", "lowercase", "reversed"] { add(name) }
         add("repeat", [p("n", .int)], jvmReceiver: sequence)
         for name in ["padStart", "padEnd"] { add(name, [p("length", .int), p("padChar", .char, "space")]) }
@@ -76,6 +78,11 @@ struct JVMTextOperation {
         add("endsWith", [p("suffix", sequence), p("ignoreCase", .boolean, "false")],
             sourceResult: "Boolean", result: .boolean, receiver: "CharSequence", jvmReceiver: sequence)
         add("startsWith", [p("prefix", .string), p("startIndex", .int), p("ignoreCase", .boolean, "false")], sourceResult: "Boolean", result: .boolean)
+        let nullableSequence = JVMValueType.reference("java/lang/CharSequence", nullable: true)
+        add("contentEquals", [p("other", nullableSequence)],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence?", jvmReceiver: nullableSequence)
+        add("contentEquals", [p("other", nullableSequence), p("ignoreCase", .boolean)],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence?", jvmReceiver: nullableSequence)
         for name in ["indexOf", "lastIndexOf"] {
             for char in [false, true] {
                 add(name, [p(char ? "char" : "string", char ? .char : .string), p("startIndex", .int, name == "indexOf" ? "0" : "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, jvmReceiver: sequence)
@@ -101,6 +108,7 @@ struct JVMTextOperation {
             add("to" + name, sourceResult: name, result: type, owner: "java/lang/" + name, method: "parse" + name)
             add("to" + name + "OrNull", sourceResult: name + "?", result: .reference("java/lang/" + name, nullable: true))
         }
+        add("toBigDecimal", sourceResult: "BigDecimal", result: .reference("java/math/BigDecimal", nullable: false), owner: "java/math/BigDecimal", method: "<init>")
         add("toBoolean", sourceResult: "Boolean", result: .boolean, receiver: "String?", jvmReceiver: .reference("java/lang/String", nullable: true), owner: "java/lang/Boolean", method: "parseBoolean")
         add("toBooleanStrict", sourceResult: "Boolean", result: .boolean)
         add("toBooleanStrictOrNull", sourceResult: "Boolean?", result: .reference("java/lang/Boolean", nullable: true))

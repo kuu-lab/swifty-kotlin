@@ -1,16 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.getInstance` must accept the full SHA-2 family
-    /// (SHA-224/384/512 and the SHA-512/224, SHA-512/256 truncation variants),
-    /// MD2 (RFC 1319), and the SHA-3 family (FIPS 202) — JDK canonical vectors,
-    /// per-algorithm `digestLength`, incremental `update` buffering, the
-    /// `digest(data)` append-then-finalize contract, JDK-accepted aliases, and
-    /// a `NoSuchAlgorithmException` for unsupported names such as SHAKE-128
-    /// (dashed spellings are rejected by the JDK; plain SHAKE128/SHAKE256 are
-    /// covered by the KUU-4306 SHAKE suite).
-    /// Regression for KUU-4281: only MD5/SHA-1/SHA-256 were implemented, so
-    /// `getInstance("SHA-512")` and friends threw `NoSuchAlgorithmException`.
     @Test
     func testMessageDigestSha2FamilyContract() throws {
         try compileAndRunKotlin(

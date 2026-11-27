@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Operator-syntax calls on an open/abstract member operator must lower to a
-/// `.virtualCall` (like `lhs.plus(rhs)` does), not a direct `.call` to the
-/// statically chosen declaration. Covers binary operators, comparison
-/// (`compareTo`) and equality (`equals`) desugaring, `in`, and
-/// declaration / for-loop destructuring.
 extension BuildKIRRegressionTests {
     @Test
     func binaryOperatorOnBaseTypedReceiverDispatchesVirtually() throws {
@@ -52,15 +47,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// KUU-3669: `ArrayList.get` is bridged to `__kk_list_get`, so member
-    /// calls once lowered to a direct `.call` and a Kotlin override on a
-    /// subclass could never be reached. `l.get(0)` now emits a `.virtualCall`
-    /// under the source `get` name on every receiver shape: a *source*
-    /// subclass (`StringList`) is a `kk_object_new` object whose vtable
-    /// holds the override, while a runtime list box (`ArrayList`) registers
-    /// the same slot to the `__kk_list_get` bridge at construction
-    /// (`kk_object_register_vtable_method`), so the virtual call still
-    /// reaches the runtime implementation there.
     @Test
     func arrayListGetOnSubclassReceiverDispatchesVirtually() throws {
         let source = """

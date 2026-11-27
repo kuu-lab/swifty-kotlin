@@ -23,8 +23,6 @@ package final class AndroidLibrarySet {
     /// `libs/*.jar`, then plain jar dependencies, in dependency order.
     package private(set) var jars: [String] = []
 
-    package var isEmpty: Bool { libraries.isEmpty && jars.isEmpty }
-
     private init(directory: URL) {
         self.directory = directory
     }

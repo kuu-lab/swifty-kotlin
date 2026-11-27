@@ -230,9 +230,6 @@ struct AssertionHelperRegressionTests {
         #expect(symbols.allSatisfy { sema.symbols.contractImplicationEffects(for: $0).isEmpty })
     }
 
-    // KUU-3935: contract narrowing applied to an immutable local lives only in
-    // `locals`; a later `check`/`require`/branch recomputing flow from the
-    // branch-entry snapshot must not widen it back (okio FileHandle.reposition).
     @Test func contractNarrowingInElseBranchSurvivesInterveningCheckCall() throws {
         let ctx = makeContextFromSource("""
         interface S

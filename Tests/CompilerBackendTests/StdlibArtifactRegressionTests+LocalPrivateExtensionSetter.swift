@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2416: local classes can call a private member-extension setter from its owner.
     @Test(arguments: [true, false], [0, 2])
     func testLocalClassWritesPrivateMemberExtensionProperty(fromSource: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))

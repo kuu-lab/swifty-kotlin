@@ -3,9 +3,13 @@ package kotlin.coroutines.intrinsics
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.jvm.internal.BaseContinuationImpl
 import kotlin.coroutines.jvm.internal.ContinuationImpl
+import kotlin.jvm.internal.__jvmSuspendCoroutineUninterceptedOrReturn
 
 private object CoroutineSuspended
 val COROUTINE_SUSPENDED: Any get() = CoroutineSuspended
+
+public suspend fun <T> suspendCoroutineUninterceptedOrReturn(block: (Continuation<T>) -> Any?): T =
+    __jvmSuspendCoroutineUninterceptedOrReturn(block)
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Continuation<T>.intercepted(): Continuation<T> {

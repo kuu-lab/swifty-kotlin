@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-4288: `Calendar.getMinimum`/`getMaximum`/`getGreatestMinimum`/
-    /// `getLeastMaximum`/`getActualMinimum`/`getActualMaximum` must resolve and
-    /// produce JDK-compatible values through a fresh bundled stdlib artifact.
     @Test(arguments: [false, true])
     func testCalendarFieldBoundsSurface(optimize: Bool) throws {
         let optLevel: OptimizationLevel = optimize ? .O2 : .O0

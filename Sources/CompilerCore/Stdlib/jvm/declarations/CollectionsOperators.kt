@@ -22,3 +22,9 @@ fun <T> MutableCollection<in T>.removeAll(elements: kotlin.sequences.Sequence<T>
 fun <T> MutableCollection<in T>.retainAll(elements: Iterable<T>): Boolean = null!!
 fun <T> MutableCollection<in T>.retainAll(elements: Array<out T>): Boolean = null!!
 fun <T> MutableCollection<in T>.retainAll(elements: kotlin.sequences.Sequence<T>): Boolean = null!!
+@kotlin.internal.InlineOnly
+inline fun <T> Collection<T>.plusElement(element: T): List<T> = plus(element)
+@kotlin.internal.InlineOnly
+inline fun <T> Iterable<T>.plusElement(element: T): List<T> = plus(element)
+@kotlin.internal.InlineOnly
+inline fun <T> Iterable<T>.minusElement(element: T): List<T> = minus(element)

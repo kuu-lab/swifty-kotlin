@@ -15,6 +15,9 @@ extension JVMBackendTests {
             exception.addSuppressed(Exception("suppressed"))
             println(exception.suppressed.size)
             println(exception.suppressed[0].message)
+            val suppressed = exception.getSuppressed()
+            println(suppressed.size)
+            println(suppressed[0].message)
 
             val initialized = Exception("initialized")
             println(initialized.initCause(Exception("init")) === initialized)
@@ -34,9 +37,33 @@ extension JVMBackendTests {
             let application = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
             let execution = try java(["-cp", application.path, "HelloKt"])
             #expect(execution.exitCode == 0)
-            #expect(execution.stdout == "inner\ntrue\n1\nsuppressed\ntrue\ninit\n")
+            #expect(execution.stdout == "inner\ntrue\n1\nsuppressed\n1\nsuppressed\ntrue\ninit\n")
             let stderr = execution.stderr.replacingOccurrences(of: "\r\n", with: "\n")
             #expect(stderr.hasPrefix("java.lang.Exception: printed\n\tat "))
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func throwableSuppressedCallableReferencesMatchRuntimeParity(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            import kotlin.reflect.KClass
+            fun main() {
+                val exception = RuntimeException("x")
+                exception.addSuppressed(IllegalArgumentException("s"))
+                val bound: () -> Array<Throwable> = exception::getSuppressed
+                println(bound().size)
+                println(bound()[0].message)
+                val reflected = Throwable::getSuppressed
+                val unbound: (Throwable) -> Array<Throwable> = reflected
+                println(unbound(exception).size)
+                println(unbound(exception)[0].message)
+                println((reflected.returnType.classifier as KClass<*>).simpleName)
+                println(reflected.returnType.arguments.size)
+                println((reflected.returnType.arguments[0].type?.classifier as KClass<*>).simpleName)
+                println(reflected.returnType.isMarkedNullable)
+            }
+            """, expected: "1\ns\n1\ns\nArray\n1\nThrowable\nfalse\n", mode: mode, root: root)
         }
     }
 }

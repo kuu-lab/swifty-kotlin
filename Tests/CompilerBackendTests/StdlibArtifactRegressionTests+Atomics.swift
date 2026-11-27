@@ -6,9 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KSP-1083: a generic kotlin.concurrent nominal must preserve its
-    /// source-backed type parameter while residual constructor/member links
-    /// remain usable through a precompiled stdlib artifact.
     @Test
     func testAtomicReferenceGenericThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -43,13 +40,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// Setter counterpart of `testResultMemberPropertyGetterSharedPath`:
-    /// `var` properties with custom setters — a bundled extension `var`
-    /// (`AtomicInt.value`) and a bundled member `var` (`AtomicLong.value`) —
-    /// must round-trip the precompiled setter link through the shared stdlib
-    /// artifact (`propertySetterExternalLinkName`). Without it the consumer
-    /// lowers `a.value = x` to a call to a bare `set`/`value` symbol and
-    /// fails to link.
     @Test
     func testBundledAtomicPropertySetterSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()

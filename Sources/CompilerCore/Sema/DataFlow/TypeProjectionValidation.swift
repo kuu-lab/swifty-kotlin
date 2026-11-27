@@ -1,5 +1,3 @@
-/// Use-site projections are checked against their immediate parameter slot,
-/// independently of declaration-site variance position analysis.
 final class TypeProjectionValidator {
     let symbols: SymbolTable
     let types: TypeSystem
@@ -73,8 +71,6 @@ final class TypeProjectionValidator {
         }
         let ownVariances = types.nominalTypeParameterVariances(for: symbol)
         let ownArity = max(types.nominalTypeParameterSymbols(for: symbol).count, ownVariances.count)
-        // Unqualified Inner<T> supplies only its own arguments; a qualified
-        // Outer<S>.Inner<T> supplies enclosing arguments as well.
         let variances = arguments.count <= ownArity ? ownVariances
             : types.allTypeParameterVariances(for: symbol, fallbackArity: ownArity)
         let owner = interner.flatMap { strings in

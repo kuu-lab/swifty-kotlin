@@ -89,8 +89,6 @@ struct ExtensionFunctionLabelTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
     }
 
-    /// KUU-4367: `this@func` inside the extension function `func` smart-casts
-    /// like the unqualified `this`, so members of the narrowed type resolve.
     @Test
     func extensionReceiverLabelSmartCast() throws {
         let ctx = makeContextFromSource("""
@@ -105,8 +103,6 @@ struct ExtensionFunctionLabelTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
     }
 
-    /// KUU-4367: plain member functions have no function-name `this` label on
-    /// the JVM — `this@bar` inside `fun bar()` is an unresolved label.
     @Test
     func memberFunctionNameLabelIsRejected() throws {
         let ctx = makeContextFromSource("""

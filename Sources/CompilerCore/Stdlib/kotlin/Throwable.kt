@@ -3,13 +3,6 @@ package kotlin
 import java.lang.StackTraceElement
 import kotlin.internal.KsSymbolName
 
-/**
- * The actual storage is allocated by the runtime as a boxed exception object.
- * Members reach the boxed storage through the small `__kk_throwable_*` accessor
- * bridges below. The mutating / suppressed-list members remain extensions with
- * static dispatch, while the virtual members route through the runtime bridge
- * for boxed Throwable values.
- */
 public open class Throwable {
     @KsSymbolName("__kk_throwable_new")
     public constructor()
@@ -66,11 +59,6 @@ public fun Throwable.getSuppressed(): Array<Throwable> = __kkThrowableSuppressed
 public val Throwable.suppressedExceptions: List<Throwable>
     get() = __kkThrowableSuppressedRaw(this).toList()
 
-/**
- * Saved frames without the leading header line. The runtime captures the trace
- * when the throwable is created, so `fillInStackTrace()` has nothing to refresh
- * and returns the receiver.
- */
 public var Throwable.stackTrace: Array<StackTraceElement>
     get() {
         val stored = __kkThrowableStackTrace(this)
@@ -94,14 +82,6 @@ public fun Throwable.stackTraceToString(): String {
     return lines.joinToString("\n")
 }
 
-/**
- * Length of the common SUFFIX shared by [trace] and [enclosingTrace], compared
- * from the end — the KSwiftK analog of the JVM `printEnclosedStackTrace`
- * frame-counting loop. KSwiftK frames are rendered `"\tat <symbol>"` strings
- * rather than `StackTraceElement`s, so string equality is the available
- * identity; throwables created on the same call path share identical native
- * frame symbols for their common tail.
- */
 private fun throwableCommonFrameSuffix(trace: List<String>, enclosingTrace: List<String>): Int {
     var count = 0
     var i = trace.size - 1
@@ -114,14 +94,6 @@ private fun throwableCommonFrameSuffix(trace: List<String>, enclosingTrace: List
     return count
 }
 
-/**
- * Mirrors `java.lang.Throwable#printStackTrace`/`printEnclosedStackTrace`:
- * [indent] is the JVM `prefix` (suppressed children indent one `"\t"` deeper
- * than their parent, cause children keep the parent's indent), [caption] is
- * `"Suppressed: "`/`"Caused by: "` (null for the outermost throwable), and
- * [enclosingTrace] is the parent throwable's `"\tat ..."` lines used to fold
- * the shared tail into a single `"\t... N more"` line.
- */
 private fun collectThrowableTraceLines(
     throwable: Throwable,
     lines: MutableList<String>,
@@ -143,8 +115,6 @@ private fun collectThrowableTraceLines(
     visited.add(throwable)
 
     val frames = __kkThrowableRawStackFrames(throwable)
-    // frames[0] is the rendered header ("<type>: <message>"); the rest are the
-    // "\tat ..." lines — the analog of the JVM's StackTraceElement[] trace.
     // A throwable with writableStackTrace=false (or an empty assigned trace)
     // yields no frame lines, but the JVM still prints the caption + header.
     val header = if (frames.isNotEmpty()) frames[0] else throwable.toString()

@@ -1,17 +1,6 @@
 import Foundation
 
-/// Built-in compiler plugin support — the KSwiftK equivalent of kotlinc's
-/// `-Xplugin` mechanism. Plugins are compiled into the compiler and run at
-/// fixed pipeline hook points. Configuration uses the kotlinc-compatible
-/// `plugin:<pluginID>:<option>=<value>` convention, supplied through `-P`
-/// CLI arguments (stored as frontend flags) or `-Xfrontend`.
-///
-/// This is the built-in half of the plugin story: the protocol and hook
-/// points are deliberately phase-oriented so a future dynamic plugin
-/// loader can adapt external binaries onto the same surface without
-/// changing call sites.
 protocol CompilerPlugin: Sendable {
-    /// Stable plugin identifier, e.g. `org.jetbrains.kotlin.allopen`.
     var id: String { get }
 
     /// Sema-phase transform, run after declaration annotations have been
@@ -27,9 +16,6 @@ protocol CompilerPlugin: Sendable {
     /// this hook instead of `applySemaTransform`.
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext)
 
-    /// Lowering passes contributed by this plugin. They run before the
-    /// standard pipeline so generated KIR flows through every built-in
-    /// desugaring/ABI pass.
     var loweringPasses: [any LoweringPass] { get }
 }
 
@@ -39,7 +25,6 @@ extension CompilerPlugin {
     var loweringPasses: [any LoweringPass] { [] }
 }
 
-/// Everything a Sema-phase plugin transform may inspect or mutate.
 struct CompilerPluginSemaContext {
     let ast: ASTModule
     let symbols: SymbolTable
@@ -49,22 +34,15 @@ struct CompilerPluginSemaContext {
     let interner: StringInterner
     let options: CompilerOptions
     let pluginConfig: CompilerPluginConfig
-    /// The owning sema module. Plugins that synthesize declarations record
-    /// them here (e.g. `sema.pluginGeneratedConstructors`) so later phases
-    /// can recognize plugin-generated symbols.
     let sema: SemaModule
 }
 
-/// Parsed `plugin:<id>:<key>=<value>` frontend flags. Repeatable options
-/// accumulate values in declaration order.
 struct CompilerPluginConfig {
-    /// pluginID -> option name -> values
     private(set) var values: [String: [String: [String]]] = [:]
 
     static func parse(frontendFlags: [String]) -> CompilerPluginConfig {
         var config = CompilerPluginConfig()
         for flag in frontendFlags where flag.hasPrefix("plugin:") {
-            // plugin:<id>:<key>=<value>; the value may itself contain '='.
             let rest = flag.dropFirst("plugin:".count)
             guard let idEnd = rest.firstIndex(of: ":") else { continue }
             let id = String(rest[..<idEnd])
@@ -82,10 +60,7 @@ struct CompilerPluginConfig {
     }
 }
 
-/// Registry of compiler plugins compiled into the compiler.
 enum CompilerPluginRegistry {
-    /// Built-in plugins in execution order. Each plugin self-gates on its
-    /// configuration and on whether its trigger annotations are present.
     static let builtins: [any CompilerPlugin] = [
         AllOpenPlugin(),
         NoArgPlugin(),
@@ -101,8 +76,6 @@ enum CompilerPluginRegistry {
     private static let cacheLock = NSLock()
     private nonisolated(unsafe) static var dynamicPluginsCache: [String: [any CompilerPlugin]] = [:]
 
-    /// Resolves all active plugins for the compilation: built-in plugins plus
-    /// any dynamic JVM plugins supplied via `-Xplugin=<path.jar>`.
     static func plugins(for options: CompilerOptions) -> [any CompilerPlugin] {
         let pluginFlags = options.frontendFlags.filter { $0.hasPrefix("-Xplugin=") || $0.hasPrefix("plugin:") }
         guard !pluginFlags.isEmpty else {
@@ -179,8 +152,6 @@ extension DataFlowSemaPhase {
             options: ctx.options,
             sema: sema
         )
-        // Every plugin self-gates: configured plugins check their options,
-        // fixed-trigger plugins check whether their annotation resolved.
         for plugin in CompilerPluginRegistry.plugins(for: ctx.options) {
             plugin.applySemaTransform(pluginCtx)
         }

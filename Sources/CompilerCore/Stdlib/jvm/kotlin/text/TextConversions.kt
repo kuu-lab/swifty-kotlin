@@ -172,6 +172,28 @@ fun String.trimMargin(marginPrefix: String = "|"): String {
     return result.joinToString("\n")
 }
 
+fun String.prependIndent(indent: String = "    "): String {
+    val result = mutableListOf<String>()
+    for (line in lines()) {
+        result.add(if (line.isBlank()) (if (line.length < indent.length) indent else line) else indent + line)
+    }
+    return result.joinToString("\n")
+}
+fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: String = "|"): String {
+    if (marginPrefix.isBlank()) throw IllegalArgumentException("marginPrefix must be non-blank string.")
+    val lines = lines()
+    val result = mutableListOf<String>()
+    var i = 0
+    for (line in lines) {
+        if (!((i == 0 || i == lines.size - 1) && line.isBlank())) {
+            val width = indentWidth(line)
+            result.add(if (line.startsWith(marginPrefix, width)) newIndent + line.drop(width + marginPrefix.length) else line)
+        }
+        i++
+    }
+    return result.joinToString("\n")
+}
+
 fun getLastIndex(value: CharSequence): Int = value.length - 1
 fun StringBuilder.clear(): StringBuilder { this.setLength(0); return this }
 fun String.toByteOrNull(): Byte? = this.toByteOrNull(10)

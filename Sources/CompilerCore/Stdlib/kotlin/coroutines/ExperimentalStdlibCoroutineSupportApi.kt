@@ -9,7 +9,6 @@ package kotlin.coroutines
 
 import kotlin.annotation.AnnotationTarget.*
 
-/** Marks experimental standard library APIs for coroutine support. */
 @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @Retention(AnnotationRetention.BINARY)
 @Target(

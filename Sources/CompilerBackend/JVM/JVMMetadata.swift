@@ -174,7 +174,7 @@ enum JVMMetadata {
                 proto.data(6, parameter(setter.parameterNames.first ?? "value", property.type, property.kotlinType))
             }
             var jvm = Proto()
-            if let field = property.delegateField ?? property.field { jvm.data(1, signature(field.name, field.type.descriptor)) }
+            if let field = property.delegateField ?? property.field ?? property.relocatedField { jvm.data(1, signature(field.name, field.type.descriptor)) }
             else if property.modifiers.contains(.const) { jvm.data(1, signature(property.name, property.type.descriptor)) }
             if let carrier = property.annotationsMethod { jvm.data(2, signature(carrier.name, carrier.descriptor)) }
             if !property.modifiers.contains(.const) { jvm.data(3, signature(property.getter.name, property.getter.descriptor)) }

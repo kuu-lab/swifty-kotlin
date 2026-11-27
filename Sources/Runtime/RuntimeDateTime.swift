@@ -443,11 +443,6 @@ private func runtimeCalendarFieldBound(_ values: [Int], _ field: Int, symbol: St
     return values[field]
 }
 
-/// Upper bound (inclusive) of `component` within `parent` for the calendar's
-/// current date, matching JDK `getActualMaximum` for fields whose maximum is
-/// state-dependent (day-of-month leap awareness, day-of-year, week fields,
-/// day-of-week-in-month). Falls back to the JDK structural maximum when the
-/// platform cannot express the range (e.g. extremely large years).
 private func runtimeCalendarRangeMaximum(
     _ component: Foundation.Calendar.Component,
     in parent: Foundation.Calendar.Component,
@@ -460,10 +455,6 @@ private func runtimeCalendarRangeMaximum(
     return range.upperBound - 1
 }
 
-/// JDK `GregorianCalendar.getActualMaximum(WEEK_OF_YEAR)`: the number of
-/// weeks in the current calendar year under the calendar's first-week rules
-/// (the JDK formula; verified identical to the JDK for every month of
-/// 1999-2026 under the default Sunday/1 rules).
 private func runtimeCalendarActualMaximumWeekOfYear(_ box: RuntimeCalendarBox) -> Int {
     let epochMs = runtimeCalendarEpochMilliseconds(box.date)
     let offsetMs = Int64(box.calendar.timeZone.secondsFromGMT(for: box.date)) * 1_000
@@ -543,16 +534,11 @@ private func runtimeCalendarLocalFields(
     )
 }
 
-/// Position of `box.date` within its calendar year in wall-clock
-/// milliseconds, matching JDK `GregorianCalendar.getYearOffsetInMillis`.
-/// Computed arithmetically so it also works for the ~292-million-year
-/// instants involved in `getActualMaximum(YEAR)`.
 private func runtimeCalendarYearOffsetInMillis(
     box: RuntimeCalendarBox,
     epochMilliseconds: Int64? = nil
 ) -> Int64 {
     let epochMs = epochMilliseconds ?? runtimeCalendarEpochMilliseconds(box.date)
-    // ZONE_OFFSET + DST_OFFSET is the total offset from GMT at this instant.
     let offsetMs = Int64(box.calendar.timeZone.secondsFromGMT(for: box.date)) * 1_000
     let dayMs: Int64 = 86_400_000
     let local = runtimeCalendarLocalFields(epochMilliseconds: epochMs, offsetMilliseconds: offsetMs)
@@ -562,10 +548,6 @@ private func runtimeCalendarYearOffsetInMillis(
     return Int64(dayOfYear - 1) * dayMs + local.millisOfDay - offsetMs
 }
 
-/// JDK `GregorianCalendar.getActualMaximum(YEAR)`: the year containing the
-/// maximum representable instant (Long.MAX_VALUE epoch milliseconds in the
-/// JDK; Int64.max here, the same domain), decremented when the current
-/// position within the year is later than the maximum instant's.
 private func runtimeCalendarActualMaximumYear(_ box: RuntimeCalendarBox) -> Int {
     let maxBox = RuntimeCalendarBox(
         calendar: box.calendar,
@@ -589,7 +571,7 @@ private func runtimeCalendarActualMaximum(_ field: Int, box: RuntimeCalendarBox)
     case 1:
         return runtimeCalendarActualMaximumYear(box)
     case 2:
-        return 11 // MONTH: December — every month occurs in every year
+        return 11
     case 3:
         return runtimeCalendarActualMaximumWeekOfYear(box)
     case 4:

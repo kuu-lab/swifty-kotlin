@@ -2,15 +2,6 @@ package java.text
 
 import java.util.Locale
 
-/**
- * Locale-sensitive date format symbols (`java.text.DateFormatSymbols`).
- *
- * This bundled shim carries the JDK (CLDR) symbol tables for the most common
- * locales. Locale lookup follows the JDK fallback chain: exact
- * `language_COUNTRY` match, then language-only match, then the CLDR root
- * (abbreviated English) table. Regional variants that are not listed fall
- * back to their language table; `zoneStrings` is intentionally empty.
- */
 public class DateFormatSymbols private constructor(locale: Locale) {
     public constructor() : this(Locale.getDefault())
 
@@ -35,42 +26,34 @@ public class DateFormatSymbols private constructor(locale: Locale) {
         amPmStringsData = data.amPmStrings
     }
 
-    /** Era strings, e.g. `BC`/`AD` for `en`. Getter returns a copy like the JDK. */
     public var eras: Array<String>
         get() = erasData.copyOf()
         set(value) { erasData = value.copyOf() }
 
-    /** Full month names; index 12 is the empty standalone slot (JDK layout). */
     public var months: Array<String>
         get() = monthsData.copyOf()
         set(value) { monthsData = value.copyOf() }
 
-    /** Abbreviated month names; index 12 is the empty standalone slot. */
     public var shortMonths: Array<String>
         get() = shortMonthsData.copyOf()
         set(value) { shortMonthsData = value.copyOf() }
 
-    /** Full weekday names; index 0 is empty, indices 1..7 are Sunday..Saturday. */
     public var weekdays: Array<String>
         get() = weekdaysData.copyOf()
         set(value) { weekdaysData = value.copyOf() }
 
-    /** Abbreviated weekday names; index 0 is empty, indices 1..7 are Sunday..Saturday. */
     public var shortWeekdays: Array<String>
         get() = shortWeekdaysData.copyOf()
         set(value) { shortWeekdaysData = value.copyOf() }
 
-    /** AM/PM strings, indices 0 and 1. */
     public var amPmStrings: Array<String>
         get() = amPmStringsData.copyOf()
         set(value) { amPmStringsData = value.copyOf() }
 
-    /** Time zone display strings. The JDK bundles per-zone data; this shim returns an empty array. */
     public var zoneStrings: Array<Array<String>>
         get() = zoneStringsData.copyOf()
         set(value) { zoneStringsData = value.copyOf() }
 
-    /** Pattern characters used by `java.text.SimpleDateFormat`; the JDK default is locale-independent. */
     public var localPatternChars: String
         get() = localPatternCharsData
         set(value) { localPatternCharsData = value }
@@ -114,7 +97,6 @@ public class DateFormatSymbols private constructor(locale: Locale) {
     }
 
     public companion object {
-        /** Locales with bundled symbol data (a subset of the JDK's `getAvailableLocales`). */
         public fun getAvailableLocales(): Array<Locale> = arrayOf(
             Locale.ROOT,
             Locale.ENGLISH, Locale.US, Locale.UK, Locale.CANADA, Locale.CANADA_FRENCH,
@@ -132,7 +114,6 @@ public class DateFormatSymbols private constructor(locale: Locale) {
             Locale("es", "MX"), Locale("es", "ES")
         )
 
-        /** Shared per-locale instance like the JDK cache; mutations via setters stay local to the returned object. */
         public fun getInstance(): DateFormatSymbols = DateFormatSymbols(Locale.getDefault())
 
         public fun getInstance(locale: Locale?): DateFormatSymbols = DateFormatSymbols(locale)
@@ -401,7 +382,6 @@ private val SYMBOLS_ROOT = symbolsData(
     amPmStrings = "AM|PM",
 )
 
-// Exact `language_COUNTRY` lookups (country upper-cased, language lower-cased).
 private val SYMBOLS_EXACT_TABLES: Map<String, DateFormatSymbolsData> = mapOf(
     "en_GB" to SYMBOLS_EN_GB,
     "en_IE" to SYMBOLS_EN_IE,

@@ -129,8 +129,6 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         }
     }
 
-    // TEST-MATH-024: atan2・cbrt・双曲線関数の source-wrapper lowering を検証する
-    // (既存の IEEErem/nextTowards/pow/withSign テストに対する対称性ギャップを補完)
     @Test
     func testCodegenMathSignedZeroSymmetryFunctionsLowerToRuntimeHelpers() throws {
         let source = """
@@ -224,7 +222,6 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         }
     }
 
-    // PARITY-SEMA-003: kotlin.math.abs(x) called via FQN (no import) must lower identically to the import path.
     @Test
     func testCodegenFQNMathCallsLowerLikeImportedCalls() throws {
         let source = """

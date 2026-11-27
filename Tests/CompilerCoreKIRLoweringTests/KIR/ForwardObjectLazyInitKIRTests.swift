@@ -40,7 +40,6 @@ struct ForwardObjectLazyInitKIRTests {
             })
             #expect(guardIndex < loadIndex)
         }
-        // Pending guards use the object's name until the final module rewrite.
         for function in findAllKIRFunctions(in: module) {
             #expect(!kirCalls(in: function.body).contains { ctx.interner.resolve($0.callee) == "Later" })
         }
@@ -99,10 +98,6 @@ struct ForwardObjectLazyInitKIRTests {
         }, "the const value should still be inlined")
     }
 
-    /// KUU-2945: `O.P` uses `O` as a pure namespace qualifier -- the enclosing
-    /// object's lazy-init guard must not be emitted for the nested-object
-    /// access itself, whether it appears as a delegated-property delegate or
-    /// as a direct member path. `P`'s own guard is still required.
     @Test
     func nestedObjectAccessDoesNotEmitEnclosingObjectLazyInit() throws {
         let source = """
@@ -136,9 +131,6 @@ struct ForwardObjectLazyInitKIRTests {
         #expect(sawPGuard)
     }
 
-    /// Control for the KUU-2945 guard refinement: a genuine member read
-    /// (`O.x`) still observes `O`'s state, so the owner lazy-init guard is
-    /// still emitted for non-nominal member targets.
     @Test
     func objectMemberReadStillEmitsOwnerLazyInit() throws {
         let source = """

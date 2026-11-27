@@ -5,12 +5,8 @@
 import Foundation
 import Testing
 
-/// Regression probes for the malformed IR that was exposed when the LLVM pass
-/// pipeline first ran against the bundled standard library.
 @Suite
 struct LLVMOptimizationRegressionTests {
-    /// KUU-2030: runtime-owned Locale handles retain nominal identity after
-    /// erasure, through both stdlib representations at O0 and O2.
     @Test
     func localeRuntimeTypeIdentitySurvivesErasure() throws {
         let source = try diffCaseSource("locale_runtime_type_identity.kt")
@@ -59,8 +55,6 @@ struct LLVMOptimizationRegressionTests {
         }
     }
 
-    /// KUU-1981: preserve the original inline lambda, function reference, and
-    /// exception paths through both stdlib representations at O0 and O2.
     @Test
     func measureTimeDurationKeepsValidBlocksAndPropagatesExceptions() throws {
         let source = try diffCaseSource("measure_time_duration.kt")
@@ -143,7 +137,6 @@ struct LLVMOptimizationRegressionTests {
         )
     }
 
-    /// KUU-2399: source-injected O2 codegen for the kt4152 property fixture must emit valid LLVM IR.
     @Test
     func topLevelPropertyIncrementCompilesWithSourceStdlibAtO2() throws {
         let source = """
@@ -200,7 +193,6 @@ struct LLVMOptimizationRegressionTests {
         }
     }
 
-    /// KUU-2241: function-value invokes and curried bodies must keep valid arity-specific LLVM ABIs.
     @Test
     func highArityFunctionInvokesAndCurryBodiesEmitValidLLVMAtO0AndO2() throws {
         let arities = [5, 6, 7, 8, 14]
@@ -243,8 +235,6 @@ struct LLVMOptimizationRegressionTests {
         }
     }
 
-    /// KUU-2402: source stdlib O2 must keep FunctionN.invoke call arities valid
-    /// when a generic result is discarded by a Unit lambda.
     @Test
     func kuu2402SourceAndArtifactO2PreserveGenericUnitLambdaResult() throws {
         let arityChecks = (0...22).map { arity -> (declaration: String, call: String, expected: String) in

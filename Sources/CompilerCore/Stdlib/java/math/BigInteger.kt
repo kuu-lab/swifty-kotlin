@@ -191,10 +191,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
         return BigInteger(left)
     }
 
-    /**
-     * Shifts exactly, reversing direction for negative distances.
-     * Results outside (-2^Int.MAX_VALUE, 2^Int.MAX_VALUE) throw ArithmeticException.
-     */
     public fun shiftLeft(n: Int): BigInteger {
         if (n == 0 || decimalValue == "0") {
             return this
@@ -214,7 +210,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
                 length = halveDecimalMagnitude(digits, length)
                 remaining--
             }
-            // Arithmetic right shifts round negative values toward negative infinity.
             if (negative && discarded) {
                 var index = 0
                 while (index < length && digits[index] == 9) {
@@ -238,8 +233,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
             return BigInteger(result)
         }
 
-        // Four bits per decimal digit is a safe upper bound. Only values near
-        // the supported boundary need an exact magnitude bit-length calculation.
         if (n.toLong() + (decimalValue.length - start).toLong() * 4L > Int.MAX_VALUE.toLong()) {
             val digits = decimalMagnitudeDigits(decimalValue, start)
             var length = decimalValue.length - start
@@ -334,7 +327,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
         return count
     }
 
-    // Java exposes getLowestSetBit() as the lowestSetBit property to Kotlin callers.
     public val lowestSetBit: Int
         get() = getLowestSetBit()
 
@@ -403,7 +395,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
         if (certainty <= 0) {
             return true
         }
-        // The JVM reports primality of the absolute value.
         val n = abs()
         if (n.compareTo(TWO) < 0) {
             return false
@@ -420,7 +411,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
             }
             index++
         }
-        // Any composite below 41^2 has a factor in the sieved primes.
         if (n.compareTo(valueOf(1681L)) < 0) {
             return true
         }
@@ -629,7 +619,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
     public override fun equals(other: Any?): Boolean {
         if (other !is BigInteger) return false
         val that = other as BigInteger
-        // All construction paths produce canonical signed decimal strings.
         return decimalValue == that.decimalValue
     }
 
@@ -654,7 +643,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
             digitIndex++
         }
 
-        // Java BigInteger hashes magnitude words from most significant to least.
         var hash = 0
         var wordIndex = wordCount - 1
         while (wordIndex >= 0) {
@@ -714,7 +702,6 @@ public class BigInteger : Number(), Comparable<BigInteger> {
     }
 }
 
-// Little-endian decimal digits, with one spare slot for negative right-shift rounding.
 private fun decimalMagnitudeDigits(value: String, start: Int): IntArray {
     val length = value.length - start
     val digits = IntArray(length + 1)

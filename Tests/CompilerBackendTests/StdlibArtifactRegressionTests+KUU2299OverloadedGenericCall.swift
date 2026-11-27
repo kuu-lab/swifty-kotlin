@@ -6,8 +6,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2299: outer expected result types contextualize returned lambdas
-    /// through top-level and receiver-extension generic overloads.
     @Test(arguments: [false, true], [0, 2])
     func testOverloadedGenericCallPropagatesExpectedResultToNestedLambda(
         useArtifact: Bool,

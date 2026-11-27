@@ -11,7 +11,6 @@ import java.awt.Point
 import java.awt.event.ActionListener
 import java.awt.image.BufferedImage
 
-/** `javax.swing.SwingConstants` — shared alignment/direction constants. */
 public interface SwingConstants {
     public companion object {
         public const val CENTER: Int = 0
@@ -36,7 +35,6 @@ public interface SwingConstants {
     }
 }
 
-/** `javax.swing.WindowConstants`. */
 public interface WindowConstants {
     public companion object {
         public const val DO_NOTHING_ON_CLOSE: Int = 0
@@ -46,7 +44,6 @@ public interface WindowConstants {
     }
 }
 
-/** `javax.swing.JComponent` — base for Swing widgets. */
 public abstract class JComponent : Container() {
     public var toolTipText: String? = null
     public var border: Any? = null
@@ -67,7 +64,6 @@ public abstract class JComponent : Container() {
     }
 }
 
-/** `javax.swing.JPanel`. */
 public open class JPanel : JComponent() {
     public constructor()
     public constructor(isDoubleBuffered: Boolean) : this()
@@ -76,7 +72,6 @@ public open class JPanel : JComponent() {
         "javax.swing.JPanel[panel,${getX()},${getY()},${getWidth()}x${getHeight()}]"
 }
 
-/** `javax.swing.JLabel`. */
 public open class JLabel : JComponent(), SwingConstants {
     public var text: String
     public var icon: Any? = null
@@ -103,7 +98,6 @@ public open class JLabel : JComponent(), SwingConstants {
     override fun toString(): String = "javax.swing.JLabel[label,$text]"
 }
 
-/** `javax.swing.JComponent`-derived button with an action listener set. */
 public open class AbstractButton : JComponent() {
     public var text: String = ""
     private val actionListeners = mutableListOf<ActionListener>()
@@ -122,7 +116,6 @@ public open class AbstractButton : JComponent() {
     }
 }
 
-/** `javax.swing.JButton`. */
 public open class JButton : AbstractButton {
     public constructor()
     public constructor(text: String?) {
@@ -131,7 +124,6 @@ public open class JButton : AbstractButton {
 
 }
 
-/** `javax.swing.JFrame` — top-level Swing window. */
 public open class JFrame : Frame, WindowConstants {
     public var defaultCloseOperation: Int = WindowConstants.HIDE_ON_CLOSE
         set(value) {
@@ -170,11 +162,7 @@ public open class JFrame : Frame, WindowConstants {
         "javax.swing.JFrame[frame${hashCode() and 0xffff},${getX()},${getY()},${getWidth()}x${getHeight()},title=$title]"
 }
 
-/** `javax.swing.SwingUtilities`. */
 public object SwingUtilities {
-    /** Runs the runnable immediately — there is no separate event-dispatch
-     * thread in the compatibility implementation, so `invokeLater` executes
-     * inline and `invokeAndWait` is identical. */
     public fun invokeLater(runnable: Runnable) = runnable.run()
 
     public fun invokeAndWait(runnable: Runnable) = runnable.run()
@@ -201,7 +189,6 @@ public object SwingUtilities {
     public fun updateComponentTreeUI(c: Component?) = Unit
 }
 
-/** `javax.swing.ImageIcon` — wraps an image for labels/buttons. */
 public open class ImageIcon {
     public var image: java.awt.Image? = null
     public val iconWidth: Int get() = image?.width ?: -1
@@ -215,9 +202,6 @@ public open class ImageIcon {
 
 }
 
-/** `javax.swing.Timer` — fires an action listener after a delay. The
- * compatibility implementation supports `start`/`stop`/`isRunning` and
- * immediate (non-scheduled) repeats via [doClick]-style invocation. */
 public open class Timer(private val delay: Int, private val listener: ActionListener) {
     private var running = false
     private var repeats = true

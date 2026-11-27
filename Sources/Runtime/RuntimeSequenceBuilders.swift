@@ -56,10 +56,6 @@ public func __kk_sequence_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
         builder.elements.append(value)
         return 0
     }
-    // STDLIB-331/564: yield() is shared across sequence/iterator builders.
-    // When the builder handle is a RuntimeIteratorBuilderBox, delegate to
-    // the continuation-based yield. CPS producers return COROUTINE_SUSPENDED;
-    // legacy producers block until the consumer requests the next element.
     if runtimeIteratorBuilderBox(from: builderRaw) != nil {
         return __kk_iterator_builder_yield(builderRaw, value)
     }
@@ -100,8 +96,6 @@ public func __kk_sequence_builder_yieldAll_checked(
             return proxy.coroutine.yieldAll(iterator, outThrown: outThrown)
         }
 
-        // Iterable ranges need an iterator before delegating to a legacy builder
-        // box. Their handles are objects, not scalar Int/Long values.
         if runtimeRangeBox(from: collectionRaw) != nil,
            runtimeSequenceBuilderBox(from: builderRaw) != nil
         {
@@ -135,12 +129,9 @@ public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: I
     if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
         var thrown = 0
         let result = __kk_sequence_builder_yieldAll_checked(builderRaw, collectionRaw, &thrown)
-        // This retained ABI has no thrown slot. Preserve the delegated failure
-        // for the sequence consumer, as the legacy coroutine builder did.
         proxy.coroutine.recordFailure(thrown)
         return result
     }
-    // Legacy direct builder boxes retain their materialized representation.
     guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_builder_yieldAll received invalid builder handle")
     }
@@ -161,9 +152,6 @@ public func __kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: I
 
 @_cdecl("__kk_sequence_builder_build")
 public func __kk_sequence_builder_build(_ fnPtr: Int, _ closureRaw: Int = 0) -> Int {
-    // STDLIB-563: Legacy direct ABI path. Non-CPS callbacks still run on a
-    // dedicated producer thread; compiler-generated builders use
-    // __kk_sequence_builder_build_coro instead.
     let coroutine = RuntimeSequenceCoroutine(fnPtr: fnPtr, closureRaw: closureRaw)
     let seq = RuntimeSequenceBox(steps: [.lazyBuilder(coroutine: coroutine)])
     return registerRuntimeObject(seq)
@@ -180,10 +168,6 @@ public func __kk_sequence_builder_build_coro(_ entryPointRaw: Int, _ functionID:
     let seq = RuntimeSequenceBox(steps: [.lazyBuilder(coroutine: coroutine)])
     return registerRuntimeObject(seq)
 }
-
-// Continuation-based lazy iteration. The legacy direct ABI path uses a
-// dedicated producer thread; compiler-generated builders use the CPS entry
-// point below.
 
 func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
@@ -213,8 +197,6 @@ public func __kk_iterator_builder_build_coro(_ entryPointRaw: Int, _ functionID:
 @_cdecl("__kk_iterator_builder_yield")
 public func __kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
     guard let builder = runtimeIteratorBuilderBox(from: builderRaw) else {
-        // Fall back: the handle might be a RuntimeSequenceBuilderBox when yield
-        // is shared between sequence/iterator builders in older lowering paths.
         if let seqBuilder = runtimeSequenceBuilderBox(from: builderRaw) {
             seqBuilder.elements.append(value)
             return 0
@@ -226,8 +208,6 @@ public func __kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int 
 
 @_cdecl("__kk_iterator_builder_hasNext")
 public func __kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
-    // Support both RuntimeIteratorBuilderBox and RuntimeListIteratorBox
-    // for backwards compatibility with older lowering paths.
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
         return iter.probeHasNext() ? 1 : 0
     }
@@ -242,7 +222,6 @@ public func __kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
         return iter.consumeNext()
     }
-    // Backwards compatibility: older lowering paths may pass a RuntimeListIteratorBox.
     if let iter = runtimeListIteratorBox(from: iterRaw) {
         guard iter.index < iter.values.count else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")

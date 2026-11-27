@@ -1,7 +1,4 @@
 
-/// `kotlin.concurrent.atomics.AtomicNativePtr` is kept apart from the rest of
-/// the Atomic family since it depends on `kotlinx.cinterop` and may
-/// reclassify independently of the pure-Kotlin atomic surface.
 extension DataFlowSemaPhase {
     func registerAtomicNativePtrSurface(
         packageFQName: [InternedString],

@@ -57,7 +57,6 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Inspect errors at the call sites.
             }
 
             let diagnostics = context.diagnostics.diagnostics.filter {

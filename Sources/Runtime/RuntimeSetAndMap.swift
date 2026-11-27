@@ -49,8 +49,6 @@ public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(set, typeID: linkedHashSetRuntimeTypeID)
 }
 
-/// HashSet constructor storage. Keep ordinary Set factories on the shared Set
-/// identity; HashSet constructors need their own nominal tag for `is` checks.
 @_cdecl("__kk_hash_set_of")
 public func kk_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -63,15 +61,12 @@ public func kk_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
-/// HashSet's capacity is a storage hint. Validate constructor arguments before
-/// allocating the same nominally tagged set used by the zero-argument form.
 @_cdecl("__kk_hash_set_new_checked")
 public func kk_hash_set_new_checked(
     _ capacity: Int,
     _ loadFactorBits: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    // The compiler's runtime ABI transports Float arguments as raw Int words.
     let loadFactor = Float(bitPattern: UInt32(truncatingIfNeeded: loadFactorBits))
     return runtimeThrowingBridge(outThrown) {
         guard capacity >= 0 else {
@@ -84,11 +79,6 @@ public func kk_hash_set_new_checked(
     }
 }
 
-/// BUG-254: storage for the mutable set factories (`mutableSetOf`,
-/// `linkedSetOf`) and the `LinkedHashSet()` / `LinkedHashSet(capacity)`
-/// constructors. `__kk_set_of` stays on the read-only `Set` identity because it
-/// is shared with `setOf`, so these callers need their own nominal tag for
-/// `is MutableSet<*>` / `is LinkedHashSet<*>` to answer true.
 @_cdecl("__kk_linked_hash_set_of")
 public func kk_linked_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -101,9 +91,6 @@ public func kk_linked_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
-/// `setOfNotNull(*elements)` — the vararg overload. JVM `filterNotNullTo`
-/// targets a fresh `LinkedHashSet` for any supplied count, so `is MutableSet`
-/// answers true even when filtering leaves zero or one element (KUU-4144).
 @_cdecl("__kk_set_of_not_null")
 public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -118,11 +105,6 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
-/// Single-element `setOfNotNull(element)` overload: null maps to the shared
-/// `EmptySet`, a non-null element to the unmodifiable `Collections.singleton`
-/// identity — the same shape `__kk_set_of` produces for `count == 1`.
-/// Keeping the two JVM overloads on separate callees preserves the
-/// singleton/empty-vs-LinkedHashSet identity split (KUU-4144).
 @_cdecl("__kk_set_of_not_null_single")
 public func kk_set_of_not_null_single(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -139,7 +121,6 @@ public func kk_set_of_not_null_single(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(set)
 }
 
-// Kotlin exposes emptySet() as a shared immutable instance.
 let emptySetSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeSetBox(elements: []))
     runtimeSetBox(from: raw)?.freeze()
@@ -151,9 +132,6 @@ public func kk_emptySet() -> Int {
     return emptySetSingletonRaw
 }
 
-// BUG-196: Source-backed LinkedHashSet instances (and user subclasses) are
-// allocated as ordinary RuntimeObjectBox objects. Attach a backing RuntimeSetBox
-// during construction so MutableSet member calls operate on real storage.
 @_cdecl("__kk_linked_hash_set_init")
 public func kk_linked_hash_set_init(_ setRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw),
@@ -247,9 +225,6 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let array = runtimeArrayBoxExcludingObjects(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
     }
-    // Delegate to sequence collection when the handle is a runtime-backed or
-    // source-implemented Sequence box. This can happen when Collection.toList()
-    // is resolved on a sequence receiver via the synthetic Collection stub.
     if let elements = runtimeSequenceSourceElements(from: collRaw) {
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
@@ -289,11 +264,6 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
 
 @_cdecl("__kk_collection_containsAll")
 public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
-    // Resolve the receiver once: calling kk_op_contains per argument element
-    // would re-run the range/list/set/array handle resolution chain (each
-    // taking the GC lock) m times. List/Array receivers are additionally
-    // hashed once into a Set so each probe is O(1) instead of an O(n)
-    // linear scan — same equality as kk_op_contains via RuntimeElementKey.
     let contains: (Int) -> Int
     if let range = runtimeRangeBox(from: collRaw) {
         contains = { runtimeRangeContains(range, $0) }
@@ -574,13 +544,6 @@ public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: 
     )
 }
 
-/// KUU-556: storage for the `LinkedHashMap()` constructor family and
-/// `linkedMapOf`, both of which are declared to return `LinkedHashMap`.
-/// `LinkedHashMap` is now a real `HashMap` subclass, so it needs its own
-/// nominal tag for `is LinkedHashMap<*, *>` to answer true and `is HashMap<*,
-/// *>` to also answer true via the `linkedHashMapRuntimeTypeID` -> `hashMapRuntimeTypeID`
-/// edge (mirrors `__kk_linked_hash_set_of` / BUG-254, except Map's runtime
-/// hierarchy makes LinkedHashMap a child of HashMap instead of a sibling).
 @_cdecl("__kk_linked_hash_map_of")
 public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
     runtimeMapOf(
@@ -591,9 +554,6 @@ public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ 
     )
 }
 
-/// The compiler packs spread varargs before calling this bridge.
-/// KUU-646: this is the read-only `mapOf(*pairs)` tag; mutable factories use
-/// the HashMap / LinkedHashMap pair variants below.
 @_cdecl("__kk_map_of_pairs")
 public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
     // JVM `mapOf(vararg pairs)` is a `LinkedHashMap` for every non-empty
@@ -617,8 +577,6 @@ public func kk_linked_hash_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> I
     runtimeMapOfPairs(pairsArrayRaw: pairsArrayRaw, count: count, typeID: linkedHashMapRuntimeTypeID)
 }
 
-// Kotlin exposes emptyMap() as a shared immutable instance. Keep the
-// read-only `Map` tag so `as MutableMap` fails the way listOf/setOf casts do.
 let emptyMapSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeMapBox(keys: [], values: []), typeID: mapRuntimeTypeID)
     runtimeMapBox(from: raw)?.freeze()
@@ -661,7 +619,6 @@ private func runtimeMutableMapPut(
         if runtimeThrowIfReadOnlyMap(map, outThrown) {
             return runtimeNullSentinelInt
         }
-        // Identity maps retain boxed reference handles, including boxed Char.
         let runtimeKey = map.usesReferenceEquality ? RuntimeValue(raw: key) : runtimeValueFromCollectionABI(key)
         let runtimeValue = map.usesReferenceEquality ? RuntimeValue(raw: value) : runtimeValueFromCollectionABI(value)
         guard map.acceptsInsertion(rawKey: runtimeKey.legacyRawValue) else {
@@ -750,8 +707,6 @@ private func runtimeCopySourceMapEntries(
             runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "MutableMap.putAll dispatch")
         }
     }
-    // Runtime map boxes have no Kotlin itable. Source Map/Entry inputs do;
-    // use their getter slots instead of assuming entries are runtime pairs.
     guard let entries = runtimeSourceInterfaceCall0(
         source,
         interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.Map"),
@@ -818,15 +773,10 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let value = map.runtimeValue(at: index) else {
         return runtimeNullSentinelInt
     }
-    // KUU-4500: an access-order LinkedHashMap moves the touched entry to the
-    // tail, like the JDK's afterNodeAccess. No-op for ordinary boxes.
     map.recordAccess(at: index)
     return runtimeCollectionABIValue(value)
 }
 
-/// Marks a LinkedHashMap box as access-ordered (`LinkedHashMap(capacity,
-/// loadFactor, accessOrder=true)`). A separate setter keeps the existing
-/// `__kk_linked_hash_map_of` factory signature unchanged.
 @_cdecl("__kk_map_set_access_order")
 public func kk_map_set_access_order(_ mapRaw: Int, _ accessOrder: Int) -> Int {
     if accessOrder != 0 {
@@ -841,8 +791,6 @@ public func kk_map_contains_key(_ mapRaw: Int, _ key: Int) -> Int {
         if let sourceResult = runtimeSourceMapContainsKey(mapRaw, key: key) {
             return sourceResult
         }
-        // The implementation left containsKey on its interface default: fall
-        // back to `keys.contains(key)`, matching the stdlib extension.
         return kk_op_contains(kk_map_keys(mapRaw), key)
     }
     return map.index(ofRawKey: key) != nil ? 1 : 0
@@ -854,8 +802,6 @@ public func kk_map_contains_value(_ mapRaw: Int, _ value: Int) -> Int {
         if let sourceResult = runtimeSourceMapContainsValue(mapRaw, value: value) {
             return sourceResult
         }
-        // Mirror the stdlib extension's `values.contains(value)` fallback when
-        // the implementation does not override containsValue.
         return kk_op_contains(kk_map_values(mapRaw), value)
     }
     return map.values.contains(where: { map.valuesEqual($0, value) }) ? 1 : 0
@@ -879,9 +825,6 @@ private func runtimeMapDefaultValue(_ map: RuntimeMapBox, key: Int, outThrown: U
     return result
 }
 
-/// Returns the `withDefault` value for `key`, or the null sentinel when the map
-/// carries no default. Kotlin's `Map.getValue` consults this after a plain
-/// lookup miss (KSP-431).
 @_cdecl("__kk_map_implicit_default")
 public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -983,19 +926,11 @@ public func kk_map_keys(_ mapRaw: Int) -> Int {
         return runtimeSourceMapKeys(mapRaw)
             ?? registerRuntimeObject(RuntimeSetBox(elements: []))
     }
-    // MutableMap.keys is a mutable, write-through view (mirrors .entries
-    // above): removing through it removes the key from the map, and later
-    // map mutations are visible through this same set handle.
     let view = RuntimeSetBox(mapKeysOf: mapRaw)
     if map.sorted {
-        // KUU-1361: java.util.TreeMap.keySet() is a NavigableSet — the view
-        // already iterates in key order, so enabling sorted state makes the
-        // navigable members correct too.
         view.enableSorted(comparatorRaw: map.comparatorRaw, invertCompare: map.invertCompare)
         return registerRuntimeObject(view, typeID: navigableSetRuntimeTypeID)
     }
-    // Same `is MutableSet` split as `.entries` above: `java.util.*Map$KeySet`
-    // views are mutable impls, `emptyMap().keys` is `EmptySet` (KUU-4144).
     return registerRuntimeObject(
         view,
         typeID: mapRaw == emptyMapSingletonRaw ? setRuntimeTypeID : mutableMapViewSetRuntimeTypeID
@@ -1008,9 +943,6 @@ public func kk_map_values(_ mapRaw: Int) -> Int {
         return runtimeSourceMapValues(mapRaw)
             ?? registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    // JDK `Collections$SingletonMap.values` is a `Collections$SingletonSet` —
-    // a Set impl answering `is Set` true. A frozen snapshot keeps the same
-    // shape as `setOf(v)` since the singleton map can never change (KUU-4144).
     if map.count == 1,
        runtimeObjectTypeID(rawValue: mapRaw) == mapRuntimeTypeID,
        map.isEffectivelyReadOnly,
@@ -1020,11 +952,6 @@ public func kk_map_values(_ mapRaw: Int) -> Int {
         view.freeze()
         return registerRuntimeObject(view)
     }
-    // MutableMap.values is a mutable, write-through view (mirrors .entries
-    // / .keys above): removing through it removes the corresponding
-    // key/value pair from the map. JVM `*Map$*Values` impls are
-    // `AbstractCollection`s — mutable collections, not lists — while
-    // `emptyMap().values` shares `EmptyList` (KUU-4144).
     return registerRuntimeObject(
         RuntimeListBox(mapValuesOf: mapRaw),
         typeID: mapRaw == emptyMapSingletonRaw ? listRuntimeTypeID : mutableMapViewCollectionRuntimeTypeID
@@ -1045,14 +972,11 @@ public func kk_map_iterator_hasNext(_ iterRaw: Int) -> Int {
     return iter.index < iter.keys.count ? 1 : 0
 }
 
-/// Returns the key at the current position, matching the C preamble behavior.
 @_cdecl("__kk_map_iterator_next")
 public func kk_map_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    // Exhaustion returns 0 while concurrent modification returns
-    // runtimeExceptionCaughtSentinel, so the error writes stay manual.
     runtimeThrowingBridge(outThrown) {
         guard let iter = runtimeMapIteratorBox(from: iterRaw),
               iter.index < iter.keys.count
@@ -1090,8 +1014,6 @@ public func kk_mutable_map_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    // Exhaustion returns 0 while concurrent modification returns
-    // runtimeExceptionCaughtSentinel, so the error writes stay manual.
     runtimeThrowingBridge(outThrown) {
         guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
               iter.index < iter.keys.count
@@ -1117,9 +1039,6 @@ public func kk_mutable_map_iterator_next(
         }
         return runtimeMutableMapEntryNew(
             mapRaw: iter.mapRaw,
-            // `keyValues` is the view's projected order, while `storageIndex`
-            // may refer to the backing map's storage position. The iterator
-            // snapshot preserves the corresponding view index.
             key: iter.keyValues[iter.index - 1],
             value: value
         )
@@ -1131,8 +1050,6 @@ public func kk_mutable_map_iterator_remove(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    // Reads `outThrown` mid-function after the nested remove call, so the
-    // error writes stay manual inside the bridge closure.
     runtimeThrowingBridge(outThrown) {
         guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
               let key = iter.lastKey

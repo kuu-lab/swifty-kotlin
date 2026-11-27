@@ -121,8 +121,6 @@ struct IOBufferContractsExecutionTests {
         }
         var successfulChecksFinished = false
         defer {
-            // The producer is removed by owned successful cleanup below.
-            // Failed compile/run/check paths retain it and still check its hashes.
             if !successfulChecksFinished { producer?.expectUnchanged() }
         }
         let inputPaths = producerLibrary ? [staged.consumer.path] : staged.producer.map(\.path) + [staged.consumer.path]
@@ -158,8 +156,6 @@ struct IOBufferContractsExecutionTests {
         try producer?.requireUnchanged()
         try #require(BundledStdlib.manifestHash() == sourceManifest)
         successfulChecksFinished = true
-        // Failures preserve the entire UUID directory. Successes retain raw
-        // output and all generated hashes before removing only owned artifacts.
         try io1729CleanupSuccessful(
             directory: directory, executable: executable, executableHash: executableHash,
             receiptBase: receiptBase, stdout: Data(result.stdout.utf8), expected: staged.expected,
@@ -193,8 +189,6 @@ private func io1729ArtifactHashes(_ directory: URL) throws -> [String: String] {
     return hashes
 }
 
-// Same ownership/proof-before-cleanup policy as the staged KUU1767 helper;
-// actual timeout is 30s here and raw stdout/stderr remain outside the UUID tree.
 private func io1729CleanupSuccessful(
     directory: URL, executable: URL, executableHash: String, receiptBase: URL,
     stdout: Data, expected: Data, lane: String, stdlib: IOBufferArtifactSnapshot?,
@@ -284,7 +278,6 @@ private func io1729RunKeepingFailureEvidence(
             try JSONSerialization.data(withJSONObject: proof, options: [.prettyPrinted, .sortedKeys])
                 .write(to: receiptBase.appendingPathExtension("failure.json"), options: .atomic)
         } catch {
-            // Receipt IO failure must not replace the native/runner failure.
             Issue.record("Unable to persist KUU1729 failure evidence: \(error)")
         }
         throw runError

@@ -5,18 +5,6 @@
 import Foundation
 import Testing
 
-/// RF-LOWER-CALL-012: end-to-end counterpart of `MapHOFLoweringRoutingTests`.
-///
-/// The IR tests pin that neither the source nor the artifact stdlib path
-/// redirects a resolved Map HOF declaration to a legacy `kk_map_*` export —
-/// none of which has a `@_cdecl` in `Sources/Runtime` any more, so a redirect
-/// would fail at link time rather than produce a wrong answer. The execution
-/// tests make the duplicate-key, insertion-order, List-vs-Map return
-/// classification, and lambda-exception contracts blocking instead of only
-/// covered by the `continue-on-error` `diff_kotlinc.sh` CI step
-/// (`Scripts/diff_cases/map_hof.kt` and friends).
-///
-/// Expected outputs were taken from kotlinc 2.x on the same sources.
 @Suite
 struct CodegenBackendMapHOFTests {
     /// The legacy `kk_map_*` HOF ABI surface, in LLVM IR call / declaration
@@ -63,10 +51,6 @@ struct CodegenBackendMapHOFTests {
         return try String(contentsOfFile: llvmPath, encoding: .utf8)
     }
 
-    // MARK: - no redirect to the legacy runtime exports
-
-    /// Artifact path: explicitly select the shared precompiled `.kklib`
-    /// so this test exercises imported stdlib symbols.
     @Test
     func mapHOFKeepSourceCalleesThroughStdlibArtifact() throws {
         try withTemporaryFile(contents: Self.allFamiliesSource) { path in
@@ -87,7 +71,6 @@ struct CodegenBackendMapHOFTests {
         }
     }
 
-    /// Source path: the bundled stdlib is compiled alongside the module.
     @Test
     func mapHOFKeepSourceCalleesWithStdlibFromSource() throws {
         try withTemporaryFile(contents: Self.allFamiliesSource) { path in
@@ -106,12 +89,6 @@ struct CodegenBackendMapHOFTests {
         }
     }
 
-    // MARK: - execution contracts
-
-    /// Duplicate transformed keys in `mapKeys`: last write wins, matching
-    /// `LinkedHashMap` put semantics. `11 to "eleven"` and `1 to "one"` both
-    /// transform to key `1`; the later source entry (`1 to "one"`) is the one
-    /// that survives, overwriting the value from `11 to "eleven"`.
     @Test
     func mapKeysCollapsesDuplicateTransformedKeysKeepingTheLastWrite() throws {
         let source = """
@@ -133,9 +110,6 @@ struct CodegenBackendMapHOFTests {
         )
     }
 
-    /// Insertion order survives `filterKeys` / `filterValues` / `mapValues`:
-    /// the surviving entries keep the receiver's original iteration order,
-    /// not sorted or reversed.
     @Test
     func filterAndTransformPreserveInsertionOrder() throws {
         let source = """
@@ -158,10 +132,6 @@ struct CodegenBackendMapHOFTests {
         )
     }
 
-    /// `map` / `flatMap` return a `List` in receiver iteration order, and
-    /// `filter` / `mapValues` / `mapKeys` return a `Map` — the classification
-    /// this Lowering pass' `+PreScan.swift` seeding (not the deleted rewrite
-    /// branch) is responsible for keeping correct downstream.
     @Test
     func mapAndFlatMapReturnListsInIterationOrderWhileFilterAndTransformReturnMaps() throws {
         let source = """
@@ -194,9 +164,6 @@ struct CodegenBackendMapHOFTests {
         )
     }
 
-    /// A lambda exception thrown from inside `mapValues` / `filter` must
-    /// propagate out of the call as a normal catchable exception, not be
-    /// swallowed or turned into a different failure mode.
     @Test
     func lambdaExceptionsPropagateOutOfMapValuesAndFilter() throws {
         let source = """

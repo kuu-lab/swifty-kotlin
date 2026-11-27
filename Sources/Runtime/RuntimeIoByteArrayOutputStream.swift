@@ -1,7 +1,5 @@
 import Foundation
 
-/// Snapshots never share mutable storage; close/flush are no-ops as specified
-/// for ByteArrayOutputStream.
 final class RuntimeByteArrayOutputStreamSink: RuntimeOutputStreamSink {
     private(set) var bytes = Data()
     init(capacity: Int) { bytes.reserveCapacity(capacity) }

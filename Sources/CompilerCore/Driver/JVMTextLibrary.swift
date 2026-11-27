@@ -29,8 +29,9 @@ extension JVMProgramBuilder {
             func durationPhysical(_ type: JVMValueType) -> JVMValueType {
                 type.referenceName == "kotlin/time/Duration" && !type.isNullable ? .long : type
             }
-            let parameters = owner == "kotlin/time/Duration" ? signatureParameters.map(durationPhysical) : signatureParameters
-            let result = owner == "kotlin/time/Duration" ? durationPhysical(signatureResult) : signatureResult
+            let mapsDurationValues = owner == "kotlin/time/Duration" || owner == "kotlin/time/Duration$Companion"
+            let parameters = mapsDurationValues ? signatureParameters.map(durationPhysical) : signatureParameters
+            let result = mapsDurationValues ? durationPhysical(signatureResult) : signatureResult
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
@@ -58,7 +59,14 @@ extension JVMProgramBuilder {
                 let name = context.interner.resolve(f.name)
                 if owner == "java/util/Map", name == "set" { continue }
                 let aliases = ["get": "charAt", "set": "setCharAt", "deleteAt": "deleteCharAt", "deleteRange": "delete", "setRange": "replace"]
-                try method(symbol, owner: owner, name: owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
+                let durationCompanionNames = [
+                    "parse": "parse-UwyO8pc",
+                    "parseIsoString": "parseIsoString-UwyO8pc",
+                    "parseOrNull": "parseOrNull-FghU774",
+                    "parseIsoStringOrNull": "parseIsoStringOrNull-FghU774",
+                ]
+                let methodName = owner == "kotlin/time/Duration$Companion" ? durationCompanionNames[name] ?? name : owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name
+                try method(symbol, owner: owner, name: methodName, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
             }
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }
@@ -271,6 +279,14 @@ extension JVMProgramBuilder {
             ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
+            if path == "<kswiftk-jvm>/grouping.kt" {
+                // Inline Grouping helpers (e.g. foldTo) call sourceIterator/keyOf
+                // on kotlin.collections.Grouping, so bind its interface members.
+                try visit(file.topLevelDecls.filter { id in
+                    if case .interfaceDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
                 for id in file.topLevelDecls {
                     guard case let .funDecl(declaration) = ast.arena.decl(id),
@@ -288,7 +304,13 @@ extension JVMProgramBuilder {
                         guard case let .propertyDecl(property) = ast.arena.decl(member),
                               let symbol = sema.bindings.declSymbol(for: member),
                               let valueType = sema.symbols.propertyType(for: symbol) else { continue }
-                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: context.interner.resolve(property.name), type: try type(valueType), access: 0x19)
+                        let propertyName = context.interner.resolve(property.name)
+                        if propertyName.hasPrefix("UTF_32") {
+                            // JDK StandardCharsets has no UTF_32 fields; resolve via Charset.forName.
+                            textLibraryCharsetNames[symbol] = propertyName.replacingOccurrences(of: "_", with: "-")
+                            continue
+                        }
+                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: propertyName, type: try type(valueType), access: 0x19)
                     }
                 }
             }
@@ -298,12 +320,18 @@ extension JVMProgramBuilder {
                     return false
                 }, path: path)
                 for id in file.topLevelDecls {
-                    guard case let .funDecl(declaration) = ast.arena.decl(id),
-                          ["component1", "component2"].contains(context.interner.resolve(declaration.name))
-                    else { continue }
-                    try registerMapEntryComponent(id)
+                    guard case let .funDecl(declaration) = ast.arena.decl(id) else { continue }
+                    if ["component1", "component2"].contains(context.interner.resolve(declaration.name)) {
+                        try registerMapEntryComponent(id)
+                    }
+                    if declaration.isInline,
+                       declaration.receiverType != nil,
+                       context.interner.resolve(declaration.name) == "remove",
+                       let symbol = sema.bindings.declSymbol(for: id) {
+                        inlineDeclarations[symbol] = declaration
+                    }
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "setOfNotNull", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }
@@ -412,6 +440,18 @@ extension JVMFunctionBuilder {
             let unit = try value(unitType)
             instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
+        }
+        if let charsetName = program.textLibraryCharsetNames[symbol] {
+            // A receiver that is a value expression (e.g. `loadCharsets().UTF_32`)
+            // still has to run for its side effects; a plain `Charsets` type
+            // reference has nothing to evaluate.
+            if let receiver {
+                let target = program.sema.bindings.identifierSymbol(for: receiver).flatMap { program.sema.symbols.symbol($0) }
+                let isTypeReference = target.map { $0.kind == .object && $0.fqName.map(context.interner.resolve) == ["kotlin", "text", "Charsets"] } ?? false
+                if !isTypeReference { _ = try requireValue(receiver) }
+            }
+            let name = try constant(.string(charsetName), .string)
+            return try jdkCall("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), arguments: [name], resolved: program.expressionType(id))
         }
         // kotlin.math.absoluteValue is @InlineOnly in kotlin-stdlib, so its facade
         // getter is private. Lower it to java.lang.Math.abs like the abs() function.

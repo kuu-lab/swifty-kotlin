@@ -6,9 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.text.Charset
 import kotlin.text.Charsets
 
-// KSP-484: keep file-content access in the runtime, but move line iteration and
-// its empty/trailing-line policy into bundled Kotlin source.
-
 // The private boundary takes an Int CharsetTag. Source wrappers extract it
 // from the public Charset object before invoking this unchanged ABI — the
 // same convention CharsetStreams.kt uses (KUU-4077: previously the Charset
@@ -23,9 +20,6 @@ public fun File.readText(): String =
 public fun File.readText(charset: Charset): String =
     __kkFileReadText(this, charset.tag)
 
-// KUU-4077: `java.nio.file.Files.readAllBytes` already walks the
-// `__kk_io_fs_*` descriptor bridges, so `readBytes` gets whole-file reads
-// (and FileNotFoundException on open failure) without a new runtime entry.
 public fun File.readBytes(): ByteArray =
     Files.readAllBytes(toPath())
 

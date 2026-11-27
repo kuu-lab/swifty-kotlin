@@ -60,9 +60,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferIterableElementFamilySpecial(locals: inout LocalBindings) -> TypeID? {
-        // KSP-970: bind the generic Iterable element family explicitly so a
-        // plain Iterable receiver cannot fall through to the legacy runtime
-        // fallback. List source overloads remain preferred for concrete Lists.
         if !isSequenceReceiver,
            (calleeStr == "elementAt" || calleeStr == "elementAtOrElse" || calleeStr == "elementAtOrNull"),
            (isCollectionReceiver || isIterableReceiver)
@@ -121,7 +118,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         let isMutableListPredicateName = calleeStr == "removeAll" || calleeStr == "retainAll"
         let hasMutableListPredicateArgument = args.count == 1
             && (ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef ?? false)
+        let isJVMSequencedCollectionMember = driver.compilationContext?.options.emit.isJVM == true
+            && (calleeStr == "removeFirst" || calleeStr == "removeLast")
         if isMutableListReceiver,
+           !isJVMSequencedCollectionMember,
            (!isMutableListPredicateName || hasMutableListPredicateArgument),
            [
                "asReversed", "remove", "removeFirst", "removeFirstOrNull",
@@ -240,10 +240,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             } else {
                 sema.types.anyType
             }
-            // KSP-674: resolve to the bundled `Iterable<T>.asFlow()` Kotlin
-            // source (kotlinx.coroutines.flow) when present, so Lowering runs the
-            // real `flow { }`-composed body instead of the removed
-            // `kk_flow_as_flow` bridge. Fall back to type-only binding otherwise.
             let asFlowFQName = [
                 interner.intern("kotlinx"),
                 interner.intern("coroutines"),
@@ -261,9 +257,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                    else {
                        return false
                    }
-                   // Multiple bundled `asFlow` overloads exist (Iterable,
-                   // Sequence, Array, primitive arrays, function types); pick
-                   // the one whose declared receiver fits this call site.
                    return extensionSyntheticFallbackReceiverMatches(
                        callSiteReceiver: receiverType,
                        declaredReceiver: declaredReceiver,
@@ -474,7 +467,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         )
                 } else {
                     bindBundledIterableSourceFunction(
-                        typeArguments: [filterType], enforceTypeParameterCount: true, allowNominalIterableReceiver: true
+                        typeArguments: [filterType],
+                        enforceTypeParameterCount: true,
+                        allowNominalIterableReceiver: true,
+                        allowCollectionReceiver: true
                     )
                 }
                 let ownerFQName = isSequenceReceiver
@@ -487,12 +483,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                        else {
                            return false
                        }
-                       // Bundled Kotlin-source declarations (e.g. List<T>.filter) share
-                       // this fqName with Map/Set/Iterable fallback candidates once their
-                       // synthetic stub is suppressed. Skip a receiver-specific bundled
-                       // declaration when the concrete receiver kind doesn't match it, so
-                       // non-List collection fallbacks (Map.filter, etc.) aren't
-                       // incorrectly bound to the List-only bundled function.
                        if let signatureReceiver = signature.receiverType,
                           sema.symbols.isSourceBackedSymbol(symbolID),
                           receiverClassifier.isConcreteListLikeType(signatureReceiver),
@@ -521,14 +511,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
         {
-            // The destination parameter `C : MutableCollection<in T>` is the
-            // nested call's inference context: an argument-less destination
-            // constructor such as `ArrayDeque()` has no argument of its own
-            // to fix `E`, so it must see the bound as its expected type —
-            // `MutableCollection<in E>` lifted from the receiver element —
-            // the same role the enclosing `C` constraint plays in kotlinc
-            // (KUU-4100). A concrete MutableCollection-subtype expected type
-            // (e.g. `val d: ArrayDeque<Int>`) pins the destination directly.
             let destinationExpectedType = mutableCollectionDestinationExpectedType(
                 argumentExpr: args[0].expr,
                 elementType: resolvedCollectionElementType(
@@ -563,9 +545,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
-            // Let a concrete MutableList result target constrain an empty
-            // destination before treating its provisional Nothing element as
-            // an inference failure.
             let destinationExpectedType: TypeID? = if let expectedType,
                                                         case let .classType(expectedClassType) = sema.types.kind(
                                                             of: sema.types.makeNonNullable(expectedType)
@@ -716,11 +695,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
-            // The destination receives the receiver's non-null element type
-            // (`Iterable<T?>.filterNotNullTo` adds `T`), so an argument-less
-            // destination factory must see `MutableCollection<in T>` as its
-            // expected type — the same `C` bound role as `toCollection`
-            // (KUU-4100), with the element made non-null first.
             let destinationExpectedType = mutableCollectionDestinationExpectedType(
                 argumentExpr: args[0].expr,
                 elementType: sema.types.makeNonNullable(

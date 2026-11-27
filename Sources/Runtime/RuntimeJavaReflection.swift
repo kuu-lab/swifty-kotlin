@@ -500,8 +500,6 @@ public func __kk_class_is_interface(_ classRaw: Int) -> Int {
     if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: javaClass.typeToken) {
         return metadata.isInterface ? 1 : 0
     }
-    // Class boxes without KClass metadata (e.g. produced by Class.forName)
-    // still carry the "interface " marker in their display text.
     return javaClass.displayText.hasPrefix("interface ") ? 1 : 0
 }
 
@@ -512,7 +510,6 @@ public func __kk_class_simple_name(_ classRaw: Int) -> Int {
     }
 
     if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: javaClass.typeToken), metadata.isLocal {
-        // JVM Class.getSimpleName() returns "" for anonymous classes (KUU-3828).
         return runtimeMakeStringRaw(metadata.isAnonymous ? "" : metadata.simpleName)
     }
 
@@ -584,10 +581,6 @@ private func runtimeJavaClassName(_ javaClass: RuntimeJavaClassBox) -> String {
         let qualifiedNameRaw = __kk_type_token_qualified_name(javaClass.typeToken, javaClass.nameHint)
         let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw))
             ?? "java.lang.Object"
-        // KUU-4067: `Class.getName()` reports the JVM binary name — kotlin
-        // standard classes mapped to java.lang/java.util types (Throwable,
-        // Comparable, List, …) print their Java spelling here just like in
-        // `displayText`, while the KClass reflection APIs keep kotlin names.
         return runtimeJavaBinaryName(qualifiedName, metadataDisplayName: nil)
     }
 }
@@ -622,13 +615,6 @@ public func __kk_java_method_is_synthetic(_ methodRaw: Int) -> Int {
     return box.metadata.isSynthetic ? 1 : 0
 }
 
-// MARK: - Class supertype graph (KUU-4067)
-
-/// Bundled builtin interfaces that typically carry no registered KClass
-/// metadata — the compiler emits metadata only for nominal class literals it
-/// visits, while `java.lang.Class.interfaces`/`superclass` must classify
-/// supertypes the JVM way anyway. Mirrors the interface-shaped entries in
-/// `runtimeBuiltinSupertypes` plus the JVM-only markers that show up in them.
 let runtimeJavaInterfaceNominalNames: Set<String> = [
     "kotlin.Annotation",
     "kotlin.CharSequence",
@@ -683,9 +669,6 @@ private let runtimeJavaPrimitiveArrayElementBase: [Int64: Int64] = {
     ]
 }()
 
-/// java.lang wrapper binary names mapped back to their primitive token base
-/// when a `Class` component descriptor ("[Ljava.lang.Integer;") resolves to a
-/// `javaObjectType` handle.
 private let runtimeJavaWrapperPrimitiveBase: [String: Int64] = [
     "java.lang.Boolean": RuntimeTypeTokenEncoding.booleanBase,
     "java.lang.Byte": RuntimeTypeTokenEncoding.byteBase,
@@ -706,8 +689,6 @@ private func runtimeJavaNominalTypeID(_ typeToken: Int) -> Int64? {
     return (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
 }
 
-/// The JVM array descriptor ("[I", "[Ljava.lang.String;") carried by
-/// instance-backed array class handles, or nil for plain class tokens.
 private func runtimeJavaClassArrayDescriptor(_ box: RuntimeJavaClassBox) -> String? {
     if box.displayText.hasPrefix("class [") {
         return String(box.displayText.dropFirst("class ".count))
@@ -724,10 +705,6 @@ private func runtimeJavaClassIsArray(_ box: RuntimeJavaClassBox) -> Bool {
     return runtimeJavaPrimitiveArrayElementBase[nominalID] != nil
 }
 
-/// JVM `isPrimitive()`: the `javaPrimitiveType` handles render the primitive
-/// keyword ("int") directly; `T::class.java` handles share the same primitive
-/// token (JVM `Int::class.java` *is* `int.class`) unless they are explicit
-/// `javaObjectType` wrapper boxes, which carry a java.lang name override.
 private func runtimeJavaClassModelsPrimitive(_ box: RuntimeJavaClassBox) -> Bool {
     if box.displayText == runtimeJavaPrimitiveClassDisplayText(typeToken: box.typeToken) {
         return true
@@ -756,8 +733,6 @@ private func runtimeJavaClassIsInterfaceKind(_ box: RuntimeJavaClassBox) -> Bool
     return runtimeJavaInterfaceNominalNames.contains(qualifiedName)
 }
 
-/// Strips generic arguments and the trailing `?` from a supertype display
-/// name ("kotlin.Comparable<kotlin.Int>" → "kotlin.Comparable").
 private func runtimeJavaSupertypeBaseName(_ display: String) -> String {
     var base = display.trimmingCharacters(in: .whitespaces)
     if base.hasSuffix("?") { base = String(base.dropLast()) }
@@ -767,11 +742,6 @@ private func runtimeJavaSupertypeBaseName(_ display: String) -> String {
     return base
 }
 
-/// Classifies a supertype display-name base as an interface. Registered
-/// metadata wins; otherwise the curated builtin-interface table decides.
-/// Unresolvable names default to *class* — nominal supertype metadata is
-/// registered transitively at class-literal evaluation, so a lookup miss is
-/// a JVM/builtin name (e.g. a synthesized alias) rather than a user class.
 private func runtimeJavaSupertypeIsInterface(_ baseName: String) -> Bool {
     if let metadata = runtimeKClassMetadataRegistry.lookup(qualifiedName: baseName) {
         return metadata.isInterface
@@ -787,8 +757,6 @@ private func runtimeJavaClassHandle(forSupertypeName baseName: String) -> Int {
     )
 }
 
-/// The direct-supertype display names for a class token: the curated builtin
-/// table first (it already models the JVM shape), then registered metadata.
 private func runtimeJavaDirectSupertypeNames(of box: RuntimeJavaClassBox) -> [String] {
     let qualifiedName = runtimeJavaQualifiedName(typeToken: box.typeToken, nameHint: box.nameHint)
     return runtimeBuiltinSupertypes[qualifiedName]
@@ -805,8 +773,6 @@ public func __kk_class_superclass(_ classRaw: Int) -> Int {
     guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
         runtimeStructuredPanic("invalid Java Class handle")
     }
-    // JVM: arrays extend Object; interfaces, primitives, void, and Object
-    // itself have no superclass.
     if runtimeJavaClassIsArray(box) { return runtimeJavaObjectClassHandle() }
     if runtimeJavaClassModelsPrimitive(box) { return runtimeNullSentinelInt }
     if Int64(truncatingIfNeeded: box.typeToken) & RuntimeTypeTokenEncoding.baseMask
@@ -820,8 +786,6 @@ public func __kk_class_superclass(_ classRaw: Int) -> Int {
         guard !baseName.isEmpty, !runtimeJavaSupertypeIsInterface(baseName) else { continue }
         return runtimeJavaClassHandle(forSupertypeName: baseName)
     }
-    // JVM: every non-interface class without a resolvable superclass record
-    // still extends java.lang.Object.
     return runtimeJavaObjectClassHandle()
 }
 
@@ -832,9 +796,7 @@ public func __kk_class_interfaces(_ classRaw: Int) -> Int {
     }
     var interfaceNames: [String] = []
     if runtimeJavaClassModelsPrimitive(box) {
-        // JVM: primitive class tokens implement no interfaces.
     } else if runtimeJavaClassIsArray(box) {
-        // JVM: every array class implements Cloneable and Serializable.
         interfaceNames = ["kotlin.Cloneable", "java.io.Serializable"]
     } else {
         for display in runtimeJavaDirectSupertypeNames(of: box) {
@@ -885,8 +847,6 @@ public func __kk_class_is_enum(_ classRaw: Int) -> Int {
     return runtimeKClassMetadataRegistry.lookup(typeToken: box.typeToken)?.isEnumClass == true ? 1 : 0
 }
 
-/// The array-class nominal token for a JVM descriptor's component shape:
-/// "[I" → kotlin.IntArray, "[Ljava.lang.String;" → kotlin.Array.
 private func runtimeJavaArrayClassToken(forDescriptor descriptor: String) -> Int {
     let component = descriptor.dropFirst()
     let arrayNominalName: String
@@ -908,9 +868,6 @@ private func runtimeJavaArrayClassToken(forDescriptor descriptor: String) -> Int
     return runtimeNominalTypeToken(runtimeStableNominalTypeID(fqName: arrayNominalName))
 }
 
-/// A Class handle describing one level down from a JVM array descriptor:
-/// "[I" → `int`, "[Ljava.lang.Integer;" → `java.lang.Integer`,
-/// "[[I" → the `int[]` array class.
 private func runtimeJavaComponentClassHandle(forDescriptor descriptor: String) -> Int {
     let component = String(descriptor.dropFirst())
     if component.hasPrefix("[") {
@@ -964,8 +921,6 @@ public func __kk_class_component_type(_ classRaw: Int) -> Int {
         return __kk_kclass_java_primitive_type(__kk_kclass_create(Int(primitiveBase), 0))
     }
     if nominalID == runtimeStableNominalTypeID(fqName: "kotlin.Array") {
-        // `Array<T>::class.java` erases the element type; the only recoverable
-        // component classifier is the erased Object bound.
         return runtimeJavaObjectClassHandle()
     }
     return runtimeNullSentinelInt

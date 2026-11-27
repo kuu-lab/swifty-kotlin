@@ -4,18 +4,8 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// MIGRATION-ATOMIC-ARRAY-001 (KSP-672)
-// The public `*At` boundary layer and index bounds checks for AtomicIntArray /
-// AtomicLongArray are implemented here in Kotlin. Only the raw synchronized core
-// stays in the runtime, reached through the `__kk_atomic_*_array_*` bridges.
 // Bounds checks always use `this.size` (an implicit `size` receiver inside a
 // bundled extension does not bind to the array length).
-// Migration source: Sources/Runtime/RuntimeAtomic.swift
-//   __kk_atomic_int_array_* / __kk_atomic_long_array_*
-// CAS/arithmetic cores (compareAndExchange, fetchAndAdd, addAndFetch) remain
-// runtime bridges. The lambda-driven update operators are CAS retry loops on
-// this layer: fetchAndUpdateAt lives in atomics/AtomicArrayMigration.kt, while
-// updateAt / updateAndFetchAt are defined below (KSP-1103).
 
 @KsSymbolName("__kk_atomic_int_array_load")
 private external fun AtomicIntArray.__kk_load(index: Int): Int

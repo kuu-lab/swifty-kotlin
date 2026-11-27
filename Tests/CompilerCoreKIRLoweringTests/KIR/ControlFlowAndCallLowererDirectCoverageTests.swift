@@ -181,9 +181,6 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
         #expect(!(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema)))
     }
 
-    /// `catch (e: Exception)` must keep its runtime type check: an `Error`
-    /// (e.g. `TODO()`'s NotImplementedError) is a Throwable but not an
-    /// Exception, so only `Throwable` may skip the check as a catch-all.
     @Test func testOnlyThrowableIsCatchAllClassType() {
         let fixture = makeKIRDirectLoweringFixture()
         func classType(_ name: String) -> TypeID {
@@ -299,7 +296,6 @@ struct ControlFlowAndCallLowererDirectCoverageTests {
             return false
         })
 
-        // Keep compiler warnings away for mutable local that needs to be var.
         lowered.instructions.append(.nop)
     }
 

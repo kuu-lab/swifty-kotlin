@@ -77,8 +77,6 @@ package struct ProtoFields {
         }
     }
 
-    // proto2 scalar semantics: last value wins.
-
     /// `int64`/`uint64`; negative `int32`/`int64` values arrive sign-extended.
     package func int64(_ field: Int) -> Int64? {
         varint(field).map { Int64(bitPattern: $0) }
@@ -115,8 +113,6 @@ package struct ProtoFields {
         }
     }
 
-    /// A message holding only `field`'s wire values, re-tagged as
-    /// `newField` — used to decode a renumbered oneof member.
     package func retagged(_ field: Int, as newField: Int) -> ProtoFields {
         var copy = ProtoFields()
         copy.values[newField] = values[field]

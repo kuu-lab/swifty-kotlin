@@ -203,6 +203,13 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmDirectionality",
+    "owner": "java/lang/Character",
+    "name": "getDirectionality",
+    "descriptor": "(C)B",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmIsUpperCase",
     "owner": "java/lang/Character",
     "name": "isUpperCase",
@@ -1267,6 +1274,20 @@
     "kind": "constructor"
   },
   {
+    "symbol": "__jvmUtf8Bytes",
+    "owner": "java/lang/String",
+    "name": "getBytes",
+    "descriptor": "(Ljava/lang/String;)[B",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMalformedInputException",
+    "owner": "java/nio/charset/MalformedInputException",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
     "symbol": "__jvmUnmodifiableSet",
     "owner": "java/util/Collections",
     "name": "unmodifiableSet",
@@ -1353,6 +1374,13 @@
   {
     "symbol": "__jvmNewSetCapacity",
     "owner": "java/util/LinkedHashSet",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmNewHashMapCapacity",
+    "owner": "java/util/HashMap",
     "name": "<init>",
     "descriptor": "(I)V",
     "kind": "constructor"

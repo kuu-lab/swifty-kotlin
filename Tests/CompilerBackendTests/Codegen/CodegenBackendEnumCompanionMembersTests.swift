@@ -4,21 +4,6 @@
 import Foundation
 import Testing
 
-/// BUG-180: user-defined members of an enum's companion object were not
-/// callable as `EnumClass.member()`.
-///
-/// Two independent defects were involved:
-///
-/// 1. `parseEnumBody` checked `isIdentifierLike` before `isDeclarationStart`,
-///    and `isIdentifierLike` accepts keywords -- so `companion object { ... }`
-///    inside an enum body was parsed as an enum *entry* named `companion`
-///    and the companion's members were never collected.
-/// 2. `EnumNameAccessLoweringPass.enumClassAncestor` treated any value
-///    produced by a call to a symbol nested inside an enum class as an enum
-///    ordinal, so `println(EnumClass.f())` for a companion function returning
-///    `Int` was rewritten into an ordinal-to-name conversion and printed an
-///    entry name instead of the number.
-
 @Suite
 struct CodegenBackendEnumCompanionMembersTests {
 
@@ -38,10 +23,6 @@ struct CodegenBackendEnumCompanionMembersTests {
         )
     }
 
-    /// Companion properties/functions of an enum, enum-returning companion
-    /// functions, and the synthetic `values()`/`entries`/`valueOf` members
-    /// must all keep working side by side. A plain `class` companion is
-    /// included as the control case.
     @Test
     func testCodegenEnumCompanionMembersAlongsideSyntheticMembers() throws {
         let source = """
@@ -92,7 +73,5 @@ struct CodegenBackendEnumCompanionMembersTests {
         )
     }
 
-    /// BUG-183: enum entries must be visible without qualification inside the
-    /// enum's companion object (e.g. `A` resolves to `D.A`).
 }
 #endif

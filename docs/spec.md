@@ -1220,6 +1220,7 @@ hard error; the compiler does not fall back to injecting bundled sources.
 
 * public API の “ヘッダ情報” を入れる（型・シグネチャ・vtable slot・field offsets）
 * inline 関数は body を `inline-kir/` に保存し、import 側がインライン展開できるようにする。
+* wasm artifact では object link がないため、non-inline かつ静的 dispatch できる関数 body も link name キーで `inline-kir/` に保存し、import 側が必要な関数だけ materialize する。open / abstract / override member と member-extension は従来どおり wasm helper / vtable 経路に任せる。
 * inline `reified` 関数では、呼び出し側が hidden type-token 引数を追加するため、metadata に reified 型パラメータのインデックス（`reified=...`）も含める。
 
 新規 `.kklib` は manifest `formatVersion=2` と binary indexed metadata v3 を出力する。

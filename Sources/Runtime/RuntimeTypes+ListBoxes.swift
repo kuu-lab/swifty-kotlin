@@ -3,9 +3,6 @@ import Foundation
 final class RuntimeListBox {
     private final class DirectStorage {
         var values: [RuntimeValue]
-        /// Bumped on every structural mutation (size change), never on an
-        /// element replacement. Iterators capture this at creation and
-        /// re-check it in `next()` to detect concurrent modification.
         var modCount: Int = 0
 
         init(values: [RuntimeValue]) {
@@ -19,12 +16,6 @@ final class RuntimeListBox {
         case arrayViewOf(RuntimeArrayBox, RuntimePrimitiveArrayElementKind?)
         case dequeViewOf(RuntimeArrayDequeBox)
         case subList(RuntimeListSlice)
-        /// Live view for `MutableMap.values`: reads the backing map's
-        /// values on every access instead of a disconnected snapshot.
-        /// Only single-index removal (via `removeMapBackedValue(at:)`) is
-        /// supported as a write path, matching the real Kotlin
-        /// `MutableCollection<V>` surface exposed for `.values` (no
-        /// positional insert/set).
         case mapValuesViewOf(Int)
     }
 
@@ -67,7 +58,6 @@ final class RuntimeListBox {
         storage = .arrayViewOf(base, elementKind)
     }
 
-    // Primitive arrays store raw words; generic list consumers require boxed values.
     private func arrayViewValue(_ value: RuntimeValue, kind: RuntimePrimitiveArrayElementKind?) -> RuntimeValue {
         guard let kind else { return value }
         let raw = value.legacyRawValue
@@ -162,9 +152,6 @@ final class RuntimeListBox {
                 slice.base.values = baseValues
                 slice.expectedModCount = slice.base.modCount
             case .mapValuesViewOf(let mapRaw):
-                // `MutableCollection<V>` exposes no positional replace for
-                // `.values`; only a full clear (matching `.clear()`) is a
-                // meaningful whole-array assignment here.
                 guard newValue.isEmpty,
                       let map = runtimeMapBox(from: mapRaw),
                       !map.isEffectivelyReadOnly
@@ -174,9 +161,6 @@ final class RuntimeListBox {
         }
     }
 
-    /// View storages forward to the backing list's own counter, so an
-    /// iterator over a `subList`/reversed view still detects a structural
-    /// change made through the root list.
     var modCount: Int {
         switch storage {
         case .direct(let direct):
@@ -247,8 +231,6 @@ final class RuntimeListBox {
         }
     }
 
-    /// O(1) single-element access. Prefer this over `elements[index]` because
-    /// `elements` materializes the whole list on every get/set.
     subscript(index: Int) -> Int {
         get {
             runtimeCollectionABIValue(value(at: index))
@@ -271,14 +253,11 @@ final class RuntimeListBox {
             case .subList(let slice):
                 slice.base[slice.fromIndex + index] = newValue
             case .mapValuesViewOf:
-                // `MutableCollection<V>` has no indexed `set` for `.values`;
-                // unreachable through valid Kotlin code.
                 break
             }
         }
     }
 
-    /// Stores an already-tagged value without materializing the surrounding collection.
     func setValue(_ value: RuntimeValue, at index: Int) {
         guard !isEffectivelyReadOnly else { return }
         switch storage {
@@ -296,19 +275,10 @@ final class RuntimeListBox {
         case .subList(let slice):
             slice.base.setValue(value, at: slice.fromIndex + index)
         case .mapValuesViewOf:
-            // Unreachable: see the subscript setter above.
             break
         }
     }
 
-    /// Runs `body` on the backing array and returns its result. For `.direct`
-    /// storage the mutation goes through `direct.values`, so the buffer is
-    /// appended/removed in place when uniquely referenced instead of being
-    /// copied on every call; a buffer still shared with a snapshot (e.g. an
-    /// iterator's captured `values`) copy-on-writes inside `body` as usual.
-    /// View-backed storage keeps the materialize–mutate–write-back
-    /// semantics of the `values` setter, and a read-only list still drops
-    /// the write-back.
     @discardableResult
     func withMutableValues<R>(_ body: (inout [RuntimeValue]) -> R) -> R {
         guard !isEffectivelyReadOnly else {
@@ -345,9 +315,6 @@ final class RuntimeListBox {
         return false
     }
 
-    /// Raw handle of the map backing a `.values` view (KUU-3963): reflection
-    /// resolves `java.util.LinkedHashMap$LinkedValues`-style class names
-    /// from the source map's implementation.
     var mapValuesViewBackingRaw: Int? {
         guard case .mapValuesViewOf(let mapRaw) = storage else { return nil }
         return mapRaw
@@ -358,24 +325,16 @@ final class RuntimeListBox {
         return false
     }
 
-    /// Base box of a `subList` view; its runtime tag tells reflection whether
-    /// the view is `java.util.ArrayList$SubList` or an `AbstractList` subview.
     var subListBaseBox: RuntimeListBox? {
         guard case .subList(let slice) = storage else { return nil }
         return slice.base
     }
 
-    /// `Array<T>.asList()` / primitive-array views behave like
-    /// `java.util.Arrays$ArrayList` on the JVM: their `get` fails with
-    /// `ArrayIndexOutOfBoundsException`, unlike plain `List` implementations.
     var isArrayStorageView: Bool {
         if case .arrayViewOf = storage { return true }
         return false
     }
 
-    /// Primitive-array `asList` views are anonymous classes on the JVM
-    /// (`intArrayOf(1).asList()::class.simpleName` is null), unlike the named
-    /// `java.util.Arrays$ArrayList` that object arrays produce.
     var isPrimitiveArrayView: Bool {
         guard case .arrayViewOf(_, let elementKind) = storage else { return false }
         return elementKind != nil
@@ -386,8 +345,6 @@ final class RuntimeListBox {
         return false
     }
 
-    /// `List.asReversed()` views report bounds failures with Kotlin's own
-    /// `checkElementIndex` message rather than the delegate implementation's.
     var isReversedStorageView: Bool {
         if case .reversedViewOf = storage { return true }
         return false
@@ -408,7 +365,6 @@ final class RuntimeListBox {
         }
     }
 
-    /// Values views inherit their map's equality policy.
     func elementsEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         if case let .mapValuesViewOf(mapRaw) = storage,
            let map = runtimeMapBox(from: mapRaw) {
@@ -417,8 +373,6 @@ final class RuntimeListBox {
         return runtimeLookupValuesEqual(lhs, rhs)
     }
 
-    /// Removes the backing map's key/value pair at `index` (as seen through
-    /// this values view). Only valid when `isMapValuesView` is true.
     @discardableResult
     func removeMapBackedValue(at index: Int) -> Bool {
         guard case let .mapValuesViewOf(mapRaw) = storage,
@@ -460,9 +414,6 @@ private final class RuntimeListSlice {
     }
 }
 
-/// Elements live in a ring buffer so that both ends mutate in place: `head` is
-/// the buffer slot of the logical first element and `count` the number of live
-/// elements. Growth doubles the buffer and re-linearizes it.
 final class RuntimeArrayDequeBox {
     private var buffer: [RuntimeValue]
     private var head: Int
@@ -559,8 +510,6 @@ final class RuntimeArrayDequeBox {
         reserve(max(Self.minimumCapacity, buffer.count * 2))
     }
 
-    /// Re-linearizes the buffer so that `head == 0`, growing it to at least
-    /// `capacity` slots.
     private func reserve(_ capacity: Int) {
         let target = max(Self.minimumCapacity, capacity)
         guard target != buffer.count || head != 0 else { return }
@@ -573,8 +522,6 @@ final class RuntimeArrayDequeBox {
     }
 }
 
-/// Lazy wrapper for `withIndex()` result. Kotlin returns `IndexingIterable` with
-/// default Object.toString() = "kotlin.collections.IndexingIterable@<hex>".
 final class RuntimeIndexingIterableBox {
     let listRaw: Int
 
@@ -606,29 +553,15 @@ final class RuntimeListIteratorBox {
         }
     }
     var index: Int
-    /// Index last returned by `next()`/`previous()`, or -1 before any
-    /// traversal call or once consumed by `remove()`/`add()` — mirrors
-    /// Java/Kotlin's `AbstractList.Itr.lastRet` invariant.
     var lastReturnedIndex: Int
     let removeAction: ((Int) -> Void)?
     let setAction: ((Int, RuntimeValue) -> Void)?
     let addAction: ((Int, RuntimeValue) -> Void)?
     let isBackingReadOnly: (() -> Bool)?
-    /// Reads the live backing collection's structural-modification counter.
-    /// `nil` for iterators with no live backing (plain `Array`, or the
-    /// BUG-231 empty fallback) — comodification can never be detected there.
     let currentModCount: (() -> Int)?
     let currentValue: ((Int) -> RuntimeValue)?
-    /// The backing collection's `modCount` as of the last point this
-    /// iterator observed it in sync (construction, or its own successful
-    /// `remove()`/`add()`, which re-syncs after performing the mutation).
     var expectedModCount: Int
 
-    /// KUU-3963: nominal identity and qualified name of the JVM iterator
-    /// implementation this box reflects through `::class` (e.g.
-    /// `java.util.Arrays.ArrayItr` for a `listOf(e1, e2)` iterator). A
-    /// nonzero `reflectedClassID` with a nil `reflectedClassName` marks a
-    /// JVM-anonymous iterator whose `simpleName`/`qualifiedName` are null.
     var reflectedClassID: Int64 = 0
     var reflectedClassName: String? = nil
 
@@ -674,9 +607,6 @@ final class RuntimeListIteratorBox {
         self.expectedModCount = currentModCount?() ?? 0
     }
 
-    /// `true` when the backing collection has not structurally changed since
-    /// this iterator last observed it. Iterators with no live backing always
-    /// report in sync.
     func isInSyncWithBackingCollection() -> Bool {
         guard let currentModCount else { return true }
         return currentModCount() == expectedModCount
@@ -709,30 +639,19 @@ final class RuntimeListIteratorBox {
         return true
     }
 
-    /// `MutableListIterator.add`: inserts before the element `next()` would
-    /// return, then advances the cursor past the inserted element so a
-    /// following `next()` does not return it again. Invalidates
-    /// `lastReturnedIndex`: `add()` cannot be followed directly by
-    /// `set()`/`remove()`.
     func addBeforeNext(_ value: RuntimeValue) {
         values.insert(value, at: index)
         addAction?(index, value)
         index += 1
         lastReturnedIndex = -1
-        // Same resync rationale as `removeLastReturned()` above.
         if let currentModCount {
             expectedModCount = currentModCount()
         }
     }
 }
 
-// These conformances enable the recursive BFS freeze in kk_freeze_object to
-// traverse all reachable object references when freezing an object graph.
-// Only types that store `Int` child handles need to conform.
-
 extension RuntimeListBox: RuntimeChildReferenceProviding {
     private func childReference(at index: Int) -> Int? {
-        // Traverse backing storage without allocating temporary primitive boxes.
         switch storage {
         case .arrayViewOf(let base, let kind):
             return kind == nil ? base.values[index].childReferenceRawValue : nil

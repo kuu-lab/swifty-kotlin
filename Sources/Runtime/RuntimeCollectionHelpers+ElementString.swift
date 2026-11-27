@@ -27,8 +27,6 @@ func runtimeElementToString(_ elem: Int) -> String {
        let name = dispatcher.displayName {
         return name
     }
-    // KUU-4402: CoroutineName.toString() is "CoroutineName(name)" — the
-    // runtime box has no itable for the Kotlin override to dispatch through.
     if let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
         return "CoroutineName(\(nameBox.name))"
     }
@@ -138,8 +136,6 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
         return sbBox.stringValue
     }
-    // kotlin.concurrent(.atomics).AtomicReference.toString() renders the
-    // current value, matching the JDK AtomicReference it is modelled on.
     if let atomicRefBox = tryCast(ptr, to: AtomicRefBox.self) {
         return runtimeElementToString(atomicRefBox.load())
     }
@@ -155,16 +151,12 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let ktypeBox = tryCast(ptr, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
     }
-    // kotlin.reflect's KTypeParameterImpl.toString() renders the parameter
-    // name itself rather than the default `fqName@hash` object identity.
     if let typeParameterBox = tryCast(ptr, to: RuntimeKTypeParameterBox.self),
        let namePointer = UnsafeMutableRawPointer(bitPattern: typeParameterBox.nameRaw),
        let name = extractString(from: namePointer)
     {
         return name
     }
-    // kotlin.reflect's KParameter.toString() renders "<kind> of <callable>"
-    // (e.g. "parameter #0 x of fun f(kotlin.Int): kotlin.Unit").
     if let parameterBox = tryCast(ptr, to: RuntimeKParameterBox.self) {
         return runtimeKParameterToString(parameterBox)
     }
@@ -180,33 +172,23 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let rendered = runtimeJobWrapperDebugString(elem) {
         return rendered
     }
-    // KUU-4402: coroutine contexts inside collections render with the same
-    // `[elem, elem]` shape as top-level printing.
     if let context = tryCast(ptr, to: RuntimeCoroutineContext.self) {
         return runtimeCoroutineContextToString(context)
     }
     if let rendered = runtimeDefaultObjectIdentityToString(elem) {
         return rendered
     }
-    // Registered object of a type this renderer does not know: keep it
-    // recognisable as an object instead of leaking its address as a number,
-    // matching `runtimeRenderAnyForPrint`.  Non-object handles already
-    // returned their numeric value above.
     return "<object \(ptr)>"
 }
 
-/// Renders Kotlin/JVM's default Any.toString() shape when runtime class metadata is available.
 func runtimeDefaultObjectIdentityToString(_ raw: Int) -> String? {
     let className: String?
     if let sequence = runtimeSequenceBox(from: raw),
        let lastStep = sequence.steps.last,
        case .mapStep = lastStep
     {
-        // Runtime-backed sequences collapse the stdlib's wrapper objects into one box.
         className = "kotlin.sequences.TransformingSequence"
     } else if let arrayName = runtimeJavaArrayClassName(rawValue: raw) {
-        // KUU-4001: array boxes spell their JVM descriptor (`[I`, `[LFoo;`)
-        // in Object.toString() too, matching runtimeArrayIdentityToString.
         className = arrayName
     } else if let typeID = runtimeObjectTypeID(rawValue: raw),
               let metadata = runtimeKClassMetadataRegistry.lookup(

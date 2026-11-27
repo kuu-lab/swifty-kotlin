@@ -138,6 +138,12 @@ extension JVMFunctionBuilder {
                 ?? sema.symbols.accessorOwnerProperty(for: selected)
                 ?? selected
             if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
+               semanticSymbol.fqName == program.knownNames.kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName {
+                let type: JVMValueType = .reference("java/lang/Object", nullable: true)
+                let getter = JVMForeignMethod(owner: "kotlin/coroutines/intrinsics/IntrinsicsKt", name: "getCOROUTINE_SUSPENDED", descriptor: "()Ljava/lang/Object;", parameters: [], result: type, isStatic: true, isInterface: false, isAbstract: false)
+                return JVMProperty(name: "COROUTINE_SUSPENDED", type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+            }
+            if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
                let parent = sema.symbols.parentSymbol(for: symbol),
                let resolvedOwner = importedPropertyOwner(parent: parent),
                let propertyType = sema.symbols.propertyType(for: symbol),
@@ -212,7 +218,7 @@ extension JVMFunctionBuilder {
                 let names: [String]
                 if info.flags & 0x2000 != 0
                     || javaMapViewMethod != nil
-                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
+                    || (name == "size" && (owner.hasPrefix("java/util/") || context.jvmImports?.isJavaCollectionOrMapClass(owner) == true)) {
                     names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
@@ -328,10 +334,22 @@ extension JVMFunctionBuilder {
         }
         var qualifier: String?
         if let receiver, case let .superRef(name, _, _) = arena.expr(receiver) { qualifier = name.map(context.interner.resolve) }
-        let candidates = owner.interfaces.filter { interface in
-            (qualifier == nil || interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier) && inherits(interface, method.owner, visited: [])
+        func matchesQualifier(_ interface: String, _ qualifier: String) -> Bool {
+            if interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier { return true }
+            let simple = qualifier.split(separator: ".").last.map(String.init) ?? qualifier
+            return JVMClasspathIndex.collectionNames[simple] == interface && (qualifier == simple || qualifier == "kotlin.collections." + simple)
         }
-        guard let target = candidates.first else { throw fail("JVM interface super call requires a direct superinterface.", receiver) }
+        let candidates = owner.interfaces.filter { interface in
+            (qualifier == nil || matchesQualifier(interface, qualifier!)) && inherits(interface, method.owner, visited: [])
+        }
+        guard let target = candidates.first else {
+            if method.owner == "java/util/Map", method.name == "putIfAbsent", owner.superclass != "java/lang/Object" {
+                selected = JVMForeignMethod(owner: owner.superclass, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: false, isAbstract: method.isAbstract, isSpecial: true)
+                selected.isSuspend = method.isSuspend
+                return selected
+            }
+            throw fail("JVM interface super call requires a direct superinterface.", receiver)
+        }
         selected = JVMForeignMethod(owner: target, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: true, isAbstract: method.isAbstract, isSpecial: true)
         selected.isSuspend = method.isSuspend
         return selected
@@ -588,6 +606,8 @@ extension JVMProgramBuilder {
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if let symbol = propertySymbol {
+                // Keep an explicit accessor name through value-class lowering (which would hash it).
+                f.jvmName = try explicitAccessorJvmName(for: symbol, target: setter ? "set" : "get")
                 f.isSynchronized = try annotationRecords(for: symbol).contains {
                     $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
                         && $0.useSiteTarget == (setter ? "set" : "get")

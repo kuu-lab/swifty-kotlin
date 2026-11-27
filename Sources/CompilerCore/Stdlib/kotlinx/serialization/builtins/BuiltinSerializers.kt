@@ -11,9 +11,6 @@ package kotlinx.serialization.builtins
 import kotlinx.serialization.*
 import kotlinx.serialization.internal.*
 
-/**
- * Returns a nullable serializer for the given serializer of non-null type.
- */
 @OptIn(ExperimentalSerializationApi::class)
 public val <T : Any> KSerializer<T>.nullable: KSerializer<T?>
     get() {
