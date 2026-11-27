@@ -67,6 +67,21 @@ theorem ambiguousDeclarationPrefixIff :
     ambiguousDeclarationPrefix kind = true ↔ kind = .at ∨ kind = .context ∨ kind = .modifier := by
   cases kind <;> simp [ambiguousDeclarationPrefix]
 
+def isHardCompanionName : Kind → Bool
+  | .identifier | .modifier | .catchKeyword | .companionKeyword | .constructorKeyword
+  | .dynamicKeyword | .enumKeyword | .finallyKeyword | .importKeyword | .reifiedKeyword => true
+  | _ => false
+
+def isCompanionName (kind : Kind) (soft : Bool) : Bool :=
+  if soft then kind != .softWhenKeyword else isHardCompanionName kind
+
+theorem isCompanionNameIff :
+    isCompanionName kind soft = true ↔
+      (soft = true ∧ kind ≠ .softWhenKeyword) ∨
+      (soft = false ∧ kind ∈ ([.identifier, .modifier, .catchKeyword, .companionKeyword, .constructorKeyword,
+        .dynamicKeyword, .enumKeyword, .finallyKeyword, .importKeyword, .reifiedKeyword] : List Kind)) := by
+  cases soft <;> cases kind <;> simp [isCompanionName, isHardCompanionName]
+
 @[export kswiftk_lean_classify_parser_policy]
 def classify (operation first second : UInt8) : UInt8 :=
   let result := match operation with
@@ -77,6 +92,7 @@ def classify (operation first second : UInt8) : UInt8 :=
     | 4 => startsObjectExpression (decodeKind first) (decodeKind second)
     | 5 => startsBackingField (decodeKind first) (decodeKind second)
     | 6 => ambiguousDeclarationPrefix (decodeKind first)
+    | 7 => isCompanionName (decodeKind first) (second != 0)
     | _ => false
   if result then 1 else 0
 

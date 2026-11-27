@@ -59,6 +59,8 @@ enum LeanParser {
         case forKeyword, whileKeyword, doKeyword, arrow
         case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword, objectKeyword
         case fieldKeyword, assign, context, modifier
+        case softWhenKeyword, catchKeyword, companionKeyword, constructorKeyword, dynamicKeyword
+        case enumKeyword, finallyKeyword, importKeyword, reifiedKeyword
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -106,6 +108,15 @@ enum LeanParser {
         case .symbol(.assign): .assign
         case .softKeyword(.context): .context
         case let .keyword(keyword) where KotlinParser.isDeclarationModifierKeyword(keyword): .modifier
+        case .softKeyword(.when): .softWhenKeyword
+        case .keyword(.catch): .catchKeyword
+        case .keyword(.companion): .companionKeyword
+        case .keyword(.constructor): .constructorKeyword
+        case .keyword(.dynamic): .dynamicKeyword
+        case .keyword(.enum): .enumKeyword
+        case .keyword(.finally): .finallyKeyword
+        case .keyword(.import): .importKeyword
+        case .keyword(.reified): .reifiedKeyword
         default: .other
         }
     }
@@ -160,7 +171,7 @@ enum LeanParser {
 
     private enum Policy: UInt8 {
         case labelStart, loopStart, typeNameStart, whenConditionNewline
-        case objectExpression, backingField, ambiguousDeclarationPrefix
+        case objectExpression, backingField, ambiguousDeclarationPrefix, companionName
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -210,6 +221,11 @@ enum LeanParser {
 
     static func isAmbiguousDeclarationPrefix(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         classify(parser, .ambiguousDeclarationPrefix, first: tokenCode(kind).rawValue)
+    }
+
+    static func isCompanionObjectName(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        let soft: UInt8 = if case .softKeyword = kind { 1 } else { 0 }
+        return classify(parser, .companionName, first: tokenCode(kind).rawValue, second: soft)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {
