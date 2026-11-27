@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+unset CDPATH
 
 lean_bin=${LEAN:-lean}
 case "$lean_bin" in
