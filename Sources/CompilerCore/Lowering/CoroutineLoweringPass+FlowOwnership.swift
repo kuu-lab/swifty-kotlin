@@ -1,3 +1,18 @@
+private let runtimeFlowFactoryNames: Set<String> = [
+    "kk_flow_create", "kk_channel_flow_create", "kk_callback_flow_create",
+    "__kk_flow_zip", "__kk_flow_combine", "__kk_flow_merge",
+    "__kk_flow_flat_map_concat", "__kk_flow_flat_map_merge", "__kk_flow_flat_map_latest",
+]
+
+private let runtimeFlowBorrowerNames: Set<String> = [
+    "__kk_flow_retain", "__kk_flow_release", "kk_flow_collect", "__kk_flow_collectLatest",
+    "__kk_flow_to_list", "__kk_flow_first", "__kk_flow_single", "kk_flow_emit",
+    "__kk_flow_zip", "__kk_flow_combine", "__kk_flow_merge", "__kk_flow_flat_map_concat",
+    "__kk_flow_flat_map_merge", "__kk_flow_flat_map_latest",
+]
+
+private let runtimeFlowTerminalNames: Set<String> = ["collect", "collectLatest", "toList", "first", "single", "collectCold"]
+
 extension CoroutineLoweringPass {
     private func isFreshFlowCall(
         _ instruction: KIRInstruction,
@@ -8,11 +23,6 @@ extension CoroutineLoweringPass {
     ) -> KIRExprID? {
         guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction else { return nil }
         let name = ctx.interner.resolve(callee)
-        let factories: Set<String> = [
-            "kk_flow_create", "kk_channel_flow_create", "kk_callback_flow_create",
-            "__kk_flow_zip", "__kk_flow_combine", "__kk_flow_merge",
-            "__kk_flow_flat_map_concat", "__kk_flow_flat_map_merge", "__kk_flow_flat_map_latest",
-        ]
         let linkName = symbol.flatMap { ctx.sema?.symbols.externalLinkName(for: $0) }
         if name == "kk_flow_emit" || linkName == "kk_flow_emit" {
             guard arguments.count == 3 else { return nil }
@@ -25,7 +35,7 @@ extension CoroutineLoweringPass {
             guard let tag, tag != RuntimeFlowTag.emit.rawValue, RuntimeFlowTag(rawValue: tag) != nil else { return nil }
             return result
         }
-        if factories.contains(name) || linkName.map(factories.contains) == true
+        if runtimeFlowFactoryNames.contains(name) || linkName.map(runtimeFlowFactoryNames.contains) == true
             || (name == "flow" && !hasRealDeclaration(symbol, in: ctx))
             || symbol.map(freshFunctions.contains) == true {
             return result
@@ -49,59 +59,83 @@ extension CoroutineLoweringPass {
     }
 
     func freshFlowFunctions(module: KIRModule, ctx: KIRContext) -> Set<SymbolID> {
+        let functions = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration else { return nil }
+            return function
+        }
+        var functionsBySymbol: [SymbolID: KIRFunction] = [:]
+        var constantsBySymbol: [SymbolID: [KIRExprID: Int64]] = [:]
+        var callersBySymbol: [SymbolID: Set<SymbolID>] = [:]
+        for function in functions {
+            functionsBySymbol[function.symbol] = function
+            constantsBySymbol[function.symbol] = flowIntegerConstants(function.body)
+        }
+        for function in functions {
+            for instruction in function.body {
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                      let symbol,
+                      functionsBySymbol[symbol] != nil
+                else { continue }
+                callersBySymbol[symbol, default: []].insert(function.symbol)
+            }
+        }
+
         var fresh: Set<SymbolID> = []
-        var changed = true
-        while changed {
-            changed = false
-            for declaration in module.arena.declarations {
-                guard case let .function(function) = declaration, !fresh.contains(function.symbol) else { continue }
-                let constants = flowIntegerConstants(function.body)
-                var values = Set(function.body.compactMap {
-                    isFreshFlowCall($0, freshFunctions: fresh, constants: constants, module: module, ctx: ctx)
-                })
-                var propagated = true
-                while propagated {
-                    propagated = false
-                    for instruction in function.body {
-                        if case let .copy(from, to) = instruction, values.contains(from), values.insert(to).inserted {
-                            propagated = true
-                        }
+        var pending = functions.map(\.symbol)
+        var queued = Set(pending)
+        while let symbol = pending.popLast() {
+            queued.remove(symbol)
+            guard !fresh.contains(symbol),
+                  let function = functionsBySymbol[symbol],
+                  let constants = constantsBySymbol[symbol]
+            else { continue }
+            let freshCallResults = Set(function.body.compactMap {
+                isFreshFlowCall($0, freshFunctions: fresh, constants: constants, module: module, ctx: ctx)
+            })
+            var values = freshCallResults
+            var propagated = true
+            while propagated {
+                propagated = false
+                for instruction in function.body {
+                    if case let .copy(from, to) = instruction, values.contains(from), values.insert(to).inserted {
+                        propagated = true
                     }
                 }
-                let returns = function.body.compactMap { instruction -> KIRExprID? in
-                    if case let .returnValue(value) = instruction { return value }
-                    return nil
+            }
+            let returns = function.body.compactMap { instruction -> KIRExprID? in
+                if case let .returnValue(value) = instruction { return value }
+                return nil
+            }
+            let hasOtherReturn = function.body.contains {
+                switch $0 {
+                case .returnUnit, .returnIfEqual, .nonLocalReturn: true
+                default: false
                 }
-                let hasOtherReturn = function.body.contains {
-                    switch $0 {
-                    case .returnUnit, .returnIfEqual, .nonLocalReturn: true
-                    default: false
-                    }
+            }
+            let hasBorrowedWrite = function.body.contains { instruction in
+                switch instruction {
+                case let .copy(from, to): values.contains(to) && !values.contains(from)
+                case let .constValue(result, _), let .loadGlobal(result, _): values.contains(result)
+                case let .call(_, _, _, result, _, _, _, _):
+                    result.map { values.contains($0) && !freshCallResults.contains($0) } == true
+                default: false
                 }
-                let hasBorrowedWrite = function.body.contains { instruction in
-                    switch instruction {
-                    case let .copy(from, to): values.contains(to) && !values.contains(from)
-                    case let .constValue(result, _), let .loadGlobal(result, _): values.contains(result)
-                    case let .call(_, _, _, result, _, _, _, _):
-                        result.map(values.contains) == true
-                            && isFreshFlowCall(instruction, freshFunctions: fresh, constants: constants, module: module, ctx: ctx) == nil
-                    default: false
-                    }
+            }
+            let hasEscapingWrite = function.body.contains { instruction in
+                switch instruction {
+                case let .storeGlobal(value, _): values.contains(value)
+                case let .call(symbol, callee, arguments, _, _, _, _, _):
+                    !values.isDisjoint(with: escapingFlowArguments(symbol, callee, arguments, ctx: ctx))
+                case let .virtualCall(symbol, callee, receiver, arguments, _, _, _, _):
+                    !isFlowBorrowingCall(symbol, callee, ctx: ctx) && !values.isDisjoint(with: [receiver] + arguments)
+                default: false
                 }
-                let hasEscapingWrite = function.body.contains { instruction in
-                    switch instruction {
-                    case let .storeGlobal(value, _): values.contains(value)
-                    case let .call(symbol, callee, arguments, _, _, _, _, _):
-                        !values.isDisjoint(with: escapingFlowArguments(symbol, callee, arguments, ctx: ctx))
-                    case let .virtualCall(symbol, callee, receiver, arguments, _, _, _, _):
-                        !isFlowBorrowingCall(symbol, callee, ctx: ctx) && !values.isDisjoint(with: [receiver] + arguments)
-                    default: false
-                    }
-                }
-                if !returns.isEmpty, !hasOtherReturn, !hasBorrowedWrite, !hasEscapingWrite,
-                   returns.allSatisfy(values.contains) {
-                    fresh.insert(function.symbol)
-                    changed = true
+            }
+            if !returns.isEmpty, !hasOtherReturn, !hasBorrowedWrite, !hasEscapingWrite,
+               returns.allSatisfy(values.contains) {
+                fresh.insert(symbol)
+                for caller in callersBySymbol[symbol, default: []] where !fresh.contains(caller) {
+                    if queued.insert(caller).inserted { pending.append(caller) }
                 }
             }
         }
@@ -110,15 +144,8 @@ extension CoroutineLoweringPass {
 
     private func isFlowBorrowingCall(_ symbol: SymbolID?, _ callee: InternedString, ctx: KIRContext) -> Bool {
         let name = ctx.interner.resolve(callee)
-        let runtimeBorrowers: Set<String> = [
-            "__kk_flow_retain", "__kk_flow_release", "kk_flow_collect", "__kk_flow_collectLatest",
-            "__kk_flow_to_list", "__kk_flow_first", "__kk_flow_single", "kk_flow_emit",
-            "__kk_flow_zip", "__kk_flow_combine", "__kk_flow_merge", "__kk_flow_flat_map_concat",
-            "__kk_flow_flat_map_merge", "__kk_flow_flat_map_latest",
-        ]
-        if runtimeBorrowers.contains(name) { return true }
-        let terminals: Set<String> = ["collect", "collectLatest", "toList", "first", "single", "collectCold"]
-        guard terminals.contains(name) else { return false }
+        if runtimeFlowBorrowerNames.contains(name) { return true }
+        guard runtimeFlowTerminalNames.contains(name) else { return false }
         if !hasRealDeclaration(symbol, in: ctx) { return true }
         guard let symbol, let info = ctx.sema?.symbols.symbol(symbol) else { return false }
         return info.fqName.starts(with: KnownCompilerNames(interner: ctx.interner).kotlinxCoroutinesFlowPackageFQName)
