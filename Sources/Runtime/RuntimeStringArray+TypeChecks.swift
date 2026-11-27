@@ -335,6 +335,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             state.objectPointers.contains(UInt(bitPattern: ptr))
         }
         if !isObjPtr { return 1 }
+        if runtimeObjectTypeID(rawValue: value) != nil {
+            return 0
+        }
         return tryCast(ptr, to: RuntimeULongBox.self) == nil ? 0 : 1
 
     case RuntimeTypeTokenEncoding.doubleBase:

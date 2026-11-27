@@ -73,6 +73,20 @@ struct RuntimeNumericHashCodeTests {
     }
 
     @Test
+    func testValueClassTaggedPrimitiveBoxesKeepLongHashSemantics() {
+        let classID = 0x4B55_5534
+        let wideLong = 4_294_967_296
+        let wideLongBox = kk_value_class_box_primitive(wideLong, classID, 0, 0)
+        let minimumLong = Int(Int64.min)
+        let minimumLongBox = kk_value_class_box_primitive(minimumLong, classID, 0, 0)
+        let signBitULongBox = kk_value_class_box_primitive(minimumLong, classID, 1, 0)
+
+        #expect(kk_any_hashCode(wideLongBox, 0) == 1)
+        #expect(kk_any_hashCode(minimumLongBox, 0) == -2_147_483_648)
+        #expect(kk_any_hashCode(signBitULongBox, 0) == -2_147_483_648)
+    }
+
+    @Test
     func testBoxedUnsignedHashCodePreservesStaticStorageType() {
         let uint = kk_box_uint(Int(UInt32.max))
         let ubyte = kk_box_ubyte(200)
