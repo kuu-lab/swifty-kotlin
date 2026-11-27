@@ -18,6 +18,7 @@ import kotlin.jvm.internal.__jvmIsLowerChar
 import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmIndexOf
 import kotlin.jvm.internal.__jvmLastIndexOf
+import kotlin.jvm.internal.__jvmStringRegionMatches
 import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
@@ -337,7 +338,7 @@ private fun textSearchCharsMatchAt(value: CharSequence, pos: Int, chars: CharArr
     return false
 }
 private fun textSearchStringMatchesAt(value: CharSequence, pos: Int, string: String, ignoreCase: Boolean): Boolean {
-    if (value is String) return value.regionMatches(ignoreCase, pos, string, 0, string.length)
+    if (value is String) return __jvmStringRegionMatches(value, ignoreCase, pos, string, 0, string.length)
     return regionMatches(value, pos, string, ignoreCase)
 }
 private fun textSearchStringsMatchAt(value: CharSequence, pos: Int, strings: List<String>, ignoreCase: Boolean): Int {
@@ -376,7 +377,7 @@ public fun CharSequence.lastIndexOf(char: Char, startIndex: Int = this.length - 
     return -1
 }
 public fun CharSequence.lastIndexOfAny(chars: CharArray, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
-    var index = textSearchBackwardStart(startIndex, ignoreCase, length)
+    var index = textSearchBackwardStart(startIndex, length)
     while (index >= 0) {
         if (textSearchCharsMatchAt(this, index, chars, ignoreCase)) return index
         index--

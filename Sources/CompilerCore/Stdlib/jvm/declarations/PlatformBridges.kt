@@ -66,6 +66,7 @@ fun __jvmIsLowerChar(value: Char): Boolean = false
 fun __jvmTitleChar(value: Char): Char = null!!
 fun __jvmIndexOf(value: String, needle: String, start: Int): Int = 0
 fun __jvmLastIndexOf(value: String, needle: String, start: Int): Int = 0
+fun __jvmStringRegionMatches(value: String, ignoreCase: Boolean, thisOffset: Int, other: String, otherOffset: Int, length: Int): Boolean = false
 fun <T> __jvmSortList(list: kotlin.collections.MutableList<T>) {}
 fun __jvmReverseOrder(): Any = null!!
 fun <T> __jvmSortListWithComparator(list: kotlin.collections.MutableList<T>, comparator: Any) {}

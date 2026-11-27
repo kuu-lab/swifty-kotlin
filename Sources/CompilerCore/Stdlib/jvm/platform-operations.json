@@ -364,6 +364,13 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmStringRegionMatches",
+    "owner": "java/lang/String",
+    "name": "regionMatches",
+    "descriptor": "(ZILjava/lang/String;II)Z",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmSortList",
     "owner": "java/util/Collections",
     "name": "sort",
