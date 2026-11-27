@@ -658,6 +658,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/CollectionLastPredicate.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-last-predicate.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/TextIndexing.kt",
       "virtualPath": "<kswiftk-jvm>/text-indexing.kt",
       "excludeFromStdlibBuild": true,
