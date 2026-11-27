@@ -28,6 +28,9 @@ struct NewlineOperatorTests {
         let next = lex("\(op) other").tokens.dropLast()
         #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
         #expect(ParserBoundaryPolicy.shouldSplitStatementOnNewline(next.first!.kind))
+        let diagnostics = DiagnosticEngine()
+        #expect(LeanParser.shouldSplitStatementOnNewline(next.first!, diagnostics: diagnostics))
+        #expect(diagnostics.diagnostics.isEmpty)
     }
 
     @Test(arguments: [".", "?.", "?:", "&&", "||", "as", "as?", ",", ")", "]"])
@@ -36,6 +39,7 @@ struct NewlineOperatorTests {
         let next = lex("\(op) other").tokens.dropLast()
         #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
         #expect(!ParserBoundaryPolicy.shouldSplitStatementOnNewline(next.first!.kind))
+        #expect(!LeanParser.shouldSplitStatementOnNewline(next.first!))
     }
 
     @Test
