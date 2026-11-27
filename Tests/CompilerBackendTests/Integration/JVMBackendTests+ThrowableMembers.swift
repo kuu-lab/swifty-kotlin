@@ -11,6 +11,8 @@ extension JVMBackendTests {
             val exception = Exception("outer", Exception("inner"))
             println(exception.cause?.message)
             println(exception.stackTrace.size > 0)
+            println(Exception("localized").localizedMessage)
+            println(RuntimeException().localizedMessage)
 
             exception.addSuppressed(Exception("suppressed"))
             println(exception.suppressed.size)
@@ -37,7 +39,7 @@ extension JVMBackendTests {
             let application = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
             let execution = try java(["-cp", application.path, "HelloKt"])
             #expect(execution.exitCode == 0)
-            #expect(execution.stdout == "inner\ntrue\n1\nsuppressed\n1\nsuppressed\ntrue\ninit\n")
+            #expect(execution.stdout == "inner\ntrue\nlocalized\nnull\n1\nsuppressed\n1\nsuppressed\ntrue\ninit\n")
             let stderr = execution.stderr.replacingOccurrences(of: "\r\n", with: "\n")
             #expect(stderr.hasPrefix("java.lang.Exception: printed\n\tat "))
         }
