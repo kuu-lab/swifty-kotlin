@@ -73,6 +73,15 @@ struct JVMKotlinClassProperty {
     let setterName: String?
     let setterDescriptor: String?
     let isSourceVisible: Bool
+    let isProtected: Bool
+    let sourceType: String?
+}
+
+struct JVMKotlinFieldProperty {
+    let name: String
+    let isVar: Bool
+    let isSourceVisible: Bool
+    let isProtected: Bool
     let sourceType: String?
 }
 
@@ -386,7 +395,28 @@ struct JVMKotlinMetadataPayload {
                                            isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
                                            setterName: setterName, setterDescriptor: setterDescriptor,
                                            isSourceVisible: visibility == 2 || visibility == 3,
+                                           isProtected: visibility == 2,
                                            sourceType: try Self.sourceType(type, types: types, names: names))
+        }
+    }
+
+    func classFieldPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinFieldProperty] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        return try declaration.messages(10).compactMap { property in
+            guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  let type = try types.resolve(property, inline: 3, indexed: 9) else { return nil }
+            let signature = try property.message(100)
+            let setter = try signature?.message(4)
+            let flags = property.int32(11) ?? 6
+            let visibility = (flags >> 1) & 7
+            return JVMKotlinFieldProperty(name: name,
+                                          isVar: flags & (1 << 8) != 0 || setter != nil,
+                                          isSourceVisible: visibility == 2 || visibility == 3,
+                                          isProtected: visibility == 2,
+                                          sourceType: try Self.sourceType(type, types: types, names: names))
         }
     }
 

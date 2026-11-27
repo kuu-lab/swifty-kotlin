@@ -95,11 +95,15 @@ extension CallTypeChecker {
                     propResult = refreshed
                 }
             }
+            let receiverClass = isSuperCall
+                ? nil
+                : driver.helpers.nominalSymbol(of: memberLookupType, types: request.sema.types)
             if let propSymbol = request.sema.symbols.symbol(propResult.symbol),
                !request.ctx.visibilityChecker.isAccessible(
                    propSymbol,
                    fromFile: request.ctx.currentFileID,
-                   enclosingClass: request.ctx.enclosingClassSymbol
+                   enclosingClass: request.ctx.enclosingClassSymbol,
+                   receiverClass: receiverClass
                )
             {
                 driver.helpers.emitVisibilityError(

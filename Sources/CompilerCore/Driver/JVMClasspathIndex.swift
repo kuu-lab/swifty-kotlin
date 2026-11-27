@@ -694,6 +694,7 @@ final class JVMClasspathIndex {
             imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
+            imported.kotlinFieldProperties = info.kotlinFieldProperties
             imported.kotlinTopLevelConstants = info.kotlinTopLevelConstants
             imported.kotlinTopLevelProperties = info.kotlinTopLevelProperties
             classes[info.name] = imported
@@ -2455,6 +2456,7 @@ final class JVMClasspathIndex {
             let getter = property.getter
             let overridesMapView = info.kotlinReadOnlyCollectionSupertypes["java/util/Map"] != nil
                 && ["keys", "values", "entries"].contains(name)
+            if getter.isProtected && !info.isInterface { source += "protected " }
             if !getter.isStatic, overridesMapView || inheritedKotlinGetters.contains(memberKey(getter))
                 || overridesParent(getter, in: info) {
                 source += getter.isFinal ? "final override " : "override "
@@ -2475,15 +2477,22 @@ final class JVMClasspathIndex {
             source += "\n"
         }
         for (field, type) in instanceFields {
-            let setter = field.isFinal ? "" : " set(value) {}"
-            // Preserve the existing override relationship when this field
-            // replaces a projected accessor on the same class.
+            let fieldProperty = info.kotlinFieldProperties[field.name]
+            let isMutable = fieldProperty?.isVar ?? !field.isFinal
+            let fieldType: String
+            if let sourceType = fieldProperty?.sourceType {
+                fieldType = kotlinKeywordEscapedType(sourceType)
+            } else {
+                fieldType = javaInstanceFieldSourceType(field, in: info, erased: type)
+            }
+            let setter = isMutable ? " set(value) {}" : ""
             let overrides = own.contains {
                 !$0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == field.descriptor
                     && propertyShape($0)?.name == field.name && overridesParent($0, in: info)
             }
-            source += (overrides ? "override " : "") + (field.isFinal ? "val" : "var")
-                + " `\(field.name)`: \(javaInstanceFieldSourceType(field, in: info, erased: type)) get() = null!!" + setter + "\n"
+            source += (field.isProtected ? "protected " : "") + (overrides ? "override " : "")
+                + (isMutable ? "var" : "val")
+                + " `\(field.name)`: \(fieldType) get() = null!!" + setter + "\n"
         }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the

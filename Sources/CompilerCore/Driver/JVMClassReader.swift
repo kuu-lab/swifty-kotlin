@@ -32,6 +32,7 @@ struct JVMClassInfo {
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, setter: JVMForeignMethod?, sourceType: String)] = [:]
+    var kotlinFieldProperties: [String: JVMKotlinFieldProperty] = [:]
     var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
@@ -52,8 +53,9 @@ struct JVMClassInfo {
     }
 
     func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
-        isKotlinFileFacade == nil && (field.isPublic || field.isPackagePrivate)
-            && !field.isStatic && field.access & 0x1000 == 0
+        isKotlinFileFacade != true && !field.isStatic && field.access & 0x1000 == 0
+            && (field.isPublic || field.isPackagePrivate
+                || field.isProtected && kotlinMemberProperties[field.name] == nil)
     }
 }
 
@@ -76,6 +78,7 @@ struct JVMForeignField {
     var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
+    var isProtected: Bool { access & 0x0007 == 0x0004 }
     var isPackagePrivate: Bool { access & 0x0007 == 0 }
     var isFinal: Bool { access & 16 != 0 }
 }
@@ -904,7 +907,11 @@ struct JVMClassReader {
             info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
         }
         if let metadata = classAttributes.kotlinMetadata,
-           hasReadOnlyMapSupertype || isKotlinObject || flags & 0x0200 != 0 || name.hasSuffix("$Companion") || methods.contains(where: {
+           hasReadOnlyMapSupertype || isKotlinObject || flags & 0x0200 != 0 || name.hasSuffix("$Companion")
+               || fields.contains(where: {
+                   ($0.isPublic || $0.isProtected) && !$0.isStatic && $0.access & 0x1000 == 0
+               })
+               || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
                    || !$0.isStatic && $0.composePropertyABI(hasReceiver: false)
@@ -914,7 +921,8 @@ struct JVMClassReader {
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
             for property in properties {
                 guard let getter = methods.first(where: {
-                    !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                    (!$0.isProtected || property.isProtected)
+                        && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
                 // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
                 let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
@@ -928,6 +936,7 @@ struct JVMClassReader {
                               || isKotlinObject && property.isSourceVisible && !property.isVar
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
+                              || getter.isProtected && property.isSourceVisible
                               || !getter.isStatic && property.isSourceVisible && !property.isVar
                                   && getter.composePropertyABI(hasReceiver: false)
                               || getter.isFinal && property.isSourceVisible
@@ -936,11 +945,23 @@ struct JVMClassReader {
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
                     let setter = methods.first {
-                        !$0.isProtected && !$0.isStatic
+                        (!$0.isProtected || property.isProtected) && !$0.isStatic
                             && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
                     }
                     info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
                 }
+            }
+        }
+        if let metadata = classAttributes.kotlinMetadata,
+           fields.contains(where: {
+               ($0.isPublic || $0.isProtected) && !$0.isStatic && $0.access & 0x1000 == 0
+           }),
+           let properties = try? metadata.classFieldPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties where property.isSourceVisible {
+                guard fields.contains(where: {
+                    $0.name == property.name && ($0.isPublic || $0.isProtected) && !$0.isStatic
+                }), info.kotlinMemberProperties[property.name] == nil else { continue }
+                info.kotlinFieldProperties[property.name] = property
             }
         }
         return info
