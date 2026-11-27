@@ -28,8 +28,8 @@ def genuineTerminal (input : Input) (start : Nat) (state : GenuineState) (index 
   let token := input.get index
   let starts := isDeclarationStart input index token.kind &&
     !anonymousFunctionAt input index && !objectExpressionAt input index &&
-    !(token.companionKeyword && (input.get (index + 1)).kind == .openParen)
-  let declares := starts && (!state.sawValue || token.classKeyword)
+    !((token.companionKeyword || token.kind == .companionKeyword) && (input.get (index + 1)).kind == .openParen)
+  let declares := starts && (!state.sawValue || token.classKeyword || token.kind == .classKeyword)
   let prefixes := if state.sawValue && !declares then [start] else state.prefixes.reverse
   ⟨if declares then .declaration else .notDeclaration,
     prefixes.map (fun position => (position, declares)) ++ [(index, starts)], none⟩
@@ -174,14 +174,15 @@ theorem genuineContextWithoutParensContinuesAtNextToken
 
 theorem genuineTerminalAfterValueCannotPolluteSuffix
     (sawValue : state.sawValue = true)
-    (notClass : (input.get index).classKeyword = false) :
+    (notClass : (input.get index).classKeyword = false)
+    (notClassKind : (input.get index).kind ≠ .classKeyword) :
     genuineTerminal input start state index =
       let token := input.get index
       let starts := isDeclarationStart input index token.kind &&
         !anonymousFunctionAt input index && !objectExpressionAt input index &&
-        !(token.companionKeyword && (input.get (index + 1)).kind == .openParen)
+        !((token.companionKeyword || token.kind == .companionKeyword) && (input.get (index + 1)).kind == .openParen)
       ⟨.notDeclaration, [(start, false), (index, starts)], none⟩ := by
-  simp [genuineTerminal, sawValue, notClass]
+  simp [genuineTerminal, sawValue, notClass, notClassKind]
 
 @[export kswiftk_lean_annotation_prefix]
 def annotationPrefixFrom (context count start : USize) (work : UInt32) : IO UInt64 := do
