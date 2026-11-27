@@ -43,6 +43,13 @@ let package = Package(
     ],
     targets: [
         .plugin(name: "VerifyLeanParser", capability: .buildTool()),
+        // Register the Lean tree in SwiftPM's package structure so renames invalidate cached plugin inputs.
+        .target(
+            name: "LeanParserSourceInputs",
+            path: "Sources/LeanParser",
+            exclude: ["Bridge.c", "lakefile.toml", "lake-manifest.json", "lean-toolchain"],
+            resources: [.copy("ParserProofs")]
+        ),
         .target(
             name: "RuntimeABI"
         ),
