@@ -28,6 +28,7 @@ public inline fun Char.lowercase(): String = this.toString().lowercase()
 fun Char.titlecase(): String = null!!
 fun Char.isWhitespace(): Boolean = false
 val Char.directionality: CharDirectionality get() = null!!
+fun Char.digitToInt(): Int = 0
 fun Char.digitToInt(radix: Int): Int = 0
 fun Char.digitToIntOrNull(): Int? = null
 fun Char.digitToIntOrNull(radix: Int): Int? = null

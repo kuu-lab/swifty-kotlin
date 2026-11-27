@@ -54,6 +54,12 @@ public fun Char.titlecase(): String {
 
 public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceChar(this)
 
+public fun Char.digitToInt(): Int =
+    digitToIntOrNull(10) ?: throw IllegalArgumentException("Char $this is not a decimal digit")
+
+public fun Char.digitToInt(radix: Int): Int =
+    digitToIntOrNull(radix) ?: throw IllegalArgumentException("Char $this is not a digit in the given radix=$radix")
+
 public fun Char.digitToIntOrNull(): Int? = digitToIntOrNull(10)
 
 public fun Char.digitToIntOrNull(radix: Int): Int? {
