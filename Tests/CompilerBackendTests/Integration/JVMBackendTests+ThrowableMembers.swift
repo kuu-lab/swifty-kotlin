@@ -95,10 +95,14 @@ extension JVMBackendTests {
             #!/bin/sh
             set -eu
             output=
+            program_jar=
             while [ "$#" -gt 0 ]; do
+                case "$1" in *.jar) program_jar=$1 ;; esac
                 if [ "$1" = --output ]; then output=$2; shift; fi
                 shift
             done
+            printf '%s\n' "$program_jar" > "$(dirname "$0")/program-input-path.txt"
+            cp "$program_jar" "$(dirname "$0")/program-input.jar"
             dex_dir="${output}.contents"
             mkdir -p "$dex_dir"
             printf 'test dex' > "$dex_dir/classes.dex"
@@ -122,6 +126,19 @@ extension JVMBackendTests {
             #expect(FileManager.default.fileExists(atPath: output.path))
             let dex = try ZipArchive(data: Data(contentsOf: output))
             #expect(dex.entries.contains { $0.name == "classes.dex" })
+            let originalProgramJar = try String(contentsOf: tools.appendingPathComponent("program-input-path.txt"), encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(originalProgramJar.hasSuffix("classes.jar"))
+            let programJar = tools.appendingPathComponent("program-input.jar").path
+            let programArchive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: programJar)))
+            let programClasses = programArchive.entries.compactMap { entry -> String? in
+                guard entry.name.hasSuffix(".class") else { return nil }
+                return entry.name.dropLast(6).replacingOccurrences(of: "/", with: ".")
+            }
+            #expect(!programClasses.isEmpty)
+            let bytecode = try javap(["-c", "-p", "-classpath", programJar] + programClasses)
+            #expect(bytecode.exitCode == 0, "\(bytecode.stderr)")
+            #expect(bytecode.stdout.contains("getLocalizedMessage:()Ljava/lang/String;"), "\(bytecode.stdout)")
         }
     }
 
