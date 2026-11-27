@@ -14,3 +14,12 @@ public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
     if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
     return last as T
 }
+
+public inline fun <T> List<T>.last(predicate: (T) -> Boolean): T {
+    val cursor = listIterator(size)
+    while (cursor.hasPrevious()) {
+        val element = cursor.previous()
+        if (predicate(element)) return element
+    }
+    throw NoSuchElementException("Collection contains no element matching the predicate.")
+}
