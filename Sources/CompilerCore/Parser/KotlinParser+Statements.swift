@@ -1240,7 +1240,7 @@ extension KotlinParser {
                 break
             }
             if stopsAtFunctionDelegation, atTopLevel, !sawAssignment {
-                let expectsTypeName = functionTypeNameAfterAnnotation || canStartTypeName(after: lastConsumedToken?.kind)
+                let expectsTypeName = functionTypeNameAfterAnnotation || LeanParser.canStartTypeName(self, after: lastConsumedToken?.kind)
                 if token.kind == .symbol(.at), expectsTypeName {
                     var work = 0
                     if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
@@ -1262,7 +1262,7 @@ extension KotlinParser {
                atTopLevel,
                !sawAssignment,
                token.kind == .softKeyword(.by),
-               !canStartTypeName(after: lastConsumedToken?.kind)
+               !LeanParser.canStartTypeName(self, after: lastConsumedToken?.kind)
             {
                 diagnostics.error(
                     "KSWIFTK-PARSE-0006",
@@ -1428,18 +1428,6 @@ extension KotlinParser {
         }
         if !progress, !shouldStopStatementBefore(stream.peek(), inBlock: inBlock) {
             _ = consumeToken(into: &children, range: &range)
-        }
-    }
-
-    private func canStartTypeName(after kind: TokenKind?) -> Bool {
-        guard let kind else { return false }
-        switch kind {
-        case .symbol(.colon), .symbol(.dot), .symbol(.questionDot), .symbol(.lessThan),
-             .symbol(.comma), .symbol(.lParen), .symbol(.arrow),
-             .keyword(.in), .softKeyword(.out):
-            return true
-        default:
-            return false
         }
     }
 }
