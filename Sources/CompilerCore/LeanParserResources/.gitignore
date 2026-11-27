@@ -5,3 +5,4 @@
 /Lean-LICENSES
 /.build.*/
 /libleanshared.so
+/.lean-parser-fingerprint
