@@ -107,12 +107,25 @@ extension WasmCodegenTests {
         let boxedFloatNaNTwo = call("kk_box_float", [int(Int64(0x7fc0_0001))])
         compare("kk_nullable_primitive_eq", boxedFloatNaNOne, boxedFloatNaNTwo, 0)
 
+        let addressPayload = int(4096)
+        let taggedAddressPayload = call("kk_tag_value_class_box_with_payload", [
+            call("kk_box_long_nonnull", [addressPayload]), addressPayload, counterClassID,
+        ])
+        let taggedAddressPayloadCopy = call("kk_tag_value_class_box_with_payload", [
+            call("kk_box_long_nonnull", [int(4096)]), int(4096), counterClassID,
+        ])
+        let taggedMinimumPayload = call("kk_tag_value_class_box_with_payload", [
+            call("kk_box_long_nonnull", [null]), null, counterClassID,
+        ])
+        compare("kk_nullable_primitive_eq", taggedAddressPayload, taggedAddressPayloadCopy, 0)
+        compare("kk_nullable_primitive_eq", taggedAddressPayload, taggedMinimumPayload, 0)
+
         body.append(.returnUnit)
         let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
         let declID = arena.appendDecl(.function(main))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
         let run = try runUnderNode(try emit(module, entry: mainSymbol))
         #expect(run?.status == 0, "Node stderr: \(run?.stderr ?? "")")
-        #expect(run?.stdout == "1\n0\n0\n1\n1\n0\n1\n0\n0\n1\n0\n1\n0\n1\n1\n0\n1\n0\n1\n0\n0\n1\n1\n1\n0\n1\n1\n1\n0\n0\n0\n1\n1\n1\n0\n1\n1\n0\n1\n")
+        #expect(run?.stdout == "1\n0\n0\n1\n1\n0\n1\n0\n0\n1\n0\n1\n0\n1\n1\n0\n1\n0\n1\n0\n0\n1\n1\n1\n0\n1\n1\n1\n0\n0\n0\n1\n1\n1\n0\n1\n1\n0\n1\n1\n0\n")
     }
 }

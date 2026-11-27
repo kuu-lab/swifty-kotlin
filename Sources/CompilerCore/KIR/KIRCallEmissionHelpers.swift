@@ -666,17 +666,37 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         emitPlainBoxCall()
         return
     }
-    // A nullable payload needs a nominal wrapper to distinguish `V(null)`
-    // from null. A reference payload also needs a wrapper rather than tagging
-    // the original object, which may be shared outside the value class.
-    let sentinelCollidingLongBoxCallees: Set<InternedString> = [
+    let primitiveBoxCallees: Set<InternedString> = [
         interner.intern("kk_box_long_nonnull"),
         interner.intern("kk_box_long_nonnull_static"),
         interner.intern("kk_box_ulong_nonnull"),
         interner.intern("kk_box_ulong_nonnull_static"),
     ]
+    if primitiveBoxCallees.contains(boxCallee) {
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classType.classSymbol, symbols: symbols, interner: interner
+        )
+        guard classID != 0 else {
+            emitPlainBoxCall()
+            return
+        }
+        let boxedTemp = arena.appendTemporary(type: resultType)
+        instructions.append(.call(callee: boxCallee, arguments: [value], result: boxedTemp, canThrow: false))
+        let intType = types.make(.primitive(.int, .nonNull))
+        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        instructions.append(.call(
+            callee: interner.intern("kk_tag_value_class_box_with_payload"),
+            arguments: [boxedTemp, value, classIDExpr],
+            result: result,
+            canThrow: false
+        ))
+        return
+    }
+    // A nullable payload needs a nominal wrapper to distinguish `V(null)`
+    // from null. A reference payload also needs a wrapper rather than tagging
+    // the original object, which may be shared outside the value class.
     if boxCallee == interner.intern("kk_value_class_box")
-        || sentinelCollidingLongBoxCallees.contains(boxCallee)
         || nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil
     {
         emitValueClassBoxCall(

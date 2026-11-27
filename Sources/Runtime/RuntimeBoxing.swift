@@ -787,6 +787,11 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
     return effectiveRaw
 }
 
+@_cdecl("kk_tag_value_class_box_with_payload")
+public func kk_tag_value_class_box_with_payload(_ boxedRaw: Int, _: Int, _ classID: Int) -> Int {
+    kk_tag_value_class_box(boxedRaw, classID)
+}
+
 /// Allocates a nominal box for a value class whose *underlying representation
 /// can itself be null* (e.g. `@JvmInline value class V(val x: String?)`,
 /// KUU-3115). `kk_tag_value_class_box` cannot express that case: it passes the

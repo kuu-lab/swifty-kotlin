@@ -426,6 +426,7 @@ enum WasmRuntimeHelpers {
         "kk_nullable_primitive_eq",
         "kk_nullable_primitive_ne",
         "kk_tag_value_class_box",
+        "kk_tag_value_class_box_with_payload",
         "kk_value_class_box",
         "kk_value_class_unbox",
         "kk_throwable_is_cancellation",
@@ -924,6 +925,9 @@ enum WasmRuntimeHelpers {
         case "kk_tag_value_class_box":
             extraLocals = 1
             emitValueClassTagBody(&code, ctx: ctx)
+        case "kk_tag_value_class_box_with_payload":
+            extraLocals = 0
+            emitValueClassPayloadTagBody(&code, ctx: ctx)
         case "kk_value_class_box":
             extraLocals = 1
             emitValueClassBoxBody(&code, ctx: ctx)
@@ -5022,6 +5026,17 @@ enum WasmRuntimeHelpers {
         emitValueClassBoxAllocation(&code, ctx: ctx)
         code.end()
         code.end()
+    }
+
+    private static func emitValueClassPayloadTagBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.localGet(1)
+        code.localSet(0)
+        code.localGet(2)
+        code.localSet(1)
+        emitValueClassBoxBody(&code, ctx: ctx)
     }
 
     private static func emitValueClassBoxBody(

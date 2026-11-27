@@ -96,6 +96,7 @@ struct LoweringPassRegressionTests {
         case suspendFunctionInvoke = "kk_suspend_function_invoke"
         case suspendFunctionInvoke0 = "kk_suspend_function_invoke_0"
         case tagValueClassBox = "kk_tag_value_class_box"
+        case tagValueClassBoxWithPayload = "kk_tag_value_class_box_with_payload"
         case typeRegisterIface = "kk_type_register_iface"
         case unboxInt = "kk_unbox_int"
         case unboxIntStatic = "kk_unbox_int_static"

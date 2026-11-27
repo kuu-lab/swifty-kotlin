@@ -41,6 +41,11 @@ fun main() {
     println(stableCounterBox.hashCode())
     boxedLongMinimum()
     println(stableCounterBox.hashCode())
+    val addressCounterBox: Any = boxedCounterAny(Counter(4096L))
+    val addressCounterBoxCopy: Any = boxedCounterAny(Counter(4096L))
+    val minimumCounterForEquality: Any = boxedCounterAny(Counter(Long.MIN_VALUE))
+    println(addressCounterBox == addressCounterBoxCopy)
+    println(addressCounterBox == minimumCounterForEquality)
 
     val missingLong: Long? = null
     val presentLong: Long? = 42L

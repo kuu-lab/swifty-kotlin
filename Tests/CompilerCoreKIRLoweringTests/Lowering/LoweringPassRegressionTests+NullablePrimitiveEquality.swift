@@ -93,15 +93,14 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
-    func testNullableLongValueClassReturnUsesNominalBox() throws {
+    func testNullableValueClassReturnPreservesTypedLongBox() throws {
         let source = """
         value class Counter(val raw: Long)
         fun sentinelNullableReturn(c: Counter): Counter? = c
         """
         let callees = try loweredCallees(for: source, function: "sentinelNullableReturn", includeStdlib: false)
-        #expect(callees.contains(RuntimeCall.valueClassBox.name))
-        #expect(!callees.contains(RuntimeCall.boxLongNonnullStatic.name))
-        #expect(!callees.contains(RuntimeCall.tagValueClassBox.name))
+        #expect(callees.contains(RuntimeCall.boxLongNonnullStatic.name))
+        #expect(callees.contains(RuntimeCall.tagValueClassBoxWithPayload.name))
     }
 
     @Test(arguments: ["c == expected", "expected == c", "c != expected", "expected != c"])
