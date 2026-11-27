@@ -200,7 +200,7 @@ def checkBoundary (input : Input) (workLimit index : Nat) (token : LexToken)
     | _ => (false, effects)
 where
   newModifierLookahead :=
-    let (declares, endIndex, budgetAt) := modifierLookahead input index workLimit
+    let (declares, endIndex, budgetAt) := modifierLookahead input index workLimit true
     let runs := if endIndex > index then ⟨index, endIndex, declares⟩ :: effects.runs else effects.runs
     (declares, { runs, budgetAt })
 

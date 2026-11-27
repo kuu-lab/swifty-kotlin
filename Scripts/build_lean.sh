@@ -69,8 +69,9 @@ if [[ ${1:-} == --verify ]]; then
         echo 'error: Stale Lean parser resources. Run bash Scripts/build_lean.sh to regenerate them.' >&2
         exit 1
     fi
-    if [[ ! -s "$build_id" || $(<"$build_id") != "$current_sources" ||
-          ! -s "$swift_identity" || $(<"$swift_identity") != "$(swift_identity_source "$current_sources")" ]]; then
+    current_id=$("${hash[@]}" < "$fingerprint_file" | cut -d ' ' -f 1)
+    if [[ ! -s "$build_id" || $(<"$build_id") != "$current_id" ||
+          ! -s "$swift_identity" || $(<"$swift_identity") != "$(swift_identity_source "$current_id")" ]]; then
         echo 'error: Stale Lean parser build identity. Run bash Scripts/build_lean.sh.' >&2
         exit 1
     fi
@@ -117,11 +118,12 @@ fi
     printf '%s\n' "$compiled_sources"
     library_fingerprints "$build_dir"
 } > "$build_dir/fingerprint"
+compiled_id=$("${hash[@]}" < "$build_dir/fingerprint" | cut -d ' ' -f 1)
 for artifact in "${libraries[@]}"; do
     mv "$build_dir/$artifact" "$resource_dir/$artifact"
 done
-printf '%s\n' "$compiled_sources" > "$build_dir/build-id"
-swift_identity_source "$compiled_sources" > "$build_dir/LeanParserBuildIdentity.swift"
+printf '%s\n' "$compiled_id" > "$build_dir/build-id"
+swift_identity_source "$compiled_id" > "$build_dir/LeanParserBuildIdentity.swift"
 if ! cmp -s "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"; then
     mv "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"
 fi
