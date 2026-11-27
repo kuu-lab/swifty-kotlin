@@ -57,7 +57,7 @@ enum LeanParser {
         case templateStart, templateEnd, varianceIn, eof
         case identifier, star, varianceOut, comma, question, questionDot, doubleColon
         case forKeyword, whileKeyword, doKeyword, arrow
-        case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword
+        case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword, objectKeyword
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -100,6 +100,7 @@ enum LeanParser {
         case .symbol(.barBar): .barBar
         case .keyword(.is): .isKeyword
         case .keyword(.as): .asKeyword
+        case .keyword(.object): .objectKeyword
         default: .other
         }
     }
@@ -153,7 +154,7 @@ enum LeanParser {
     }
 
     private enum Policy: UInt8 {
-        case labelStart, loopStart, typeNameStart, whenConditionNewline
+        case labelStart, loopStart, typeNameStart, whenConditionNewline, objectExpression
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -183,6 +184,13 @@ enum LeanParser {
     static func whenConditionContinuesAfterLineBreak(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         classify(
             parser, .whenConditionNewline,
+            first: tokenCode(kind).rawValue, second: tokenCode(parser.stream.peek(1).kind).rawValue
+        )
+    }
+
+    static func isObjectExpressionStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        classify(
+            parser, .objectExpression,
             first: tokenCode(kind).rawValue, second: tokenCode(parser.stream.peek(1).kind).rawValue
         )
     }
