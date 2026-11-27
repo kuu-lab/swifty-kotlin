@@ -54,8 +54,8 @@ struct JVMClassInfo {
 
     func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
         isKotlinFileFacade != true && !field.isStatic && field.access & 0x1000 == 0
-            && (field.isPublic || field.isPackagePrivate
-                || field.isProtected && kotlinMemberProperties[field.name] == nil)
+            && (field.isPublic || field.isPackagePrivate || field.isProtected)
+            && kotlinMemberProperties[field.name] == nil
     }
 }
 
@@ -912,6 +912,9 @@ struct JVMClassReader {
                    ($0.isPublic || $0.isProtected) && !$0.isStatic && $0.access & 0x1000 == 0
                })
                || methods.contains(where: {
+                   $0.isProtected && $0.parameters.isEmpty && $0.result != .unit
+               })
+               || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
                    || !$0.isStatic && $0.composePropertyABI(hasReceiver: false)
@@ -924,6 +927,10 @@ struct JVMClassReader {
                     (!$0.isProtected || property.isProtected)
                         && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
+                let hasVisibleField = fields.contains(where: {
+                    $0.name == property.name && !$0.isStatic && $0.access & 0x1000 == 0
+                        && ($0.isPublic || $0.isProtected || $0.isPackagePrivate)
+                })
                 // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
                 let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
                 let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
@@ -936,6 +943,7 @@ struct JVMClassReader {
                               || isKotlinObject && property.isSourceVisible && !property.isVar
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
+                              || hasVisibleField && property.isSourceVisible
                               || getter.isProtected && property.isSourceVisible
                               || !getter.isStatic && property.isSourceVisible && !property.isVar
                                   && getter.composePropertyABI(hasReceiver: false)

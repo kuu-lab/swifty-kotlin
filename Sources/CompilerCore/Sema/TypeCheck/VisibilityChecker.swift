@@ -25,7 +25,8 @@ struct VisibilityChecker {
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?,
         usageRange: SourceRange? = nil,
-        receiverClass: SymbolID? = nil
+        receiverClass: SymbolID? = nil,
+        receiverIsExplicit: Bool = false
     ) -> Bool {
         if symbol.flags.contains(.objectLiteralType) {
             guard !symbol.flags.contains(.importedLibrary),
@@ -141,9 +142,12 @@ struct VisibilityChecker {
                     let isClasspathStub = declarationFile.map {
                         sourceManager?.path(of: $0).hasPrefix("<kswiftk-jvm-import>/") == true
                     } == true
-                    if isClasspathStub,
-                       let receiverClass, !isSubclass(receiverClass, of: enclosingClass) {
-                        return false
+                    if isClasspathStub && receiverIsExplicit {
+                        guard let receiverClass,
+                              receiverClass == enclosingClass || isSubclass(receiverClass, of: enclosingClass)
+                        else {
+                            return false
+                        }
                     }
                     return true
                 }

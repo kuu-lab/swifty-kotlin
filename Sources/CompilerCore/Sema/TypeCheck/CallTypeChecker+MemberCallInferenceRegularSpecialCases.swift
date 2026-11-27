@@ -96,14 +96,17 @@ extension CallTypeChecker {
                 }
             }
             let receiverClass = isSuperCall
-                ? nil
-                : driver.helpers.nominalSymbol(of: memberLookupType, types: request.sema.types)
+                ? request.ctx.enclosingClassSymbol
+                : driver.helpers.jvmProtectedReceiverClass(
+                    of: memberLookupType, types: request.sema.types, symbols: request.sema.symbols
+                )
             if let propSymbol = request.sema.symbols.symbol(propResult.symbol),
                !request.ctx.visibilityChecker.isAccessible(
                    propSymbol,
                    fromFile: request.ctx.currentFileID,
                    enclosingClass: request.ctx.enclosingClassSymbol,
-                   receiverClass: receiverClass
+                   receiverClass: receiverClass,
+                   receiverIsExplicit: !isClassNameReceiver
                )
             {
                 driver.helpers.emitVisibilityError(

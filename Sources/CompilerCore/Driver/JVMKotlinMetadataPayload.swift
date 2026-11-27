@@ -409,6 +409,7 @@ struct JVMKotlinMetadataPayload {
             guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
                   let type = try types.resolve(property, inline: 3, indexed: 9) else { return nil }
             let signature = try property.message(100)
+            guard try signature?.message(3) == nil else { return nil }
             let setter = try signature?.message(4)
             let flags = property.int32(11) ?? 6
             let visibility = (flags >> 1) & 7

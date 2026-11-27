@@ -3017,6 +3017,7 @@ final class JVMClasspathIndex {
                 }
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
+            markSourceTypes(info.kotlinFieldProperties.values.compactMap(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
             markSourceTypes(info.methods.compactMap(\.kotlinConstructorParameterSourceTypes).flatMap { $0 })
             // Covered Kotlin supertypes render from kotlinSupertypes; their
@@ -3103,7 +3104,9 @@ final class JVMClasspathIndex {
                     for name in names { markNeeded(name) }
                 }
             }
-            for field in info.fields where (field.isStatic || info.isRuntimeInstanceField(field)) && field.isPublic && field.access & 0x1000 == 0 {
+            for field in info.fields
+            where (field.isStatic || info.isRuntimeInstanceField(field))
+                && (field.isPublic || field.isProtected) && field.access & 0x1000 == 0 {
                 guard let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
                       expose(type)
                 else { continue }

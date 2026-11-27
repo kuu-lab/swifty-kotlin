@@ -178,6 +178,30 @@ extension TypeCheckHelpers {
         }
     }
 
+    func jvmProtectedReceiverClass(of type: TypeID, types: TypeSystem, symbols: SymbolTable) -> SymbolID? {
+        var visitedTypeParameters: Set<SymbolID> = []
+
+        func firstErasedNominal(_ type: TypeID) -> SymbolID? {
+            switch types.kind(of: type) {
+            case let .typeParam(typeParameter):
+                guard visitedTypeParameters.insert(typeParameter.symbol).inserted else { return nil }
+                let bounds = typeParameter.capture.map { [$0.upper] }
+                    ?? symbols.typeParameterUpperBounds(for: typeParameter.symbol)
+                guard let firstBound = bounds.first else { return types.anyClassSymbol }
+                return firstErasedNominal(firstBound)
+            case let .intersection(parts):
+                for part in parts {
+                    if let symbol = firstErasedNominal(part) { return symbol }
+                }
+                return nil
+            default:
+                return nominalSymbol(of: type, types: types)
+            }
+        }
+
+        return firstErasedNominal(type)
+    }
+
     func allNominalSymbols(
         of type: TypeID,
         types: TypeSystem,
