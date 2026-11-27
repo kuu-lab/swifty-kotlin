@@ -7,7 +7,7 @@ inductive Kind where
   | openParen | closeParen | openBracket | closeBracket | openBrace | closeBrace
   | templateStart | templateEnd | varianceIn | eof
   | identifier | star | varianceOut | comma | question | questionDot | doubleColon
-  | forKeyword | whileKeyword | doKeyword
+  | forKeyword | whileKeyword | doKeyword | arrow
   deriving DecidableEq
 
 structure Input where
@@ -20,7 +20,7 @@ def decodeKind : UInt8 → Kind
   | 10 => .openBrace | 11 => .closeBrace | 12 => .templateStart | 13 => .templateEnd
   | 14 => .varianceIn | 15 => .eof | 16 => .identifier | 17 => .star
   | 18 => .varianceOut | 19 => .comma | 20 => .question | 21 => .questionDot | 22 => .doubleColon
-  | 23 => .forKeyword | 24 => .whileKeyword | 25 => .doKeyword
+  | 23 => .forKeyword | 24 => .whileKeyword | 25 => .doKeyword | 26 => .arrow
   | _ => .other
 
 @[extern "kswiftk_lean_read_parser_token"]
