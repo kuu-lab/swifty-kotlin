@@ -776,16 +776,12 @@ extension KotlinParser {
             }
             return
         }
-        let next = stream.peek()
-        let continuesHeaderAcrossNewline = includeBlock && (
-            next.kind == .symbol(.colon)
-                || next.kind == .symbol(.lessThan)
-                || next.kind == .softKeyword(.where)
-        ) || allowsClassHeaderColon && next.kind == .symbol(.lParen)
-            || allowsClassDelegation && next.kind == .softKeyword(.by)
-        let stopsAtNewline = hasLeadingNewline(next)
-            && (includeBlock ? !continuesHeaderAcrossNewline : isDeclarationStart(next.kind))
-        if stopsAtNewline {
+        if LeanParser.stopsDeclarationHeaderAtNewline(
+            self,
+            includeBlock: includeBlock,
+            allowsClassHeaderColon: allowsClassHeaderColon,
+            allowsClassDelegation: allowsClassDelegation
+        ) {
             return
         }
         parseTail(

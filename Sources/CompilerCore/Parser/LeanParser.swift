@@ -61,6 +61,7 @@ enum LeanParser {
         case fieldKeyword, assign, context, modifier
         case softWhenKeyword, catchKeyword, companionKeyword, constructorKeyword, dynamicKeyword
         case enumKeyword, finallyKeyword, importKeyword, reifiedKeyword, declarationKeyword
+        case whereKeyword, byKeyword
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -119,6 +120,8 @@ enum LeanParser {
         case .keyword(.reified): .reifiedKeyword
         case .keyword(.class), .keyword(.interface), .keyword(.fun), .keyword(.val), .keyword(.var),
              .keyword(.typealias), .keyword(.package): .declarationKeyword
+        case .softKeyword(.where): .whereKeyword
+        case .softKeyword(.by): .byKeyword
         default: .other
         }
     }
@@ -173,7 +176,8 @@ enum LeanParser {
 
     private enum Policy: UInt8 {
         case labelStart, loopStart, typeNameStart, whenConditionNewline
-        case objectExpression, backingField, ambiguousDeclarationPrefix, companionName, declarationStart
+        case objectExpression, backingField, ambiguousDeclarationPrefix, companionName
+        case declarationStart, declarationHeaderNewline
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -232,6 +236,15 @@ enum LeanParser {
 
     static func isDeclarationStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         classify(parser, .declarationStart, first: tokenCode(kind).rawValue)
+    }
+
+    static func stopsDeclarationHeaderAtNewline(
+        _ parser: KotlinParser, includeBlock: Bool, allowsClassHeaderColon: Bool, allowsClassDelegation: Bool
+    ) -> Bool {
+        let token = parser.stream.peek()
+        let options: UInt8 = (includeBlock ? 1 : 0) | (allowsClassHeaderColon ? 2 : 0)
+            | (allowsClassDelegation ? 4 : 0) | (parser.hasLeadingNewline(token) ? 8 : 0)
+        return classify(parser, .declarationHeaderNewline, first: tokenCode(token.kind).rawValue, second: options)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {
