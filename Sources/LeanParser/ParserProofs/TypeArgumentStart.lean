@@ -8,7 +8,7 @@ inductive Kind where
   | templateStart | templateEnd | varianceIn | eof
   | identifier | star | varianceOut | comma | question | questionDot | doubleColon
   | forKeyword | whileKeyword | doKeyword | arrow
-  | bang | bangBang | questionColon | ampAmp | barBar | isKeyword | asKeyword | objectKeyword | fieldKeyword | assign
+  | bang | bangBang | questionColon | ampAmp | barBar | isKeyword | asKeyword | objectKeyword | fieldKeyword | assign | context | modifier
   deriving DecidableEq
 
 structure Input where
@@ -23,7 +23,7 @@ def decodeKind : UInt8 → Kind
   | 18 => .varianceOut | 19 => .comma | 20 => .question | 21 => .questionDot | 22 => .doubleColon
   | 23 => .forKeyword | 24 => .whileKeyword | 25 => .doKeyword | 26 => .arrow
   | 27 => .bang | 28 => .bangBang | 29 => .questionColon | 30 => .ampAmp
-  | 31 => .barBar | 32 => .isKeyword | 33 => .asKeyword | 34 => .objectKeyword | 35 => .fieldKeyword | 36 => .assign
+  | 31 => .barBar | 32 => .isKeyword | 33 => .asKeyword | 34 => .objectKeyword | 35 => .fieldKeyword | 36 => .assign | 37 => .context | 38 => .modifier
   | _ => .other
 
 @[extern "kswiftk_lean_read_parser_token"]
