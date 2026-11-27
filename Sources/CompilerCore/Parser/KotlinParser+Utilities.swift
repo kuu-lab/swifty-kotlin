@@ -572,15 +572,6 @@ extension KotlinParser {
         kind.isLabelName
     }
 
-    func isLoopStart(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .keyword(.for), .keyword(.while), .keyword(.do):
-            true
-        default:
-            false
-        }
-    }
-
     func hasLeadingNewline(_ token: Token) -> Bool {
         token.leadingTrivia.contains(.newline)
     }
