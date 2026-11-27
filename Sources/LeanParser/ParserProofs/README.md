@@ -17,3 +17,21 @@ including proofs that use `sorry`.
 
 Pull requests and the merge queue run the proof build as part of the CI gate.
 Nightly verification runs the same proof build.
+
+## Reproduce the type-argument checks from CI
+
+Run these commands from the repository root to generate the 791-case oracle
+and exercise the Swift parser with the bundled Lean library:
+
+```bash
+(
+    set -e
+    unset CDPATH
+    bash Scripts/build_lean.sh
+    oracle=$(mktemp)
+    trap 'rm -f "$oracle"' EXIT
+    (cd Sources/LeanParser && lake env lean --run ../../Tests/Formal/TypeArguments.lean) > "$oracle"
+    KSWIFTK_TYPE_ARGUMENTS_ORACLE="$oracle" bash Scripts/swift_test.sh --no-parallel \
+      --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/'
+)
+```

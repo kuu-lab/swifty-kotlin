@@ -663,13 +663,13 @@ extension KotlinParser {
         }
     }
 
-    func isLikelyTopLevelDeclarationStart(_ token: Token) -> Bool {
+    func isLikelyTopLevelDeclarationStart(_ token: Token, at offset: Int = 0) -> Bool {
         if token.kind == .symbol(.at) {
             return true
         }
         if case let .keyword(keyword) = token.kind {
             if Self.isDeclarationModifierKeyword(keyword) {
-                return startsDeclarationAfterModifier(at: 0)
+                return startsDeclarationAfterModifier(at: offset)
             }
             return isDeclarationStart(token.kind)
         }
@@ -678,14 +678,14 @@ extension KotlinParser {
         // `context` at the start of a line inside a multiline group
         // (`fun f(\n    context: T,\n ...)`) must not terminate that group.
         if case .softKeyword(.context) = token.kind {
-            return stream.peek(1).kind == .symbol(.lParen)
+            return stream.peek(offset + 1).kind == .symbol(.lParen)
         }
         return isDeclarationStart(token.kind)
     }
 
-    func continuesAngleBracketListAtNewlineAnnotation(_ token: Token) -> Bool {
+    func continuesAngleBracketListAtNewlineAnnotation(_ token: Token, at offset: Int) -> Bool {
         guard token.kind == .symbol(.at) else { return false }
-        var cursor = 0
+        var cursor = offset
         var work = 0
         while stream.peek(cursor).kind == .symbol(.at) {
             guard consumeDeclarationLookaheadWork(&work, at: cursor),

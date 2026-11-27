@@ -161,7 +161,10 @@ jobs:
       - name: Build Swift test bundle
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Check bundled Lean parser
-        run: bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/' $SWIFT_XSWIFTC_FLAGS
+        run: |
+          oracle="$RUNNER_TEMP/type-arguments.json"
+          (cd Sources/LeanParser && lake env lean --run ../../Tests/Formal/TypeArguments.lean) > "$oracle"
+          KSWIFTK_TYPE_ARGUMENTS_ORACLE="$oracle" bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/' $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
         run: |
