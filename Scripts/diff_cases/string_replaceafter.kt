@@ -9,5 +9,6 @@ fun main() {
     println("a:b:c".replaceAfter(':', "X", "MISS"))
     println("abc".replaceAfter(':', "X", "MISS"))
     println("abc".replaceAfter(':', "X"))
+    println("abc".replaceAfter(delimiter = ':', replacement = "X"))
     println("abc".replaceAfter('a', "X", "MISS"))
 }
