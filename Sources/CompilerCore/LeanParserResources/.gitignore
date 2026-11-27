@@ -4,3 +4,4 @@
 /Lean-LICENSE
 /Lean-LICENSES
 /.build.*/
+/libleanshared.so
