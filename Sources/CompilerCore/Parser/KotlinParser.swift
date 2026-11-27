@@ -10,6 +10,7 @@ final class KotlinParser {
     private var nestingLimitReported = false
     var genuineDeclarationLookahead: [Int: Bool] = [:]
     var modifierDeclarationLookahead: [Int: Bool] = [:]
+    var typeArgumentModifierLookahead: [Int: Bool] = [:]
 
     init(tokens: [Token], interner: StringInterner, diagnostics: DiagnosticEngine) {
         stream = TokenStream(tokens)
