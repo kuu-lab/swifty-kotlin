@@ -664,7 +664,7 @@ extension KotlinParser {
                    token.kind != .keyword(.if),
                    lastConsumedToken?.kind != .keyword(.if),
                    !endsWithPendingInfixOperator(children),
-                   !whenConditionContinuesAfterLineBreak(token)
+                   !LeanParser.whenConditionContinuesAfterLineBreak(self, kind: token.kind)
                 {
                     break
                 }
@@ -685,27 +685,6 @@ extension KotlinParser {
         }
 
         return arena.appendNode(kind: .whenCondition, range: range.value ?? invalidRange, children)
-    }
-
-    /// Whether a newline-leading `token` can only continue the `when` branch
-    /// condition in progress, mirroring the continuation the expression parser
-    /// applies: the postfix `.`/`?.`/`!!` suffixes, the `is`/`in`/`as` infix
-    /// keywords, `!is`/`!in`, and the `?:`/`&&`/`||` binary operators can never
-    /// begin an entry, so `x\n.isEmpty ->` or `a &&\nb ->` stays one condition.
-    /// `+`/`-`/`*`/`/`/`%`/comparisons still split, matching the statement
-    /// boundary policy (`a\n-1` may legitimately start a `-1` entry).
-    private func whenConditionContinuesAfterLineBreak(_ token: Token) -> Bool {
-        switch token.kind {
-        case .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
-             .symbol(.questionColon), .symbol(.ampAmp), .symbol(.barBar),
-             .keyword(.is), .keyword(.in), .keyword(.as):
-            return true
-        case .symbol(.bang):
-            let next = stream.peek(1)
-            return next.kind == .keyword(.is) || next.kind == .keyword(.in)
-        default:
-            return false
-        }
     }
 
     func classifyStatementLeadingToken(_ token: Token) -> SyntaxKind {
