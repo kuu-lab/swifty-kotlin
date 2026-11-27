@@ -859,15 +859,6 @@ extension KotlinParser {
         LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
     }
 
-    func consumeDeclarationLookaheadWork(_ work: inout Int, at offset: Int) -> Bool {
-        guard work < Self.declarationLookaheadWorkLimit else {
-            reportDeclarationLookaheadBudget(at: offset)
-            return false
-        }
-        work += 1
-        return true
-    }
-
     func offsetPastBalancedGroup(from offset: Int, maxDistance: Int? = nil) -> Int {
         LeanParser.offsetPastParens(self, from: offset, maxDistance: maxDistance)
     }

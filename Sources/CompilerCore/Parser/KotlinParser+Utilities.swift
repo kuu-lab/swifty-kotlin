@@ -30,116 +30,6 @@ extension KotlinParser {
         }
     }
 
-    func consumeDeclarationAnnotationPrefixIfPresent(
-        into children: inout [SyntaxChild],
-        range: inout RangeAccumulator
-    ) -> Bool {
-        guard stream.peek().kind == .symbol(.at) else {
-            return false
-        }
-
-        _ = consumeToken(into: &children, range: &range)
-
-        let first = stream.peek()
-        if isAnnotationUseSiteTarget(first),
-           stream.peek(1).kind == .symbol(.colon)
-        {
-            _ = consumeToken(into: &children, range: &range)
-            _ = consumeToken(into: &children, range: &range)
-        }
-
-        if isIdentifierLike(stream.peek().kind) {
-            _ = consumeToken(into: &children, range: &range)
-            while stream.peek().kind == .symbol(.dot),
-                  isIdentifierLike(stream.peek(1).kind)
-            {
-                _ = consumeToken(into: &children, range: &range)
-                _ = consumeToken(into: &children, range: &range)
-            }
-        }
-
-        if stream.peek().kind == .symbol(.lessThan) {
-            _ = consumeToken(into: &children, range: &range)
-            var angleDepth = 1
-            var parenDepth = 0
-            var bracketDepth = 0
-            var braceDepth = 0
-            var templateDepth = 0
-            while !stream.atEOF(), angleDepth > 0 {
-                let token = consumeToken(into: &children, range: &range)
-                let kind = token.kind
-                let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
-                if !inExpressionGroup {
-                    if kind == .symbol(.lessThan) {
-                        angleDepth += 1
-                    } else if kind == .symbol(.greaterThan) {
-                        angleDepth -= 1
-                    }
-                }
-                switch kind {
-                case .symbol(.lParen): parenDepth += 1
-                case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-                case .symbol(.lBracket): bracketDepth += 1
-                case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-                case .symbol(.lBrace): braceDepth += 1
-                case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-                case .templateExprStart: templateDepth += 1
-                case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
-                default: break
-                }
-            }
-        }
-
-        if stream.peek().kind == .symbol(.lParen) {
-            _ = consumeToken(into: &children, range: &range)
-            var closingSymbols: [Symbol] = [.rParen]
-            while !stream.atEOF(), !closingSymbols.isEmpty {
-                if closingSymbols.count == 1, hasLeadingNewline(stream.peek()),
-                   isAnnotationArgumentRecoveryBoundary(at: 0) {
-                    let missingRange = zeroWidthRange(at: stream.peek())
-                    diagnostics.error(
-                        "KSWIFTK-PARSE-0001", "Expected ')' to close annotation arguments.",
-                        range: missingRange
-                    )
-                    let missing = Token(kind: .missing(expected: .symbol(.rParen)), range: missingRange)
-                    children.append(.token(arena.appendToken(missing)))
-                    range.append(missingRange)
-                    break
-                }
-                let token = consumeToken(into: &children, range: &range)
-                if case let .symbol(symbol) = token.kind {
-                    switch symbol {
-                    case .lParen: closingSymbols.append(.rParen)
-                    case .lBracket: closingSymbols.append(.rBracket)
-                    case .lBrace: closingSymbols.append(.rBrace)
-                    default:
-                        if symbol == closingSymbols.last { closingSymbols.removeLast() }
-                    }
-                }
-            }
-        }
-
-        return true
-    }
-
-    func isAnnotationArgumentRecoveryBoundary(at offset: Int) -> Bool {
-        let token = stream.peek(offset)
-        switch token.kind {
-        case .keyword(.fun):
-            return stream.peek(offset + 1).kind != .symbol(.lParen)
-        case .keyword(.object):
-            return stream.peek(offset + 1).kind != .symbol(.colon)
-                && stream.peek(offset + 1).kind != .symbol(.lBrace)
-        case .keyword(.class):
-            let previousKind = offset > 0 ? stream.peek(offset - 1).kind : lastConsumedToken?.kind
-            return previousKind != .symbol(.doubleColon) && isIdentifierLike(stream.peek(offset + 1).kind)
-        case .keyword(.interface), .keyword(.val), .keyword(.var), .keyword(.typealias):
-            return true
-        default:
-            return false
-        }
-    }
-
     func isAnnotationUseSiteTarget(_ token: Token) -> Bool {
         switch token.kind {
         case let .softKeyword(soft):
@@ -164,12 +54,6 @@ extension KotlinParser {
         default:
             return false
         }
-    }
-
-    func isReceiverAnnotationPrefix(at offset: Int = 0) -> Bool {
-        stream.peek(offset).kind == .symbol(.at)
-            && isReceiverUseSiteTarget(stream.peek(offset + 1))
-            && stream.peek(offset + 2).kind == .symbol(.colon)
     }
 
     func offsetPastAnnotationPrefix(from offset: Int) -> Int? {
@@ -202,41 +86,6 @@ extension KotlinParser {
             )
         }
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
-    }
-
-    func parseQualifiedPath(into children: inout [SyntaxChild], range: inout RangeAccumulator, allowImportWildcard: Bool, stopAtAs: Bool = false) {
-        var consumed = false
-        while !stream.atEOF() {
-            let token = stream.peek()
-            if shouldStopStatementBefore(token, inBlock: false) {
-                break
-            }
-            if consumed, hasLeadingNewline(token) {
-                break
-            }
-            if stopAtAs, case .keyword(.as) = token.kind {
-                break
-            }
-            if case .symbol(.dot) = token.kind {
-                _ = consumeToken(into: &children, range: &range)
-                consumed = true
-                continue
-            }
-            if isIdentifierLike(token.kind) {
-                _ = consumeToken(into: &children, range: &range)
-                consumed = true
-                continue
-            }
-            if allowImportWildcard, case .symbol(.star) = token.kind {
-                _ = consumeToken(into: &children, range: &range)
-                consumed = true
-                continue
-            }
-            break
-        }
-        if !consumed {
-            insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0003", message: "Expected name in package/import path.")
-        }
     }
 
     func consumeIf(expected: TokenKind, into children: inout [SyntaxChild], range: inout RangeAccumulator, code: String) {
@@ -279,10 +128,11 @@ extension KotlinParser {
 
     func shouldStopStatementBefore(_ token: Token, inBlock: Bool) -> Bool {
         if isLabelStart { return false }
-        return ParserBoundaryPolicy.shouldStopStatementBefore(
+        return LeanParser.shouldStopStatementBefore(
             token,
             inBlock: inBlock,
-            hasLeadingNewline: hasLeadingNewline(token)
+            hasLeadingNewline: hasLeadingNewline(token),
+            diagnostics: diagnostics
         )
     }
 
@@ -316,7 +166,7 @@ extension KotlinParser {
     }
 
     func isDeclarationStart(_ kind: TokenKind) -> Bool {
-        LeanParser.isDeclarationStart(self, kind: kind)
+        LeanParser.isBareDeclarationStart(self, kind: kind)
     }
 
     func isIdentifierLike(_ kind: TokenKind) -> Bool {
@@ -325,12 +175,6 @@ extension KotlinParser {
 
     func hasLeadingNewline(_ token: Token) -> Bool {
         token.leadingTrivia.contains(.newline)
-    }
-
-    func appendOptionalTerminator(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
-        if !stream.atEOF(), case .symbol(.semicolon) = stream.peek().kind {
-            _ = consumeToken(into: &children, range: &range)
-        }
     }
 
     func zeroWidthRange(at token: Token) -> SourceRange {
@@ -363,92 +207,26 @@ extension KotlinParser {
         range.append(missingRange)
     }
 
-    func isSynchronizationPoint(_ token: Token, inBlock: Bool) -> Bool {
-        ParserBoundaryPolicy.isSynchronizationPoint(
-            token,
-            inBlock: inBlock,
-            hasLeadingNewline: hasLeadingNewline(token)
-        )
-    }
-
     func skipToSynchronizationPoint(
         inBlock: Bool,
         into children: inout [SyntaxChild],
         range: inout RangeAccumulator
     ) {
+        let skippedCount = LeanParser.recoverySkipCount(self, inBlock: inBlock) ?? 0
+        consumeSkippedTokens(skippedCount, into: &children, range: &range)
+    }
+
+    func consumeSkippedTokens(_ skippedCount: Int, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
+        guard skippedCount > 0 else { return }
         let skippedStart = stream.peek().range
-        if !inBlock, case .symbol(.rBrace) = stream.peek().kind {
+        for _ in 0..<skippedCount {
             _ = consumeToken(into: &children, range: &range)
-            diagnostics.error(
-                "KSWIFTK-PARSE-0006",
-                "Skipped 1 unexpected token(s).",
-                range: skippedStart
-            )
-            return
         }
-
-        var skippedCount = 0
-        while !stream.atEOF() {
-            let token = stream.peek()
-            if isSynchronizationPoint(token, inBlock: inBlock) {
-                break
-            }
-            _ = consumeToken(into: &children, range: &range)
-            skippedCount += 1
-        }
-        if skippedCount > 0 {
-            diagnostics.error(
-                "KSWIFTK-PARSE-0006",
-                "Skipped \(skippedCount) unexpected token(s).",
-                range: skippedStart
-            )
-        }
-    }
-
-    func isLikelyTopLevelDeclarationStart(_ token: Token, at offset: Int = 0) -> Bool {
-        if token.kind == .symbol(.at) {
-            return true
-        }
-        if case let .keyword(keyword) = token.kind {
-            if Self.isDeclarationModifierKeyword(keyword) {
-                return startsDeclarationAfterModifier(at: offset)
-            }
-            return isDeclarationStart(token.kind)
-        }
-        // `context` only introduces a declaration as a context-parameter
-        // prefix (`context(x: T) fun f()`). A parameter or property named
-        // `context` at the start of a line inside a multiline group
-        // (`fun f(\n    context: T,\n ...)`) must not terminate that group.
-        if case .softKeyword(.context) = token.kind {
-            return stream.peek(offset + 1).kind == .symbol(.lParen)
-        }
-        return isDeclarationStart(token.kind)
-    }
-
-    func continuesAngleBracketListAtNewlineAnnotation(_ token: Token, at offset: Int) -> Bool {
-        guard token.kind == .symbol(.at) else { return false }
-        var cursor = offset
-        var work = 0
-        while stream.peek(cursor).kind == .symbol(.at) {
-            guard consumeDeclarationLookaheadWork(&work, at: cursor),
-                  let end = offsetPastAnnotationPrefix(from: cursor)
-            else {
-                return false
-            }
-            cursor = end
-        }
-        let kind = stream.peek(cursor).kind
-        if case .softKeyword(.context) = kind {
-            return stream.peek(cursor + 1).kind != .symbol(.lParen)
-        }
-        // Modifier keywords (`private`, `inline`, …) are also label names,
-        // so declaration boundaries must be ruled out before treating an
-        // identifier-like token as the next list element.
-        if isDeclarationStart(kind) { return false }
-        if case let .keyword(keyword) = kind, Self.isDeclarationModifierKeyword(keyword) {
-            return !startsDeclarationAfterModifier(at: cursor)
-        }
-        return isIdentifierLike(kind) || kind == .keyword(.in)
+        diagnostics.error(
+            "KSWIFTK-PARSE-0006",
+            "Skipped \(skippedCount) unexpected token(s).",
+            range: skippedStart
+        )
     }
 
     func endsWithPendingInfixOperator(_ children: [SyntaxChild]) -> Bool {
@@ -756,41 +534,6 @@ extension KotlinParser {
     /// boundary when a real declaration keyword follows it. This keeps a
     /// modifier keyword used as a parameter name inside a multiline group
     /// from prematurely terminating that group.
-    private func startsDeclarationAfterModifier(at offset: Int) -> Bool {
-        var cursor = offset
-        var work = 0
-        var prefixIndices: [Int] = []
-        while true {
-            let absoluteIndex = stream.index + cursor
-            if let cached = modifierDeclarationLookahead[absoluteIndex] {
-                for index in prefixIndices {
-                    modifierDeclarationLookahead[index] = cached
-                }
-                return cached
-            }
-            guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
-                for index in prefixIndices {
-                    modifierDeclarationLookahead[index] = true
-                }
-                modifierDeclarationLookahead[stream.index + offset] = true
-                return true
-            }
-            let token = stream.peek(cursor)
-            guard case let .keyword(keyword) = token.kind,
-                  Self.isDeclarationModifierKeyword(keyword)
-            else {
-                let result = isDeclarationStart(token.kind)
-                for index in prefixIndices {
-                    modifierDeclarationLookahead[index] = result
-                }
-                modifierDeclarationLookahead[absoluteIndex] = result
-                return result
-            }
-            prefixIndices.append(absoluteIndex)
-            cursor += 1
-        }
-    }
-
     var invalidRange: SourceRange {
         SourceRange(
             start: SourceLocation(file: FileID.invalid, offset: 0),
@@ -837,6 +580,13 @@ extension KotlinParser {
     }
 }
 
+/// Tracks a `by` delegate expression while flat-scanning class/object headers
+/// and property initializers containing object literals, so a top-level `{`
+/// can be classified as part of the delegate expression — the body of `when`,
+/// `if`/`else`, `try`/`catch`/`finally`, or `do`, an object literal's body, or a
+/// lambda directly after `by` — versus the declaration's own body. kotlinc
+/// never parses a trailing lambda in this position: `C by run { x }` reports
+/// "function invocation 'run(...)' expected" and treats the brace as the class body.
 enum ParserBoundaryPolicy {
     private static let newlineBoundaryKeywords: Set<Keyword> = [
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import, .return,
