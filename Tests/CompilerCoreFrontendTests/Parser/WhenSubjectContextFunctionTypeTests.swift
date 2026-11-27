@@ -4,9 +4,9 @@
 import Testing
 
 extension TypeArgumentsLeanParityTests {
-    @Test
-    func whenSubjectKeepsMultilineContextFunctionType() {
-        let lexed = lex("(val item:\ncontext(String) () -> String = value)\nfun after() {}")
+    @Test(arguments: ["", "suspend ", "List<Int>.", "String?.", "(List<Int>?)."])
+    func whenSubjectKeepsMultilineContextFunctionType(prefix: String) {
+        let lexed = lex("(val item:\ncontext(String) \(prefix)() -> String = value)\nfun after() {}")
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
         let group = parser.parseBalancedGroup(opening: .lParen, closing: .rParen, allowsWhenSubjectVariable: true)
         let tokens = parser.arena.children(of: group).compactMap { child -> TokenKind? in
