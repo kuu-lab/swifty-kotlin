@@ -108,6 +108,14 @@ final class StableRenderContext {
                 ? ""
                 : "<\(args.map { renderTypeArgRef($0) }.joined(separator: ","))>"
             return "\(name)\(argStr)\(nullable ? "?" : "")"
+        case let .qualifiedNamed(segments, nullable):
+            let name = segments.map { segment in
+                let argStr = segment.args.isEmpty
+                    ? ""
+                    : "<\(segment.args.map { renderTypeArgRef($0) }.joined(separator: ","))>"
+                return "\(interner.resolve(segment.name))\(argStr)"
+            }.joined(separator: ".")
+            return "\(name)\(nullable ? "?" : "")"
         case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
             var prefix = isSuspend ? "suspend " : ""
             if !contextReceivers.isEmpty {

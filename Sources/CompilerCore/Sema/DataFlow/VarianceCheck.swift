@@ -419,8 +419,9 @@ extension DataFlowSemaPhase {
     ) {
         guard let typeRef = env.ast.arena.typeRef(typeRefID) else { return }
         switch typeRef {
-        case let .named(path, typeArgs, _):
-            checkNamedTypeVariance(typeRefID: typeRefID, path: path, typeArgs: typeArgs, position: position,
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else { return }
+            checkNamedTypeVariance(typeRefID: typeRefID, path: namedType.path, typeArgs: namedType.args, position: position,
                                    varianceMap: varianceMap, env: env, memberRange: memberRange)
         case let .functionType(contextReceiverTypeRefs, receiverTypeRef, paramTypeRefs, returnTypeRef, _, _):
             for contextReceiverTypeRef in contextReceiverTypeRefs {

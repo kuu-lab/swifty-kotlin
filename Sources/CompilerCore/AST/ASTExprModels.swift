@@ -5,11 +5,60 @@ public enum TypeArgRef: Equatable, Codable {
     case star
 }
 
+public struct NamedTypeSegment: Equatable, Codable {
+    public let name: InternedString
+    public let args: [TypeArgRef]
+
+    public init(name: InternedString, args: [TypeArgRef] = []) {
+        self.name = name
+        self.args = args
+    }
+}
+
+struct NamedTypeRef {
+    let segments: [NamedTypeSegment]
+    let nullable: Bool
+
+    init(segments: [NamedTypeSegment], nullable: Bool) {
+        self.segments = segments
+        self.nullable = nullable
+    }
+
+    var path: [InternedString] {
+        segments.map(\.name)
+    }
+
+    var args: [TypeArgRef] {
+        segments.flatMap(\.args)
+    }
+
+    func args(in segmentIndices: Set<Int>) -> [TypeArgRef] {
+        segments.enumerated().flatMap { index, segment in
+            segmentIndices.contains(index) ? segment.args : []
+        }
+    }
+}
+
 public enum TypeRef: Equatable, Codable {
     case named(path: [InternedString], args: [TypeArgRef], nullable: Bool)
+    case qualifiedNamed(segments: [NamedTypeSegment], nullable: Bool)
     case functionType(contextReceivers: [TypeRefID], receiver: TypeRefID?, params: [TypeRefID], returnType: TypeRefID, isSuspend: Bool, nullable: Bool)
     case intersection(parts: [TypeRefID])
     case annotated(base: TypeRefID, annotations: [AnnotationNode])
+
+    var namedType: NamedTypeRef? {
+        switch self {
+        case let .named(path, args, nullable):
+            let segments = path.enumerated().map { index, name in
+                NamedTypeSegment(name: name, args: index == path.count - 1 ? args : [])
+            }
+            return NamedTypeRef(segments: segments, nullable: nullable)
+        case let .qualifiedNamed(segments, nullable):
+            return NamedTypeRef(segments: segments, nullable: nullable)
+        case .functionType, .intersection, .annotated:
+            return nil
+        }
+    }
 }
 
 public enum BinaryOp: Equatable, Codable {

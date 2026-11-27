@@ -19,8 +19,8 @@ extension DataFlowSemaPhase {
         func visit(_ typeRefID: TypeRefID) {
             guard let typeRef = ast.arena.typeRef(typeRefID) else { return }
             switch typeRef {
-            case let .named(_, args, _):
-                for arg in args {
+            case .named, .qualifiedNamed:
+                for arg in typeRef.namedType?.args ?? [] {
                     switch arg {
                     case let .invariant(inner), let .out(inner), let .in(inner):
                         visit(inner)

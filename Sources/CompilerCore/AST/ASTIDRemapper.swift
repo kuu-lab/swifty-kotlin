@@ -329,6 +329,11 @@ struct ASTIDRemapper {
         switch value {
         case let .named(path, args, nullable):
             .named(path: path.map { remap($0) }, args: args.map { remap($0) }, nullable: nullable)
+        case let .qualifiedNamed(segments, nullable):
+            .qualifiedNamed(
+                segments: segments.map { NamedTypeSegment(name: remap($0.name), args: $0.args.map { remap($0) }) },
+                nullable: nullable
+            )
         case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
             .functionType(contextReceivers: contextReceivers.map { remap($0) }, receiver: receiver.map { remap($0) }, params: params.map { remap($0) }, returnType: remap(returnType), isSuspend: isSuspend, nullable: nullable)
         case let .intersection(parts):
