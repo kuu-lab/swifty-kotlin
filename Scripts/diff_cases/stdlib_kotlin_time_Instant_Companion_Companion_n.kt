@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.time.Instant
 import kotlin.time.isDistantFuture
 import kotlin.time.isDistantPast
@@ -13,4 +14,6 @@ fun main() {
     println(parsedOrNull !== null)
     println(Instant.DISTANT_PAST.isDistantPast)
     println(Instant.DISTANT_FUTURE.isDistantFuture)
+    println(Instant.fromEpochSeconds(-3_217_862_419_200L).isDistantPast)
+    println(Instant.fromEpochSeconds(3_093_527_980_799L).isDistantFuture)
 }
