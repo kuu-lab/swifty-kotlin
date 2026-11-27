@@ -287,6 +287,18 @@ def whenSubjectTypeLookahead (input : Input) (index workLimit : Nat)
     | .inl result => result
     | .inr next => whenSubjectTypeLookahead input (index + 1) workLimit next work
 
+def startsMultilineContextFunctionType (input : Input) (index work : Nat) : Bool :=
+  let token := input.get index
+  if token.kind != .context || !token.newline || (input.get (index + 1)).kind != .openParen then
+    false
+  else
+    let parameters := offsetPastParens input (index + 1) (some (work - 1))
+    if parameters ≤ index + 1 || (input.get parameters).kind != .openParen then
+      false
+    else
+      let arrow := offsetPastParens input parameters (some (work - (parameters - index)))
+      parameters < arrow && arrow < index + work && (input.get arrow).kind == .arrow
+
 def whenSubjectPrefixLookahead (input : Input) (subject work : Nat) :
     WhenSubjectPrefixResult × List DeclarationEffect :=
   if !(input.get subject).valKeyword || !isParameterName (input.get (subject + 1)) then (.rejected, [])
@@ -294,7 +306,12 @@ def whenSubjectPrefixLookahead (input : Input) (subject work : Nat) :
     let afterName := subject + 2
     match (input.get afterName).kind with
     | .assign => (.found afterName, [])
-    | .colon => whenSubjectTypeLookahead input (afterName + 1) work {} work
+    | .colon =>
+      let typeStart := afterName + 1
+      if startsMultilineContextFunctionType input typeStart work then
+        whenSubjectTypeLookahead input (typeStart + 1) work {} (work - 1)
+      else
+        whenSubjectTypeLookahead input typeStart work {} work
     | _ => (.rejected, [])
 
 inductive WhenSubjectTypePath (input : Input) (workLimit : Nat) :
