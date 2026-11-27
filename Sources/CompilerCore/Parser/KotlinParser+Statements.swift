@@ -865,15 +865,7 @@ extension KotlinParser {
     /// means a name is present (named declaration); `:`/`{` immediately after
     /// means there is none (object expression).
     func isObjectExpressionStart(_ token: Token) -> Bool {
-        guard case .keyword(.object) = token.kind else {
-            return false
-        }
-        switch stream.peek(1).kind {
-        case .symbol(.colon), .symbol(.lBrace):
-            return true
-        default:
-            return false
-        }
+        LeanParser.isObjectExpressionStart(self, kind: token.kind)
     }
 
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
