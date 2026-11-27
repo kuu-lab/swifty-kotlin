@@ -287,17 +287,52 @@ def whenSubjectTypeLookahead (input : Input) (index workLimit : Nat)
     | .inl result => result
     | .inr next => whenSubjectTypeLookahead input (index + 1) workLimit next work
 
+private def typeParameterListEnd (input : Input) (index limit : Nat) : Nat :=
+  offsetPastParens input index (some (limit - index))
+
+private def typeParametersHaveArrow (input : Input) (index limit : Nat) : Bool :=
+  let after := typeParameterListEnd input index limit
+  index < after && after < limit && (input.get after).kind == .arrow
+
+private def contextReceiverHasParameters (input : Input) (index limit angles : Nat)
+    (afterDot : Bool) : Nat → Bool
+  | 0 => false
+  | fuel + 1 =>
+    let token := input.get index
+    if token.kind == .eof then false
+    else if token.kind == .openAngle then
+      contextReceiverHasParameters input (index + 1) limit (angles + 1) false fuel
+    else if token.kind == .closeAngle && angles != 0 then
+      contextReceiverHasParameters input (index + 1) limit (angles - 1) false fuel
+    else if angles != 0 then
+      contextReceiverHasParameters input (index + 1) limit angles false fuel
+    else if token.kind == .openParen then
+      afterDot && typeParametersHaveArrow input index limit
+    else if token.kind == .dot || token.kind == .questionDot then
+      contextReceiverHasParameters input (index + 1) limit 0 true fuel
+    else if token.identifierLike || token.kind == .question then
+      contextReceiverHasParameters input (index + 1) limit 0 false fuel
+    else false
+
 def startsMultilineContextFunctionType (input : Input) (index work : Nat) : Bool :=
   let token := input.get index
   if token.kind != .context || !token.newline || (input.get (index + 1)).kind != .openParen then
     false
   else
-    let parameters := offsetPastParens input (index + 1) (some (work - 1))
-    if parameters ≤ index + 1 || (input.get parameters).kind != .openParen then
-      false
+    let limit := index + work
+    let afterContext := typeParameterListEnd input (index + 1) limit
+    if afterContext ≤ index + 1 then false
     else
-      let arrow := offsetPastParens input parameters (some (work - (parameters - index)))
-      parameters < arrow && arrow < index + work && (input.get arrow).kind == .arrow
+      let signature := if (input.get afterContext).kind == .modifier then afterContext + 1 else afterContext
+      let token := input.get signature
+      if token.kind == .openParen then
+        let after := typeParameterListEnd input signature limit
+        signature < after && after < limit &&
+          ((input.get after).kind == .arrow ||
+            contextReceiverHasParameters input after limit 0 false (limit - after))
+      else if token.identifierLike then
+        contextReceiverHasParameters input (signature + 1) limit 0 false (limit - (signature + 1))
+      else false
 
 def whenSubjectPrefixLookahead (input : Input) (subject work : Nat) :
     WhenSubjectPrefixResult × List DeclarationEffect :=

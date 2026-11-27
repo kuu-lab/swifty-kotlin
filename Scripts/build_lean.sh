@@ -2,6 +2,15 @@
 set -euo pipefail
 unset CDPATH
 
+if command -v sha256sum >/dev/null 2>&1; then
+    hash=(sha256sum)
+elif command -v shasum >/dev/null 2>&1; then
+    hash=(shasum -a 256)
+else
+    echo 'error: Install sha256sum or shasum to build and verify the Lean parser.' >&2
+    exit 1
+fi
+
 lean_bin=${LEAN:-lean}
 case "$lean_bin" in
     /*) ;;
@@ -10,7 +19,6 @@ esac
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source_dir=Sources/LeanParser
-modules=("$source_dir"/ParserProofs/*.lean)
 case "$(uname -s)" in
     Darwin)
         library=liblean_parser.dylib
@@ -31,14 +39,15 @@ fingerprint_file="$resource_dir/.lean-parser-fingerprint"
 source_fingerprint() {
     {
         uname -sm
-        shasum -a 256 Scripts/build_lean.sh "$source_dir/Bridge.c" "$source_dir/lakefile.toml" \
+        "${hash[@]}" Scripts/build_lean.sh "$source_dir/Bridge.c" "$source_dir/lakefile.toml" \
             "$source_dir/lake-manifest.json" "$source_dir/lean-toolchain" || return
-        shasum -a 256 "${modules[@]}"
-    } | shasum -a 256 | cut -d ' ' -f 1
+        find "$source_dir/ParserProofs" -type f -name '*.lean' | LC_ALL=C sort |
+            while IFS= read -r module; do "${hash[@]}" "$module" || exit 1; done
+    } | "${hash[@]}" | cut -d ' ' -f 1
 }
 
 library_fingerprints() (
-    cd "$1" && shasum -a 256 "${libraries[@]}"
+    cd "$1" && "${hash[@]}" "${libraries[@]}"
 )
 
 if [[ ${1:-} == --verify ]]; then
@@ -78,7 +87,7 @@ trap 'rm -rf "$build_dir"' EXIT
 
 (cd "$source_dir" && "$lean_prefix/bin/lake" build)
 generated=()
-for module in "${modules[@]}"; do
+for module in "$source_dir"/ParserProofs/*.lean; do
     relative=${module#"$source_dir"/}
     generated+=("$source_dir/.lake/build/ir/${relative%.lean}.c")
 done
