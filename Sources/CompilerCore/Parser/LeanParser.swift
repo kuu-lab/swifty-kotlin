@@ -10,8 +10,11 @@ enum LeanParser {
     private typealias ReadToken = @convention(c) (UnsafeMutableRawPointer, Int) -> UInt8
     private typealias CanStart = @convention(c) (UnsafeMutableRawPointer, ReadToken, Int, UInt8) -> Int32
 
+    private typealias FindOffset = @convention(c) (UnsafeMutableRawPointer, ReadToken, Int, Int) -> UInt
+
     private struct Bindings: Sendable {
         let canStart: CanStart
+        let findOffset: FindOffset
     }
 
     private static let bindings: Bindings? = {
@@ -26,12 +29,16 @@ enum LeanParser {
         else { return nil }
         guard let initialize = dlsym(handle, "kswiftk_lean_parser_init"),
               let canStart = dlsym(handle, "kswiftk_lean_parser_can_start_type_arguments"),
+              let findOffset = dlsym(handle, "kswiftk_lean_parser_offset_past_type_arguments"),
               unsafeBitCast(initialize, to: Initialize.self)() == 1
         else {
             dlclose(handle)
             return nil
         }
-        return Bindings(canStart: unsafeBitCast(canStart, to: CanStart.self))
+        return Bindings(
+            canStart: unsafeBitCast(canStart, to: CanStart.self),
+            findOffset: unsafeBitCast(findOffset, to: FindOffset.self)
+        )
     }()
 
     private enum TokenCode: UInt8 {
@@ -86,6 +93,19 @@ enum LeanParser {
             return false
         }
         return result == 1
+    }
+
+    static func offsetPastTypeArguments(_ parser: KotlinParser, from offset: Int) -> Int {
+        let count = parser.stream.tokens.count - parser.stream.index
+        guard offset >= 0, offset <= count else { return offset }
+        let result = withExtendedLifetime(parser) {
+            bindings?.findOffset(Unmanaged.passUnretained(parser).toOpaque(), readToken, count, offset)
+        }
+        guard let result, result >= UInt(offset), result <= UInt(count) else {
+            reportUnavailable(parser)
+            return offset
+        }
+        return Int(result)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {

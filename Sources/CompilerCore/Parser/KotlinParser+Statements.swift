@@ -1160,38 +1160,7 @@ extension KotlinParser {
     }
 
     func offsetPastTypeArguments(from offset: Int) -> Int {
-        var angleDepth = 0
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
-        var templateDepth = 0
-        var index = offset
-        while true {
-            let kind = stream.peek(index).kind
-            if kind == .eof { break }
-            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
-            if !inExpressionGroup {
-                if kind == .symbol(.lessThan) {
-                    angleDepth += 1
-                } else if kind == .symbol(.greaterThan) {
-                    angleDepth -= 1
-                    if angleDepth == 0 { return index + 1 }
-                }
-            }
-            switch kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            case .templateExprStart: templateDepth += 1
-            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
-            default: break
-            }
-            index += 1
-        }
-        return index
+        LeanParser.offsetPastTypeArguments(self, from: offset)
     }
 
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {

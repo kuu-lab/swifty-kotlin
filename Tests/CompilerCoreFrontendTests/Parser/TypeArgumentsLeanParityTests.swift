@@ -19,5 +19,17 @@ struct TypeArgumentsLeanParityTests {
         #expect(parser.stream.index == 1)
         #expect(parser.diagnostics.diagnostics.isEmpty)
     }
+
+    @Test(arguments: ["<Map<K>> tail", "<T(fn(a > b))> tail", "<T[x > y]> tail", "<T{a > b}> tail", "<T"])
+    func typeArgumentOffsetPreservesExpressionGroups(source: String) {
+        let lexed = lex("anchor skip " + source)
+        let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
+        _ = parser.stream.advance()
+
+        let end = parser.offsetPastTypeArguments(from: 1)
+        #expect(parser.stream.peek(end) == lexed.tokens[source.hasSuffix("tail") ? lexed.tokens.count - 2 : lexed.tokens.count - 1])
+        #expect(parser.stream.index == 1)
+        #expect(parser.diagnostics.diagnostics.isEmpty)
+    }
 }
 #endif
