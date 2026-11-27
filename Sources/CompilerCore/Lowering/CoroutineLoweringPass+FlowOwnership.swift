@@ -89,9 +89,10 @@ extension CoroutineLoweringPass {
                   let function = functionsBySymbol[symbol],
                   let constants = constantsBySymbol[symbol]
             else { continue }
-            let freshCallResults = Set(function.body.compactMap {
+            let freshCallResultsByInstruction = function.body.map {
                 isFreshFlowCall($0, freshFunctions: fresh, constants: constants, module: module, ctx: ctx)
-            })
+            }
+            let freshCallResults = Set(freshCallResultsByInstruction.compactMap { $0 })
             var values = freshCallResults
             var propagated = true
             while propagated {
@@ -112,12 +113,12 @@ extension CoroutineLoweringPass {
                 default: false
                 }
             }
-            let hasBorrowedWrite = function.body.contains { instruction in
+            let hasBorrowedWrite = function.body.enumerated().contains { index, instruction in
                 switch instruction {
                 case let .copy(from, to): values.contains(to) && !values.contains(from)
                 case let .constValue(result, _), let .loadGlobal(result, _): values.contains(result)
                 case let .call(_, _, _, result, _, _, _, _):
-                    result.map { values.contains($0) && !freshCallResults.contains($0) } == true
+                    result.map { values.contains($0) && freshCallResultsByInstruction[index] == nil } == true
                 default: false
                 }
             }
