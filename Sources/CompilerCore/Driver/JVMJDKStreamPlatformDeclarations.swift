@@ -35,6 +35,7 @@ extension JVMClasspathIndex {
         let consumer = reference("java/util/function/Consumer")
         let supplier = reference("java/util/function/Supplier")
         let toIntFunction = reference("java/util/function/ToIntFunction")
+        let intFunction = reference("java/util/function/IntFunction")
         let intConsumer = reference("java/util/function/IntConsumer")
         let intPredicate = reference("java/util/function/IntPredicate")
         let intUnaryOperator = reference("java/util/function/IntUnaryOperator")
@@ -128,6 +129,7 @@ extension JVMClasspathIndex {
             ("java/util/stream/IntStream", """
             package java.util.stream
             import java.util.function.IntConsumer
+            import java.util.function.IntFunction
             import java.util.function.IntPredicate
             import java.util.function.IntUnaryOperator
             interface IntStream {
@@ -136,6 +138,7 @@ extension JVMClasspathIndex {
                 fun map(mapper: IntUnaryOperator): IntStream
                 fun filter(predicate: IntPredicate): IntStream
                 fun forEach(action: IntConsumer)
+                fun <R> mapToObj(mapper: IntFunction<out R>): Stream<R>
                 fun boxed(): Stream<Int>
                 companion object {
                     external fun range(startInclusive: Int, endExclusive: Int): IntStream
@@ -147,6 +150,7 @@ extension JVMClasspathIndex {
                 method("java/util/stream/IntStream", "map", [intUnaryOperator], intStream, isInterface: true),
                 method("java/util/stream/IntStream", "filter", [intPredicate], intStream, isInterface: true),
                 method("java/util/stream/IntStream", "forEach", [intConsumer], .unit, isInterface: true),
+                method("java/util/stream/IntStream", "mapToObj", [intFunction], stream, isInterface: true),
                 method("java/util/stream/IntStream", "boxed", [], stream, isInterface: true),
                 method("java/util/stream/IntStream", "range", [.int, .int], intStream, isStatic: true, isInterface: true, isAbstract: false),
             ]),

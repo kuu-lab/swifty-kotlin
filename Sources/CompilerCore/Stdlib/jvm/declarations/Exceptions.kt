@@ -6,6 +6,7 @@ open class Throwable {
     constructor(cause: Throwable?)
 
     val message: String? get() = null
+    val localizedMessage: String? get() = null
     val cause: Throwable? get() = null
     var stackTrace: Array<java.lang.StackTraceElement>
         get() = null!!

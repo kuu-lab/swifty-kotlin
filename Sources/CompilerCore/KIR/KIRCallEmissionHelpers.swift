@@ -666,6 +666,39 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
         emitPlainBoxCall()
         return
     }
+    let primitiveBoxCallees: Set<InternedString> = [
+        interner.intern("kk_box_long_nonnull"),
+        interner.intern("kk_box_long_nonnull_static"),
+        interner.intern("kk_box_ulong_nonnull"),
+        interner.intern("kk_box_ulong_nonnull_static"),
+    ]
+    if primitiveBoxCallees.contains(boxCallee) {
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classType.classSymbol, symbols: symbols, interner: interner
+        )
+        guard classID != 0 else {
+            emitPlainBoxCall()
+            return
+        }
+        let intType = types.make(.primitive(.int, .nonNull))
+        let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
+        let isUnsigned = boxCallee == interner.intern("kk_box_ulong_nonnull")
+            || boxCallee == interner.intern("kk_box_ulong_nonnull_static")
+        let isStatic = boxCallee == interner.intern("kk_box_long_nonnull_static")
+            || boxCallee == interner.intern("kk_box_ulong_nonnull_static")
+        let isUnsignedExpr = arena.appendExpr(.intLiteral(isUnsigned ? 1 : 0), type: intType)
+        instructions.append(.constValue(result: isUnsignedExpr, value: .intLiteral(isUnsigned ? 1 : 0)))
+        let isStaticExpr = arena.appendExpr(.intLiteral(isStatic ? 1 : 0), type: intType)
+        instructions.append(.constValue(result: isStaticExpr, value: .intLiteral(isStatic ? 1 : 0)))
+        instructions.append(.call(
+            callee: interner.intern("kk_value_class_box_primitive"),
+            arguments: [value, classIDExpr, isUnsignedExpr, isStaticExpr],
+            result: result,
+            canThrow: false
+        ))
+        return
+    }
     // A nullable payload needs a nominal wrapper to distinguish `V(null)`
     // from null. A reference payload also needs a wrapper rather than tagging
     // the original object, which may be shared outside the value class.
