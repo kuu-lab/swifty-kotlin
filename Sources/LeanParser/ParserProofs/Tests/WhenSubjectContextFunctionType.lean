@@ -25,4 +25,20 @@ example :
     | (.declarationBoundary, []) => true
     | _ => false) = true := by decide
 
+example :
+    (match whenSubjectPrefixLookahead (subjectWithContext
+      [{ kind := .modifier }, { kind := .openParen }, { kind := .closeParen },
+        { kind := .arrow }, { kind := .identifier }, { kind := .assign }]) 0 14 with
+    | (.found 12, []) => true
+    | _ => false) = true := by decide
+
+example :
+    (match whenSubjectPrefixLookahead (subjectWithContext
+      [{ kind := .identifier, identifierLike := true }, { kind := .openAngle },
+        { kind := .identifier }, { kind := .closeAngle }, { kind := .dot },
+        { kind := .openParen }, { kind := .closeParen }, { kind := .arrow },
+        { kind := .identifier }, { kind := .assign }]) 0 18 with
+    | (.found 16, []) => true
+    | _ => false) = true := by decide
+
 end TypeArguments.FFI
