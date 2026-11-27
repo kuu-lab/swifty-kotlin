@@ -1,7 +1,7 @@
 name: CI
 
-# Minimal gate for pull requests and the merge queue: repository checks and
-# a single debug build of every source and test target.
+# Minimal gate for pull requests and the merge queue: repository checks, Lean
+# proof checking, and a single debug build of every source and test target.
 # A per-target build matrix was measured to add ~180 runner-minutes per PR
 # while surfacing the same shared-dependency compile errors, so the full
 # build is consolidated into one job. SmokeTests moved out of the PR gate to
@@ -29,6 +29,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  lean-proofs:
+    uses: ./.github/workflows/lean-proofs.yml
+
   repository-checks:
     name: Repository checks
     runs-on: ubuntu-latest
@@ -177,7 +180,7 @@ jobs:
   # jobs above only requires updating this job's `needs`, not the ruleset.
   ci-gate:
     name: CI gate
-    needs: [repository-checks, swift-checks]
+    needs: [repository-checks, swift-checks, lean-proofs]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

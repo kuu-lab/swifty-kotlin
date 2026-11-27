@@ -28,6 +28,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lean-proofs:
+    uses: ./.github/workflows/lean-proofs.yml
+
   build-debug-tests:
     name: Build debug Swift test bundle once
     runs-on: ubuntu-latest

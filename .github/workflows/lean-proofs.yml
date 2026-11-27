@@ -1,0 +1,19 @@
+name: Lean proofs
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Lean proofs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-lean
+      - name: Build Lean proof modules
+        working-directory: Sources/LeanParser
+        run: lake build
