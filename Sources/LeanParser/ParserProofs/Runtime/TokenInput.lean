@@ -55,7 +55,9 @@ def Input.get (input : Input) (index : Nat) : LexToken :=
 
 def isDeclarationStart (input : Input) (index : Nat) : Kind → Bool
   | .context => (input.get (index + 1)).kind == .openParen
-  | .at | .modifier | .declaration | .funKeyword | .objectKeyword => true
+  | .at | .modifier | .declaration | .funKeyword | .objectKeyword | .classKeyword
+  | .interfaceKeyword | .propertyKeyword | .typeAliasKeyword | .enumKeyword | .companionKeyword
+  | .packageKeyword => true
   | _ => false
 
 structure CacheRun where
