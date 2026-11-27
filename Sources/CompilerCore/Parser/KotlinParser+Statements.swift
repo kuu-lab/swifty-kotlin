@@ -98,7 +98,7 @@ extension KotlinParser {
         }
         defer { leaveNesting() }
 
-        if isLoopStart(stream.peek().kind) {
+        if LeanParser.isLoopStart(self, kind: stream.peek().kind) {
             return parseLoopStatement(inBlock: inBlock)
         }
 
