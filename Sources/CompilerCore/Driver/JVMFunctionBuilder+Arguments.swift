@@ -89,8 +89,16 @@ extension JVMFunctionBuilder {
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
             let evaluated: JVMValue?
-            if composableParameters.contains(index) || program.sema.composableLambdaExprs.contains(arg.expr)
-                && program.sema.bindings.identifierSymbol(for: arg.expr) == nil {
+            let isNullLiteral: Bool
+            if case .nullLiteral = arena.expr(arg.expr) {
+                isNullLiteral = true
+            } else {
+                isNullLiteral = false
+            }
+            let isComposableContent = composableParameters.contains(index)
+                || program.sema.composableLambdaExprs.contains(arg.expr)
+                    && program.sema.bindings.identifierSymbol(for: arg.expr) == nil
+            if !isNullLiteral && isComposableContent {
                 evaluated = try composeContent(arg.expr)
             } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
                       importedFunction.parameters.indices.contains(index),

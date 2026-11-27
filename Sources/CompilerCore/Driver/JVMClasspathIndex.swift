@@ -763,7 +763,7 @@ final class JVMClasspathIndex {
         if method.isSynthetic, method.isHiddenByDeprecation { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
-        if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
+        if method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            method.parameters.contains(where: { $0.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true })
             || method.result.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true,
            let owner = declaringClass(for: method),
@@ -3683,8 +3683,9 @@ final class JVMClasspathIndex {
                 return
             }
         }
+        let names = signature.valueParameterSymbols.map { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
+        let stubCallbacks = hasComposableLambdaFactory ? composableStubParameters(at: site, in: ctx) : []
         if !staticMember {
-            let names = signature.valueParameterSymbols.map { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
             let composeMethods = candidates.filter {
                 !$0.isStatic && $0.sourceName == name && $0.kotlinComposeABI != nil
                     && $0.kotlinFunction?.parameters.map(\.name) == names
@@ -3699,10 +3700,16 @@ final class JVMClasspathIndex {
                 }
                 return
             }
-            let stubCallbacks = hasComposableLambdaFactory ? composableStubParameters(at: site, in: ctx) : []
             let callbackMembers = stubCallbacks.isEmpty ? [] : candidates.filter {
-                $0.sourceName == name && $0.kotlinFunction?.composableParameters == stubCallbacks
+                let function = kotlinFunction($0)
+                let matchesLoweredCallbacks = function?.receiver != nil
+                    || composeCallbackParameters($0, descriptorTypes: descriptorTypes) == stubCallbacks
+                return $0.sourceName == name && $0.kotlinFunction?.composableParameters == stubCallbacks
+                    && matchesLoweredCallbacks
                     && $0.matchesComposeCallbackMember(parameters: descriptorTypes, names: names)
+                    && matchesComposableCallbackTypes(
+                        $0, sourceTypes: signature.parameterTypes, callbackParameters: stubCallbacks, sema: sema, ctx: ctx
+                    )
             }
             if callbackMembers.count == 1, let method = callbackMembers.first {
                 methods[symbol.id] = method
@@ -3714,11 +3721,18 @@ final class JVMClasspathIndex {
             }
         }
         guard let method = candidates.first(where: {
-            $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
+            let callbackParameters = composeCallbackParameters($0, descriptorTypes: descriptorTypes)
+            let declaredCallbacks = callbackParameters ?? $0.kotlinFunction?.composableParameters ?? []
+            let callbackTypesMatch = stubCallbacks.isEmpty || matchesComposableCallbackTypes(
+                $0, sourceTypes: signature.parameterTypes, callbackParameters: stubCallbacks, sema: sema, ctx: ctx
+            )
+            return $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
+                && declaredCallbacks == stubCallbacks && callbackTypesMatch
                 && memberSourceName(for: $0) == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                 && ($0.descriptor.hasPrefix(descriptor)
                     || isComposeMemberCall($0, descriptorTypes: descriptorTypes)
-                    || composeCallbackParameters($0, descriptorTypes: descriptorTypes) != nil)
+                    || callbackParameters == stubCallbacks && !stubCallbacks.isEmpty
+                    || $0.matchesComposeCallbackMember(parameters: descriptorTypes, names: names))
                 && ($0.isStatic == staticMember || info.isKotlinObject)
         }) else { return }
         if isComposeMemberCall(method, descriptorTypes: descriptorTypes) {

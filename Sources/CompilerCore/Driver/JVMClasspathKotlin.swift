@@ -74,12 +74,93 @@ extension JVMClasspathIndex {
         let functionPrefix = "kotlin/jvm/functions/Function"
         let matches = zip(method.parameters, descriptorTypes).enumerated().allSatisfy { index, pair in
             let (physical, logical) = pair
-            guard callbacks.contains(index) else { return physical.descriptor == logical.descriptor }
+            guard callbacks.contains(index) else { return physical.descriptor == logical.withBoxedUnit.descriptor }
             guard let carrier = logical.referenceName, carrier.hasPrefix(functionPrefix),
                   let arity = Int(carrier.dropFirst(functionPrefix.count)) else { return false }
             return physical.referenceName == functionPrefix + String(arity + 2)
         }
         return matches ? callbacks : nil
+    }
+
+    func matchesComposableCallbackTypes(
+        _ method: JVMForeignMethod,
+        sourceTypes: [TypeID],
+        callbackParameters: Set<Int>,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> Bool {
+        guard !callbackParameters.isEmpty, let function = kotlinFunction(method),
+              function.parameters.count == sourceTypes.count else { return false }
+        let typeParameters = (declaringClass(for: method).flatMap(kotlinMetadata)?.typeParameters ?? []) + function.typeParameters
+
+        func sourceDescriptor(_ type: TypeID) -> String? {
+            guard let erased = try? Self.type(type, sema: sema, ctx: ctx) else { return nil }
+            let normalized = erased == .unit ? JVMValueType.reference("kotlin/Unit", nullable: false) : erased
+            return normalized.descriptor
+        }
+
+        func nullable(_ type: TypeID) -> Bool {
+            sema.types.nullability(of: type) != .nonNull
+        }
+
+        func matches(_ metadataType: JVMKotlinType, _ sourceType: TypeID) -> Bool {
+            switch metadataType {
+            case .flexible(let lower, _):
+                return matches(lower, sourceType)
+            case let .function(inputs, result, receiver, isNullable, isSuspend, context, _):
+                guard case let .functionType(source) = sema.types.kind(of: sourceType),
+                      isNullable == nullable(sourceType), isSuspend == source.isSuspend,
+                      inputs.count == source.params.count, context.count == source.contextReceivers.count,
+                      (receiver == nil) == (source.receiver == nil) else { return false }
+                let receiverMatches: Bool
+                if let receiver, let sourceReceiver = source.receiver {
+                    receiverMatches = matches(receiver, sourceReceiver)
+                } else {
+                    receiverMatches = true
+                }
+                return zip(inputs, source.params).allSatisfy { matches($0.0, $0.1) }
+                    && zip(context, source.contextReceivers).allSatisfy { matches($0.0, $0.1) }
+                    && receiverMatches && matches(result, source.returnType)
+            case let .named(_, arguments, isNullable):
+                guard isNullable == nullable(sourceType),
+                      sourceDescriptor(sourceType) == kotlinErasure(metadataType, parameters: typeParameters) else { return false }
+                guard !arguments.isEmpty else { return true }
+                guard case let .classType(source) = sema.types.kind(of: sourceType),
+                      arguments.count == source.args.count else { return false }
+                return zip(arguments, source.args).allSatisfy { metadataArgument, sourceArgument in
+                    guard let metadataType = metadataArgument.type else {
+                        if case .star = sourceArgument { return true }
+                        return false
+                    }
+                    switch (metadataArgument.variance, sourceArgument) {
+                    case (0, .in(let type)), (1, .out(let type)), (2, .invariant(let type)):
+                        return matches(metadataType, type)
+                    default:
+                        return false
+                    }
+                }
+            case let .parameter(id, isNullable, _):
+                guard case let .typeParam(source) = sema.types.kind(of: sourceType),
+                      isNullable == nullable(sourceType),
+                      let expectedName = typeParameters.last(where: { $0.id == id })?.name,
+                      let symbol = sema.symbols.symbol(source.symbol) else { return false }
+                return ctx.interner.resolve(symbol.name) == expectedName
+            }
+        }
+
+        func isComposableFunction(_ type: JVMKotlinType) -> Bool {
+            switch type {
+            case let .function(_, _, _, _, _, _, isComposable): return isComposable
+            case .flexible(let lower, _): return isComposableFunction(lower)
+            default: return false
+            }
+        }
+
+        return callbackParameters.allSatisfy { index in
+            guard function.parameters.indices.contains(index), sourceTypes.indices.contains(index),
+                  isComposableFunction(function.parameters[index].type) else { return false }
+            return matches(function.parameters[index].type, sourceTypes[index])
+        }
     }
 
     func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {
