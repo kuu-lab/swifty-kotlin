@@ -527,7 +527,7 @@ extension KotlinParser {
     }
 
     var isLabelStart: Bool {
-        stream.peek().kind.isLabelName && stream.peek(1).kind == .symbol(.at)
+        LeanParser.isLabelStart(self)
     }
 
     static func isDeclarationModifierKeyword(_ keyword: Keyword) -> Bool {

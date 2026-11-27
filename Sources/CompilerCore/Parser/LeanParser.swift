@@ -14,10 +14,13 @@ enum LeanParser {
 
     private typealias Scan = @convention(c) (UnsafeMutableRawPointer, ReadToken, ReadToken, Int) -> UInt64
 
+    private typealias ClassifyPolicy = @convention(c) (UInt8, UInt8, UInt8) -> Int32
+
     private struct Bindings: Sendable {
         let canStart: CanStart
         let findOffset: FindOffset
         let scan: Scan
+        let classifyPolicy: ClassifyPolicy
     }
 
     private static let bindings: Bindings? = {
@@ -34,6 +37,7 @@ enum LeanParser {
               let canStart = dlsym(handle, "kswiftk_lean_parser_can_start_type_arguments"),
               let findOffset = dlsym(handle, "kswiftk_lean_parser_offset_past_type_arguments"),
               let scan = dlsym(handle, "kswiftk_lean_parser_consume_type_arguments"),
+              let classifyPolicy = dlsym(handle, "kswiftk_lean_parser_classify_policy"),
               unsafeBitCast(initialize, to: Initialize.self)() == 1
         else {
             dlclose(handle)
@@ -42,7 +46,8 @@ enum LeanParser {
         return Bindings(
             canStart: unsafeBitCast(canStart, to: CanStart.self),
             findOffset: unsafeBitCast(findOffset, to: FindOffset.self),
-            scan: unsafeBitCast(scan, to: Scan.self)
+            scan: unsafeBitCast(scan, to: Scan.self),
+            classifyPolicy: unsafeBitCast(classifyPolicy, to: ClassifyPolicy.self)
         )
     }()
 
@@ -132,6 +137,26 @@ enum LeanParser {
             return nil
         }
         return (consumed, result & 3 >= 2)
+    }
+
+    private enum Policy: UInt8 {
+        case labelStart
+    }
+
+    private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
+        guard let result = bindings?.classifyPolicy(policy.rawValue, first, second), result >= 0 else {
+            reportUnavailable(parser)
+            return false
+        }
+        return result == 1
+    }
+
+    static func isLabelStart(_ parser: KotlinParser) -> Bool {
+        classify(
+            parser, .labelStart,
+            first: parser.stream.peek().kind.isLabelName ? 1 : 0,
+            second: tokenCode(parser.stream.peek(1).kind).rawValue
+        )
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {

@@ -13,12 +13,14 @@ typedef struct {
 extern void lean_initialize_runtime_module(void);
 extern void lean_initialize_thread(void);
 extern void lean_finalize_thread(void);
-extern lean_object *initialize_ParserProofs_TypeArgumentConsumption(uint8_t builtin, lean_object *world);
+extern lean_object *initialize_ParserProofs_ParserPolicy(uint8_t builtin, lean_object *world);
 extern uint8_t kswiftk_lean_can_start_type_arguments(size_t context, size_t count, uint8_t has_anchor);
 
 extern size_t kswiftk_lean_offset_past_type_arguments(size_t context, size_t count, size_t start);
 
 extern lean_object *kswiftk_lean_consume_type_arguments(size_t context, size_t count, lean_object *world);
+
+extern uint8_t kswiftk_lean_classify_parser_policy(uint8_t operation, uint8_t first, uint8_t second);
 
 static pthread_key_t thread_key;
 
@@ -44,7 +46,7 @@ int kswiftk_lean_parser_init(void) {
     if (pthread_key_create(&thread_key, finalize_thread) != 0) {
         return 0;
     }
-    lean_object *result = initialize_ParserProofs_TypeArgumentConsumption(1, lean_io_mk_world());
+    lean_object *result = initialize_ParserProofs_ParserPolicy(1, lean_io_mk_world());
     int ok = lean_io_result_is_ok(result);
     lean_dec_ref(result);
     lean_io_mark_end_initialization();
@@ -94,4 +96,12 @@ uint64_t kswiftk_lean_parser_consume_type_arguments(void *state, read_token_fn r
         : UINT64_MAX;
     lean_dec_ref(result);
     return value;
+}
+
+
+int32_t kswiftk_lean_parser_classify_policy(uint8_t operation, uint8_t first, uint8_t second) {
+    if (!prepare_thread()) {
+        return -1;
+    }
+    return kswiftk_lean_classify_parser_policy(operation, first, second);
 }
