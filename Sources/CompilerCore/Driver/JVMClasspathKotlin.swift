@@ -82,31 +82,65 @@ extension JVMClasspathIndex {
         return matches ? callbacks : nil
     }
 
-    func matchesComposableCallbackTypes(
+    func matchesKotlinParameterTypes(
         _ method: JVMForeignMethod,
         sourceTypes: [TypeID],
-        callbackParameters: Set<Int>,
+        parameterIndices: Set<Int>,
+        composableParameters: Set<Int> = [],
         sema: SemaModule,
         ctx: CompilationContext
     ) -> Bool {
-        guard !callbackParameters.isEmpty, let function = kotlinFunction(method),
-              function.parameters.count == sourceTypes.count else { return false }
+        guard composableParameters.isSubset(of: parameterIndices),
+              let function = kotlinFunction(method), function.parameters.count == sourceTypes.count,
+              parameterIndices.allSatisfy(sourceTypes.indices.contains) else { return false }
         let typeParameters = (declaringClass(for: method).flatMap(kotlinMetadata)?.typeParameters ?? []) + function.typeParameters
 
-        func sourceDescriptor(_ type: TypeID) -> String? {
-            guard let erased = try? Self.type(type, sema: sema, ctx: ctx) else { return nil }
-            let normalized = erased == .unit ? JVMValueType.reference("kotlin/Unit", nullable: false) : erased
-            return normalized.descriptor
+        func sourceTypeParameter(_ type: TypeID) -> (name: String, nullable: Bool)? {
+            let parameter: TypeParamType
+            switch sema.types.kind(of: type) {
+            case let .typeParam(value): parameter = value
+            case let .intersection(parts):
+                guard parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+                      let part = parts.first(where: { if case .typeParam = sema.types.kind(of: $0) { return true }; return false }),
+                      case let .typeParam(value) = sema.types.kind(of: part) else { return nil }
+                parameter = value
+            default: return nil
+            }
+            guard let symbol = sema.symbols.symbol(parameter.symbol) else { return nil }
+            return (ctx.interner.resolve(symbol.name), parameter.nullability == .nullable)
         }
 
         func nullable(_ type: TypeID) -> Bool {
             sema.types.nullability(of: type) != .nonNull
         }
 
+        func sourceNamedType(_ type: TypeID) -> (name: String, arguments: [TypeArg], nullable: Bool)? {
+            switch sema.types.kind(of: type) {
+            case let .classType(value):
+                let name = Self.binaryName(value.classSymbol, sema: sema, ctx: ctx)
+                return (name, value.args, value.nullability != .nonNull)
+            case let .kClassType(value):
+                return ("kotlin/reflect/KClass", [.invariant(value.argument)], value.nullability != .nonNull)
+            case let .primitive(value, nullability):
+                return ("kotlin/" + value.kotlinName, [], nullability != .nonNull)
+            case let .stringStruct(nullability):
+                return ("kotlin/String", [], nullability != .nonNull)
+            case let .any(nullability):
+                return ("kotlin/Any", [], nullability != .nonNull)
+            case .unit:
+                return ("kotlin/Unit", [], false)
+            case .nullableUnit, .platformUnit:
+                return ("kotlin/Unit", [], true)
+            case let .nothing(nullability):
+                return ("kotlin/Nothing", [], nullability != .nonNull)
+            default: return nil
+            }
+        }
+
         func matches(_ metadataType: JVMKotlinType, _ sourceType: TypeID) -> Bool {
             switch metadataType {
-            case .flexible(let lower, _):
-                return matches(lower, sourceType)
+            case .flexible(let lower, let upper):
+                return matches(lower, sourceType) || matches(upper, sourceType)
             case let .function(inputs, result, receiver, isNullable, isSuspend, context, _):
                 guard case let .functionType(source) = sema.types.kind(of: sourceType),
                       isNullable == nullable(sourceType), isSuspend == source.isSuspend,
@@ -121,13 +155,10 @@ extension JVMClasspathIndex {
                 return zip(inputs, source.params).allSatisfy { matches($0.0, $0.1) }
                     && zip(context, source.contextReceivers).allSatisfy { matches($0.0, $0.1) }
                     && receiverMatches && matches(result, source.returnType)
-            case let .named(_, arguments, isNullable):
-                guard isNullable == nullable(sourceType),
-                      sourceDescriptor(sourceType) == kotlinErasure(metadataType, parameters: typeParameters) else { return false }
-                guard !arguments.isEmpty else { return true }
-                guard case let .classType(source) = sema.types.kind(of: sourceType),
-                      arguments.count == source.args.count else { return false }
-                return zip(arguments, source.args).allSatisfy { metadataArgument, sourceArgument in
+            case let .named(name, arguments, isNullable):
+                guard let source = sourceNamedType(sourceType), source.name == name,
+                      isNullable == source.nullable, arguments.count == source.arguments.count else { return false }
+                return zip(arguments, source.arguments).allSatisfy { metadataArgument, sourceArgument in
                     guard let metadataType = metadataArgument.type else {
                         if case .star = sourceArgument { return true }
                         return false
@@ -140,11 +171,10 @@ extension JVMClasspathIndex {
                     }
                 }
             case let .parameter(id, isNullable, _):
-                guard case let .typeParam(source) = sema.types.kind(of: sourceType),
-                      isNullable == nullable(sourceType),
+                guard let source = sourceTypeParameter(sourceType), isNullable == nullable(sourceType),
                       let expectedName = typeParameters.last(where: { $0.id == id })?.name,
-                      let symbol = sema.symbols.symbol(source.symbol) else { return false }
-                return ctx.interner.resolve(symbol.name) == expectedName
+                      source.name == expectedName else { return false }
+                return true
             }
         }
 
@@ -156,11 +186,41 @@ extension JVMClasspathIndex {
             }
         }
 
-        return callbackParameters.allSatisfy { index in
-            guard function.parameters.indices.contains(index), sourceTypes.indices.contains(index),
-                  isComposableFunction(function.parameters[index].type) else { return false }
+        return parameterIndices.allSatisfy { index in
+            guard function.parameters.indices.contains(index),
+                  !composableParameters.contains(index) || isComposableFunction(function.parameters[index].type) else { return false }
             return matches(function.parameters[index].type, sourceTypes[index])
         }
+    }
+
+    func matchesComposableCallbackTypes(
+        _ method: JVMForeignMethod,
+        sourceTypes: [TypeID],
+        callbackParameters: Set<Int>,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> Bool {
+        matchesKotlinParameterTypes(
+            method, sourceTypes: sourceTypes, parameterIndices: callbackParameters,
+            composableParameters: callbackParameters, sema: sema, ctx: ctx
+        )
+    }
+
+    func matchesComposeMemberStub(
+        _ method: JVMForeignMethod,
+        sourceName: String,
+        sourceTypes: [TypeID],
+        composableParameters: Set<Int>,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> Bool {
+        guard !method.isStatic, method.kotlinComposeABI != nil,
+              let function = kotlinFunction(method), function.name == sourceName,
+              function.parameters.count == sourceTypes.count else { return false }
+        return matchesKotlinParameterTypes(
+            method, sourceTypes: sourceTypes, parameterIndices: Set(sourceTypes.indices),
+            composableParameters: composableParameters, sema: sema, ctx: ctx
+        )
     }
 
     func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {

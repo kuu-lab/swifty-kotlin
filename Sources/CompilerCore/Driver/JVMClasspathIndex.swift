@@ -3689,6 +3689,10 @@ final class JVMClasspathIndex {
             let composeMethods = candidates.filter {
                 !$0.isStatic && $0.sourceName == name && $0.kotlinComposeABI != nil
                     && $0.kotlinFunction?.parameters.map(\.name) == names
+                    && matchesComposeMemberStub(
+                        $0, sourceName: name, sourceTypes: signature.parameterTypes,
+                        composableParameters: stubCallbacks, sema: sema, ctx: ctx
+                    )
                     && zip($0.parameters, descriptorTypes).allSatisfy { $0.descriptor == $1.descriptor
                         || $0.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
                             && $1.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true }
