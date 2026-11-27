@@ -157,28 +157,28 @@ inductive DeclarationPrefixHead where
   | contextFirst (clause : DeclarationContextClause)
   | prefixFirst (scanned : GroupResult) (clause : DeclarationContextClause)
 
-def planDeclarationPrefixHead (input : Input) (start : Nat) : DeclarationPrefixHead :=
+def planDeclarationPrefixHead (input : Input) (start : Nat) : Option DeclarationPrefixHead :=
   match declarationContextClauseAt input start with
   | .absent =>
-    let scanned := scanLeadingPrefix input .declaration start (input.count - start + 1)
-    .prefixFirst scanned (declarationContextClauseAt input scanned.endIndex)
-  | clause => .contextFirst clause
+    (scanLeadingPrefix input .declaration start (input.count - start + 1)).map fun scanned =>
+      .prefixFirst scanned (declarationContextClauseAt input scanned.endIndex)
+  | clause => some (.contextFirst clause)
 
 theorem declarationPrefixHeadContextFirstIff :
-    planDeclarationPrefixHead input start = .contextFirst clause ↔
+    planDeclarationPrefixHead input start = some (.contextFirst clause) ↔
       declarationContextClauseAt input start = clause ∧ clause ≠ .absent := by
   cases found : declarationContextClauseAt input start <;>
     cases clause <;> simp [planDeclarationPrefixHead, found]
 
 theorem declarationPrefixHeadScansBeforeSecondContext
     (nonContext : (input.get start).kind ≠ .context) :
-    let scanned := scanLeadingPrefix input .declaration start (input.count - start + 1)
-    planDeclarationPrefixHead input start = .prefixFirst scanned
-      (declarationContextClauseAt input scanned.endIndex) := by
+    planDeclarationPrefixHead input start =
+      (scanLeadingPrefix input .declaration start (input.count - start + 1)).map (fun scanned =>
+        .prefixFirst scanned (declarationContextClauseAt input scanned.endIndex)) := by
   simp [planDeclarationPrefixHead, declarationContextClauseAbsentIff.mpr nonContext]
 
 theorem declarationPrefixHeadAtEOF (eof : (input.get start).kind = .eof) :
-    planDeclarationPrefixHead input start = .prefixFirst ⟨.eof, start⟩ .absent := by
+    planDeclarationPrefixHead input start = some (.prefixFirst ⟨.eof, start⟩ .absent) := by
   simp [planDeclarationPrefixHead, declarationContextClauseAt, scanLeadingPrefix, leadingPrefixStep,
     isLeadingPrefix, eof]
 
@@ -244,13 +244,15 @@ theorem isCompanionObjectNameIff :
 
 def isBareDeclarationStart : Kind → Bool
   | .at | .context | .modifier | .declaration | .objectKeyword | .funKeyword
-  | .enumKeyword | .companionKeyword | .packageKeyword => true
+  | .enumKeyword | .companionKeyword | .packageKeyword | .classKeyword | .interfaceKeyword
+  | .propertyKeyword | .typeAliasKeyword => true
   | _ => false
 
 theorem isBareDeclarationStartIff :
     isBareDeclarationStart kind = true ↔
       kind ∈ ([.at, .context, .modifier, .declaration, .objectKeyword, .funKeyword,
-        .enumKeyword, .companionKeyword, .packageKeyword] : List Kind) := by
+        .enumKeyword, .companionKeyword, .packageKeyword, .classKeyword, .interfaceKeyword,
+        .propertyKeyword, .typeAliasKeyword] : List Kind) := by
   cases kind <;> simp [isBareDeclarationStart]
 
 def continuesDeclarationHeader (includeBlock allowsClassHeaderColon allowsClassDelegation : Bool) (kind : Kind) : Bool :=
@@ -377,7 +379,7 @@ theorem scanWhenSubjectBackwardsChecksKeyword
 def lookaheadFrom (context count start : USize) (operation : UInt8) (argument : USize) : USize :=
   let input := callbackInput context count
   let position := start.toNat
-  let result := match operation with
+  let result : Option Nat := match operation with
     | 0 => some (offsetPastAngles input position)
     | 1 => some (offsetPastParens input position (if argument == 0 then none else some (argument.toNat - 1)))
     | 2 => annotationTail input (position + 1)
@@ -386,8 +388,8 @@ def lookaheadFrom (context count start : USize) (operation : UInt8) (argument : 
     | 5 =>
       let mode : LeadingPrefixMode :=
         if argument == 1 then .annotations else if argument == 2 then .receiver else .declaration
-      let scanned := scanLeadingPrefix input mode position (input.count - position + 1)
-      some ((scanned.endIndex - position) * 4 + groupStopCode scanned.stop)
+      (scanLeadingPrefix input mode position (input.count - position + 1)).map fun scanned =>
+        (scanned.endIndex - position) * 4 + groupStopCode scanned.stop
     | 6 => some (if enumEntryAfterAnnotations input position then 1 else 0)
     | 7 => some (if startsPrimaryConstructorHeader input position then 1 else 0)
     | 8 => some (if scanPropertyTailAccessors input position (input.count - position) then 1 else 0)
@@ -407,7 +409,7 @@ def lookaheadFrom (context count start : USize) (operation : UInt8) (argument : 
     | 20 =>
       some (encodeDeclarationDispatch (declarationDispatch (input.get position).kind (input.get (position + 1))
         (argument != 0)))
-    | 21 => some (encodeDeclarationPrefixHead position (planDeclarationPrefixHead input position))
+    | 21 => (planDeclarationPrefixHead input position).map (encodeDeclarationPrefixHead position)
     | 22 => some (if labelStartsAt input position then 1 else 0)
     | 23 => some (if startsLoop (decodeKind argument.toUInt8) then 1 else 0)
     | 24 => some (if canStartTypeNameAfter (decodeKind argument.toUInt8) then 1 else 0)
