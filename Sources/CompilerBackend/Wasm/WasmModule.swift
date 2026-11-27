@@ -34,6 +34,7 @@ enum WasmOpcode {
     static let end: UInt8 = 0x0B
     static let br: UInt8 = 0x0C
     static let brIf: UInt8 = 0x0D
+    static let brTable: UInt8 = 0x0E
     static let `return`: UInt8 = 0x0F
     static let call: UInt8 = 0x10
     static let callIndirect: UInt8 = 0x11
@@ -190,6 +191,14 @@ struct WasmCode {
     }
     mutating func br(_ depth: Int) { op(WasmOpcode.br); u(UInt64(depth)) }
     mutating func brIf(_ depth: Int) { op(WasmOpcode.brIf); u(UInt64(depth)) }
+    mutating func brTable(_ depths: [Int], defaultDepth: Int) {
+        op(WasmOpcode.brTable)
+        u(UInt64(depths.count))
+        for depth in depths {
+            u(UInt64(depth))
+        }
+        u(UInt64(defaultDepth))
+    }
     mutating func openBlock() { op(WasmOpcode.block); op(WasmOpcode.blockVoid) }
     mutating func openBlock(result: WasmValType) { op(WasmOpcode.block); op(result.rawValue) }
     mutating func openLoop() { op(WasmOpcode.loop); op(WasmOpcode.blockVoid) }

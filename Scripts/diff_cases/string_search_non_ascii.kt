@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = "こんにちは世界こんにちは"
     println(s.contains("世界"))
