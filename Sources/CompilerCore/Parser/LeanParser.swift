@@ -58,6 +58,7 @@ enum LeanParser {
         case identifier, star, varianceOut, comma, question, questionDot, doubleColon
         case forKeyword, whileKeyword, doKeyword, arrow
         case bang, bangBang, questionColon, ampAmp, barBar, isKeyword, asKeyword, objectKeyword
+        case fieldKeyword, assign
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -101,6 +102,8 @@ enum LeanParser {
         case .keyword(.is): .isKeyword
         case .keyword(.as): .asKeyword
         case .keyword(.object): .objectKeyword
+        case .softKeyword(.field): .fieldKeyword
+        case .symbol(.assign): .assign
         default: .other
         }
     }
@@ -154,7 +157,7 @@ enum LeanParser {
     }
 
     private enum Policy: UInt8 {
-        case labelStart, loopStart, typeNameStart, whenConditionNewline, objectExpression
+        case labelStart, loopStart, typeNameStart, whenConditionNewline, objectExpression, backingField
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -191,6 +194,13 @@ enum LeanParser {
     static func isObjectExpressionStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         classify(
             parser, .objectExpression,
+            first: tokenCode(kind).rawValue, second: tokenCode(parser.stream.peek(1).kind).rawValue
+        )
+    }
+
+    static func isExplicitBackingFieldStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        classify(
+            parser, .backingField,
             first: tokenCode(kind).rawValue, second: tokenCode(parser.stream.peek(1).kind).rawValue
         )
     }

@@ -113,14 +113,7 @@ extension KotlinParser {
     }
 
     func isExplicitBackingFieldStart(_ token: Token) -> Bool {
-        guard case .softKeyword(.field) = token.kind else { return false }
-        let next = stream.peek(1)
-        switch next.kind {
-        case .symbol(.assign), .symbol(.colon):
-            return true
-        default:
-            return false
-        }
+        LeanParser.isExplicitBackingFieldStart(self, kind: token.kind)
     }
 
     private func isAccessorHeaderFollowedByBody(at start: Int) -> Bool {
