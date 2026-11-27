@@ -134,12 +134,18 @@ theorem leadingPrefixStepMovesForward
           assumption
         · cases step
 
-def scanLeadingPrefix (input : Input) (mode : LeadingPrefixMode) (index : Nat) : Nat → GroupResult
-  | 0 => ⟨.eof, index⟩
+def scanLeadingPrefix (input : Input) (mode : LeadingPrefixMode) (index : Nat) : Nat → Option GroupResult
+  | 0 =>
+    if isLeadingPrefix input mode index then none
+    else some ⟨if (input.get index).kind == .eof then .eof else .closed, index⟩
   | fuel + 1 =>
     match leadingPrefixStep input mode index with
-    | .inl result => result
+    | .inl result => some result
     | .inr next => scanLeadingPrefix input mode next fuel
+
+theorem scanLeadingPrefixExhaustedIff :
+    scanLeadingPrefix input mode index 0 = none ↔ isLeadingPrefix input mode index = true := by
+  cases valid : isLeadingPrefix input mode index <;> simp [scanLeadingPrefix, valid]
 
 inductive LeadingPrefixPath (input : Input) (mode : LeadingPrefixMode) : Nat → Nat → Nat → Prop where
   | empty : LeadingPrefixPath input mode index index 0
@@ -158,14 +164,14 @@ theorem scanLeadingPrefixStopsAtFirstNonPrefix
     (path : LeadingPrefixPath input mode index last steps)
     (notPrefix : isLeadingPrefix input mode last = false)
     (notEOF : (input.get last).kind ≠ .eof) :
-    scanLeadingPrefix input mode index (steps + (fuel + 1)) = ⟨.closed, last⟩ := by
+    scanLeadingPrefix input mode index (steps + (fuel + 1)) = some ⟨.closed, last⟩ := by
   rw [scanLeadingPrefixThroughPath path]
   simp [scanLeadingPrefix, leadingPrefixStep, notPrefix, notEOF]
 
 theorem scanLeadingPrefixLeavesEOF
     (path : LeadingPrefixPath input mode index last steps)
     (eof : (input.get last).kind = .eof) :
-    scanLeadingPrefix input mode index (steps + (fuel + 1)) = ⟨.eof, last⟩ := by
+    scanLeadingPrefix input mode index (steps + (fuel + 1)) = some ⟨.eof, last⟩ := by
   rw [scanLeadingPrefixThroughPath path]
   simp [scanLeadingPrefix, leadingPrefixStep, isLeadingPrefix, eof]
 
@@ -180,7 +186,7 @@ theorem scanLeadingPrefixLeavesFollowingDeclaration
     (atSign : (input.get last).kind = .at)
     (allowed : mode.allowsAnnotation input last = true)
     (recovered : scanDeclarationAnnotation input last = ⟨.recovery, boundary⟩) :
-    scanLeadingPrefix input mode index (steps + (fuel + 1)) = ⟨.recovery, boundary⟩ ∧
+    scanLeadingPrefix input mode index (steps + (fuel + 1)) = some ⟨.recovery, boundary⟩ ∧
       isLeadingPrefix input mode boundary = false := by
   rw [scanLeadingPrefixThroughPath path]
   exact ⟨by simp [scanLeadingPrefix, leadingPrefixStep, isLeadingPrefix, atSign, allowed, recovered],
@@ -326,14 +332,14 @@ theorem ambiguousDeclarationPrefixIff :
 
 def canStartInfixCallArgument (token : LexToken) : Bool :=
   token.softKeyword || match token.kind with
-    | .identifier | .literal | .expressionKeyword | .objectKeyword | .modifier
+    | .identifier | .literal | .expressionKeyword | .whenKeyword | .returnKeyword | .objectKeyword | .modifier
     | .openParen | .openBrace | .openBracket | .minus | .plus | .bang | .doubleColon | .stringStart => true
     | _ => false
 
 theorem infixCallArgumentStartIff :
     canStartInfixCallArgument token = true ↔
       token.softKeyword = true ∨ token.kind ∈
-        [.identifier, .literal, .expressionKeyword, .objectKeyword, .modifier, .openParen,
+        [.identifier, .literal, .expressionKeyword, .whenKeyword, .returnKeyword, .objectKeyword, .modifier, .openParen,
           .openBrace, .openBracket, .minus, .plus, .bang, .doubleColon, .stringStart] := by
   cases kind : token.kind <;> simp [canStartInfixCallArgument, kind]
 
