@@ -82,6 +82,16 @@ theorem isCompanionNameIff :
         .dynamicKeyword, .enumKeyword, .finallyKeyword, .importKeyword, .reifiedKeyword] : List Kind)) := by
   cases soft <;> cases kind <;> simp [isCompanionName, isHardCompanionName]
 
+def startsDeclaration : Kind → Bool
+  | .at | .context | .modifier | .declarationKeyword | .objectKeyword | .enumKeyword | .companionKeyword => true
+  | _ => false
+
+theorem startsDeclarationIff :
+    startsDeclaration kind = true ↔
+      kind ∈ ([.at, .context, .modifier, .declarationKeyword, .objectKeyword, .enumKeyword, .companionKeyword] :
+        List Kind) := by
+  cases kind <;> simp [startsDeclaration]
+
 @[export kswiftk_lean_classify_parser_policy]
 def classify (operation first second : UInt8) : UInt8 :=
   let result := match operation with
@@ -93,6 +103,7 @@ def classify (operation first second : UInt8) : UInt8 :=
     | 5 => startsBackingField (decodeKind first) (decodeKind second)
     | 6 => ambiguousDeclarationPrefix (decodeKind first)
     | 7 => isCompanionName (decodeKind first) (second != 0)
+    | 8 => startsDeclaration (decodeKind first)
     | _ => false
   if result then 1 else 0
 
