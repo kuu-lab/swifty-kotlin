@@ -1,0 +1,35 @@
+name: Setup Lean
+description: Install the pinned Lean toolchain
+runs:
+  using: composite
+  steps:
+    - name: Install Lean
+      shell: bash
+      run: |
+        set -euo pipefail
+        toolchain=$(<Sources/LeanParser/lean-toolchain)
+        case "$toolchain" in
+          leanprover/lean4:v4.19.0) version=4.19.0 ;;
+          *) echo "Missing release checksums for Lean toolchain: $toolchain" >&2; exit 1 ;;
+        esac
+        case "$(uname -s):$(uname -m)" in
+          Linux:x86_64)
+            platform=linux
+            checksum=6fe3ce97a58f44e2b3567d455b994eacec5bfe9ae7774f2a573444480ba813fe
+            ;;
+          Darwin:arm64)
+            platform=darwin_aarch64
+            checksum=94d4246fd90a152a4819419498d3e45c941a31638a57a0a8e32561494ab6cea7
+            ;;
+          *) echo "Unsupported Lean CI runner: $(uname -sm)" >&2; exit 1 ;;
+        esac
+        lean_dir=$(mktemp -d "$RUNNER_TEMP/lean.XXXXXX")
+        archive="$lean_dir/lean.tar.zst"
+        curl --fail --location --silent --show-error --retry 3 \
+          --connect-timeout 30 --max-time 300 --output "$archive" \
+          "https://github.com/leanprover/lean4/releases/download/v$version/lean-$version-$platform.tar.zst"
+        printf '%s  %s\n' "$checksum" "$archive" | shasum -a 256 --check
+        tar -xf "$archive" -C "$lean_dir" --strip-components=1
+        rm "$archive"
+        echo "$lean_dir/bin" >> "$GITHUB_PATH"
+        "$lean_dir/bin/lean" --version

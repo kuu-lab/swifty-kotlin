@@ -1,0 +1,8 @@
+name = "leanParserProofs"
+defaultTargets = ["ParserProofs"]
+[leanOptions]
+warningAsError = true
+
+[[lean_lib]]
+name = "ParserProofs"
+globs = ["ParserProofs.+"]
