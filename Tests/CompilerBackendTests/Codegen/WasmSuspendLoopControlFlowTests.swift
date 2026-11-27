@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct WasmSuspendLoopControlFlowTests {
     @Test
-    func emitsSuspendJoinAllLoop() throws {
+    func emitsSuspendJoinAllAndRunsDispatcherRangeLoop() throws {
         let source = """
         class Job {
             suspend fun join() {}
@@ -29,7 +29,19 @@ struct WasmSuspendLoopControlFlowTests {
             }
         }
 
-        fun main() {}
+        fun retry(): Boolean = false
+
+        fun main() {
+            var last = 0
+            for (i in 1..3) {
+                last = i
+            }
+            println(last)
+
+            do {
+                if (retry()) continue
+            } while (if (retry()) continue else false)
+        }
         """
 
         try withTemporaryFile(contents: source) { inputPath in
@@ -62,6 +74,7 @@ struct WasmSuspendLoopControlFlowTests {
             #expect(Array(wasm.prefix(8)) == [0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00])
             if let execution = try WasmCodegenTests().runUnderNode(Array(wasm)) {
                 #expect(execution.status == 0)
+                #expect(execution.stdout == "3\n")
             }
         }
     }

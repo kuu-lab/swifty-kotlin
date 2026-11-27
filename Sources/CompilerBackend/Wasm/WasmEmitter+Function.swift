@@ -41,7 +41,7 @@ final class WasmFunctionEmission {
                 code = WasmCode()
                 localIndexByExpr.removeAll()
                 paramLocalBySymbol.removeAll()
-                assignLocals()
+                assignLocals(allowLocalReuse: false)
                 // Coroutine resume dispatch can enter a loop body from outside its structured block.
                 let programCounterLocal = nextLocal
                 nextLocal += 1
@@ -274,7 +274,7 @@ final class WasmFunctionEmission {
         }
     }
 
-    private func assignLocals() {
+    private func assignLocals(allowLocalReuse: Bool = true) {
         nextLocal = function.params.count
         for (index, param) in function.params.enumerated() {
             paramLocalBySymbol[param.symbol.rawValue] = index
@@ -403,22 +403,31 @@ final class WasmFunctionEmission {
         // Reuse dead locals across disjoint lifetime intervals so large
         // synthetic reflection initializers stay under WebAssembly engines'
         // 50,000-local limit.
-        var expireAt = Array(repeating: [Int](), count: bodyCount + 1)
-        var freeLocals: [Int] = []
-        for pos in 0...bodyCount {
-            for interval in startsAt[pos] {
-                let local: Int
-                if let reused = freeLocals.popLast() {
-                    local = reused
-                } else {
-                    local = nextLocal
+        if allowLocalReuse {
+            var expireAt = Array(repeating: [Int](), count: bodyCount + 1)
+            var freeLocals: [Int] = []
+            for pos in 0...bodyCount {
+                for interval in startsAt[pos] {
+                    let local: Int
+                    if let reused = freeLocals.popLast() {
+                        local = reused
+                    } else {
+                        local = nextLocal
+                        nextLocal += 1
+                    }
+                    localIndexByExpr[interval.id] = local
+                    expireAt[interval.end].append(local)
+                }
+                for expired in expireAt[pos] {
+                    freeLocals.append(expired)
+                }
+            }
+        } else {
+            for intervalsStartingAtPosition in startsAt {
+                for interval in intervalsStartingAtPosition {
+                    localIndexByExpr[interval.id] = nextLocal
                     nextLocal += 1
                 }
-                localIndexByExpr[interval.id] = local
-                expireAt[interval.end].append(local)
-            }
-            for expired in expireAt[pos] {
-                freeLocals.append(expired)
             }
         }
 
