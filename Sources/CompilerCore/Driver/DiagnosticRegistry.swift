@@ -390,6 +390,12 @@ enum DiagnosticRegistry {
             summary: "Getter cannot have parameters."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0032",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Unable to run the bundled Lean parser."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

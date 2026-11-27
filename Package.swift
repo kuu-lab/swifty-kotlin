@@ -42,6 +42,7 @@ let package = Package(
         )
     ],
     targets: [
+        .plugin(name: "VerifyLeanParser", capability: .buildTool()),
         .target(
             name: "RuntimeABI"
         ),
@@ -68,8 +69,10 @@ let package = Package(
             dependencies: ["RuntimeABI", "CSHA256"],
             resources: [
                 .copy("Stdlib"),
+                .copy("LeanParserResources"),
             ],
-            swiftSettings: compilerCoreSwiftSettings
+            swiftSettings: compilerCoreSwiftSettings,
+            plugins: [.plugin(name: "VerifyLeanParser")]
         ),
         .target(
             name: "CompilerBackend",
