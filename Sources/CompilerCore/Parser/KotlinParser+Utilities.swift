@@ -1,18 +1,32 @@
 extension KotlinParser {
     func parseLeadingDeclarationPrefix(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
-        var consumedAny = true
-        while consumedAny {
-            consumedAny = false
-            if consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range) {
-                consumedAny = true
-                continue
-            }
-            if case let .keyword(keyword) = stream.peek().kind,
-               Self.isDeclarationModifierKeyword(keyword)
-            {
-                _ = consumeToken(into: &children, range: &range)
-                consumedAny = true
-            }
+        consumeLeadingPrefix(.declaration, into: &children, range: &range)
+    }
+
+    func consumeLeadingPrefix(
+        _ mode: LeanParser.LeadingPrefixMode,
+        into children: inout [SyntaxChild],
+        range: inout RangeAccumulator
+    ) {
+        guard let result = LeanParser.scanLeadingPrefix(self, mode: mode) else { return }
+        appendScannedLeadingPrefix(result.consumed, recovered: result.recovered, into: &children, range: &range)
+    }
+
+    func appendScannedLeadingPrefix(
+        _ consumed: Int, recovered: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator
+    ) {
+        for _ in 0 ..< consumed {
+            _ = consumeToken(into: &children, range: &range)
+        }
+        if recovered {
+            let missingRange = zeroWidthRange(at: stream.peek())
+            diagnostics.error(
+                "KSWIFTK-PARSE-0001", "Expected ')' to close annotation arguments.",
+                range: missingRange
+            )
+            let missing = Token(kind: .missing(expected: .symbol(.rParen)), range: missingRange)
+            children.append(.token(arena.appendToken(missing)))
+            range.append(missingRange)
         }
     }
 
@@ -159,24 +173,7 @@ extension KotlinParser {
     }
 
     func offsetPastAnnotationPrefix(from offset: Int) -> Int? {
-        var cursor = offset + 1
-        if isAnnotationUseSiteTarget(stream.peek(cursor)),
-           stream.peek(cursor + 1).kind == .symbol(.colon) {
-            cursor += 2
-        }
-        guard isIdentifierLike(stream.peek(cursor).kind) else { return nil }
-        cursor += 1
-        while stream.peek(cursor).kind == .symbol(.dot),
-              isIdentifierLike(stream.peek(cursor + 1).kind) {
-            cursor += 2
-        }
-        if stream.peek(cursor).kind == .symbol(.lessThan) {
-            cursor = offsetPastTypeArguments(from: cursor)
-        }
-        if stream.peek(cursor).kind == .symbol(.lParen) {
-            cursor = offsetPastBalancedGroup(from: cursor)
-        }
-        return cursor
+        LeanParser.offsetPastAnnotation(self, from: offset)
     }
 
     func parseBalancedGroup(
