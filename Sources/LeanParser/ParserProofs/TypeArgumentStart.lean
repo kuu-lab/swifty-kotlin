@@ -9,6 +9,8 @@ inductive Kind where
   | identifier | star | varianceOut | comma | question | questionDot | doubleColon
   | forKeyword | whileKeyword | doKeyword | arrow
   | bang | bangBang | questionColon | ampAmp | barBar | isKeyword | asKeyword | objectKeyword | fieldKeyword | assign | context | modifier
+  | softWhenKeyword | catchKeyword | companionKeyword | constructorKeyword | dynamicKeyword
+  | enumKeyword | finallyKeyword | importKeyword | reifiedKeyword
   deriving DecidableEq
 
 structure Input where
@@ -24,6 +26,9 @@ def decodeKind : UInt8 → Kind
   | 23 => .forKeyword | 24 => .whileKeyword | 25 => .doKeyword | 26 => .arrow
   | 27 => .bang | 28 => .bangBang | 29 => .questionColon | 30 => .ampAmp
   | 31 => .barBar | 32 => .isKeyword | 33 => .asKeyword | 34 => .objectKeyword | 35 => .fieldKeyword | 36 => .assign | 37 => .context | 38 => .modifier
+  | 39 => .softWhenKeyword | 40 => .catchKeyword | 41 => .companionKeyword
+  | 42 => .constructorKeyword | 43 => .dynamicKeyword | 44 => .enumKeyword
+  | 45 => .finallyKeyword | 46 => .importKeyword | 47 => .reifiedKeyword
   | _ => .other
 
 @[extern "kswiftk_lean_read_parser_token"]
