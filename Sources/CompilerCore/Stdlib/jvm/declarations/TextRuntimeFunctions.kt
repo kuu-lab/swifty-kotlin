@@ -100,6 +100,14 @@ fun String.substringBeforeLast(delimiter: String, missingDelimiterValue: String 
 fun String.substringBeforeLast(delimiter: Char, missingDelimiterValue: String = null!!): String = null!!
 fun String.substringAfterLast(delimiter: String, missingDelimiterValue: String = null!!): String = null!!
 fun String.substringAfterLast(delimiter: Char, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceBefore(delimiter: String, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceBefore(delimiter: Char, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceAfter(delimiter: String, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceAfter(delimiter: Char, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceBeforeLast(delimiter: String, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceBeforeLast(delimiter: Char, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceAfterLast(delimiter: String, replacement: String, missingDelimiterValue: String = null!!): String = null!!
+fun String.replaceAfterLast(delimiter: Char, replacement: String, missingDelimiterValue: String = null!!): String = null!!
 fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = null!!): String = null!!
 fun String.replace(oldChar: Char, newChar: Char, ignoreCase: Boolean = null!!): String = null!!
 fun String.replaceFirst(oldValue: String, newValue: String, ignoreCase: Boolean = null!!): String = null!!

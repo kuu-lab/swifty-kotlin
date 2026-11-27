@@ -91,6 +91,9 @@ struct JVMTextOperation {
         for name in ["substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast"] {
             for char in [false, true] { add(name, [p("delimiter", char ? .char : .string), p("missingDelimiterValue", .string, "this")]) }
         }
+        for name in ["replaceBefore", "replaceAfter", "replaceBeforeLast", "replaceAfterLast"] {
+            for char in [false, true] { add(name, [p("delimiter", char ? .char : .string), p("replacement", .string), p("missingDelimiterValue", .string, "this")]) }
+        }
         for name in ["replace", "replaceFirst"] {
             for char in [false, true] { add(name, [p(char ? "oldChar" : "oldValue", char ? .char : .string), p(char ? "newChar" : "newValue", char ? .char : .string), p("ignoreCase", .boolean, "false")]) }
         }

@@ -440,6 +440,46 @@ public fun String.substringAfterLast(delimiter: Char, missingDelimiterValue: Str
     return if (index < 0) missingDelimiterValue else __jvmSubstring(this, index + 1, this.length)
 }
 
+public fun String.replaceBefore(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceBefore(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceAfter(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + delimiter.length) + replacement
+}
+
+public fun String.replaceAfter(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + 1) + replacement
+}
+
+public fun String.replaceBeforeLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceAfterLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + delimiter.length) + replacement
+}
+
+public fun String.replaceAfterLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + 1) + replacement
+}
+
 public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {
     var found = this.indexOf(oldValue, 0, ignoreCase)
     if (found < 0) return this

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("a:b:c".replaceAfter(":", "X", "MISS"))
     println("abc".replaceAfter(":", "X", "MISS"))
