@@ -530,10 +530,6 @@ extension KotlinParser {
         return collected.reversed()
     }
 
-    /// A modifier keyword at the start of a new line is only a declaration
-    /// boundary when a real declaration keyword follows it. This keeps a
-    /// modifier keyword used as a parameter name inside a multiline group
-    /// from prematurely terminating that group.
     var invalidRange: SourceRange {
         SourceRange(
             start: SourceLocation(file: FileID.invalid, offset: 0),
@@ -580,13 +576,6 @@ extension KotlinParser {
     }
 }
 
-/// Tracks a `by` delegate expression while flat-scanning class/object headers
-/// and property initializers containing object literals, so a top-level `{`
-/// can be classified as part of the delegate expression — the body of `when`,
-/// `if`/`else`, `try`/`catch`/`finally`, or `do`, an object literal's body, or a
-/// lambda directly after `by` — versus the declaration's own body. kotlinc
-/// never parses a trailing lambda in this position: `C by run { x }` reports
-/// "function invocation 'run(...)' expected" and treats the brace as the class body.
 enum ParserBoundaryPolicy {
     private static let newlineBoundaryKeywords: Set<Keyword> = [
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import, .return,

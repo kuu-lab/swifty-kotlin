@@ -53,6 +53,16 @@ enum LeanParser {
         return LeanParser.encodeToken(parser, index: index)
     }
 
+    private static let readTokenKind: ReadToken = { state, index in
+        let parser = Unmanaged<KotlinParser>.fromOpaque(state).takeUnretainedValue()
+        return tokenCode(parser.stream.peek(index - parser.stream.index).kind).rawValue
+    }
+
+    private static let readTypeArgumentToken: ReadToken = { state, index in
+        let parser = Unmanaged<KotlinParser>.fromOpaque(state).takeUnretainedValue()
+        return encodeToken(parser, index: index, forTypeArgumentRecovery: true)
+    }
+
     private static let parseFileItem: ParseFileItem = { state, code in
         let file = Unmanaged<KotlinParser.FileAssembly>.fromOpaque(state).takeUnretainedValue()
         guard let dispatch = TopLevelDispatch(rawValue: UInt64(code)),
@@ -148,6 +158,13 @@ enum LeanParser {
         let parser = Unmanaged<KotlinParser>.fromOpaque(state).takeUnretainedValue()
         for index in start ..< end {
             parser.modifierDeclarationLookahead[index] = declares != 0
+        }
+    }
+
+    private static let recordTypeArgumentCache: RecordCache = { state, start, end, declares in
+        let parser = Unmanaged<KotlinParser>.fromOpaque(state).takeUnretainedValue()
+        for index in start ..< end {
+            parser.typeArgumentModifierLookahead[index] = declares != 0
         }
     }
 
@@ -266,7 +283,7 @@ enum LeanParser {
     }
 
     static func offsetPastTypeArguments(_ parser: KotlinParser, from offset: Int) -> Int {
-        lookahead(parser, offset: offset, operation: .angles).map { $0 - parser.stream.index } ?? offset
+        lookahead(parser, offset: offset, operation: .angles, reader: readTokenKind).map { $0 - parser.stream.index } ?? offset
     }
 
     static func offsetPastParens(_ parser: KotlinParser, from offset: Int, maxDistance: Int?) -> Int {
@@ -624,7 +641,7 @@ enum LeanParser {
         let state = Unmanaged.passUnretained(parser).toOpaque()
         let result = withExtendedLifetime(parser) {
             bindings.canStart(
-                state, readToken, parser.stream.tokens.count, parser.stream.index, hasAnchorToken ? 1 : 0
+                state, readTokenKind, parser.stream.tokens.count, parser.stream.index, hasAnchorToken ? 1 : 0
             )
         }
         guard result >= 0 else { return nil }
@@ -637,8 +654,8 @@ enum LeanParser {
         let result = withExtendedLifetime(parser) {
             bindings.scan(
                 state,
-                readToken,
-                recordCache,
+                readTypeArgumentToken,
+                recordTypeArgumentCache,
                 reportBudget,
                 parser.stream.tokens.count,
                 parser.stream.index,
@@ -811,7 +828,9 @@ enum LeanParser {
         }
     }
 
-    private static func encodeToken(_ parser: KotlinParser, index: Int, includesReceiverTarget: Bool = false) -> UInt32 {
+    private static func encodeToken(
+        _ parser: KotlinParser, index: Int, includesReceiverTarget: Bool = false, forTypeArgumentRecovery: Bool = false
+    ) -> UInt32 {
         let token = parser.stream.peek(index - parser.stream.index)
         var result = tokenCode(token.kind).rawValue
         if parser.hasLeadingNewline(token) { result |= 256 }
@@ -821,7 +840,8 @@ enum LeanParser {
             result |= 16777216
         }
         if includesReceiverTarget, parser.isReceiverUseSiteTarget(token) { result |= 8388608 }
-        if let cached = parser.modifierDeclarationLookahead[index] {
+        let modifierCache = forTypeArgumentRecovery ? parser.typeArgumentModifierLookahead : parser.modifierDeclarationLookahead
+        if let cached = modifierCache[index] {
             result |= 2048
             if cached { result |= 4096 }
         }
