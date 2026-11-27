@@ -141,6 +141,11 @@ extension JVMBackendTests {
                 println(numbers.second == 2.0f); println(2.0f == numbers.second); println(numbers.second == numbers.second)
                 val absent: Pair<Double?, Float?> = Pair(null, null)
                 println(absent.first == 1.0); println(absent.second == 2.0f); println(absent.first == absent.first)
+                val storage = shortArrayOf(1, -1)
+                val unsigned = storage.asUShortArray()
+                val roundTrip = unsigned.asShortArray()
+                storage[0] = -2
+                println(roundTrip[0]); println(unsigned.size)
             }
             """#
             let helper = "public class JavaConsumer { public static Integer[] values() { return new Integer[]{7,8}; } }"
@@ -149,7 +154,7 @@ extension JVMBackendTests {
             try consumer.write(to: root.appendingPathComponent("Consumer.kt"), atomically: true, encoding: .utf8)
             _ = try jvmTool("kotlinc", ["-no-stdlib", "-no-reflect", "-cp", library.0.path + ":" + root.path, "Consumer.kt", "-d", "consumer.jar"], root: root)
             let kotlin = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + library.0.path + ":" + root.path, "ConsumerKt"])
-            #expect(kotlin.stdout == "Hello World\n(1, uno)\n1\none\n3\n2\nfalse\n2\ntrue\n2\n3\ntrue\n1\n[4, 2, 3]\n[1, 2]\n{a=1, b=2}\n2\n3\n4\n[7, 8]\n[7, 8]\n[]\n[]\n{}\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\n")
+            #expect(kotlin.stdout == "Hello World\n(1, uno)\n1\none\n3\n2\nfalse\n2\ntrue\n2\n3\ntrue\n1\n[4, 2, 3]\n[1, 2]\n{a=1, b=2}\n2\n3\n4\n[7, 8]\n[7, 8]\n[]\n[]\n{}\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\n-2\n2\n")
             #expect(kotlin.stderr.isEmpty)
             let archive = try ZipArchive(data: Data(contentsOf: library.0))
             let primary = try #require(archive.entries.first { $0.name == "kotlin/PairKt.class" })

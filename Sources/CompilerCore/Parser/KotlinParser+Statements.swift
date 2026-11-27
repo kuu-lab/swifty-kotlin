@@ -98,7 +98,7 @@ extension KotlinParser {
         }
         defer { leaveNesting() }
 
-        if isLoopStart(stream.peek().kind) {
+        if LeanParser.isLoopStart(self, kind: stream.peek().kind) {
             return parseLoopStatement(inBlock: inBlock)
         }
 
@@ -664,7 +664,7 @@ extension KotlinParser {
                    token.kind != .keyword(.if),
                    lastConsumedToken?.kind != .keyword(.if),
                    !endsWithPendingInfixOperator(children),
-                   !whenConditionContinuesAfterLineBreak(token)
+                   !LeanParser.whenConditionContinuesAfterLineBreak(self, kind: token.kind)
                 {
                     break
                 }
@@ -685,27 +685,6 @@ extension KotlinParser {
         }
 
         return arena.appendNode(kind: .whenCondition, range: range.value ?? invalidRange, children)
-    }
-
-    /// Whether a newline-leading `token` can only continue the `when` branch
-    /// condition in progress, mirroring the continuation the expression parser
-    /// applies: the postfix `.`/`?.`/`!!` suffixes, the `is`/`in`/`as` infix
-    /// keywords, `!is`/`!in`, and the `?:`/`&&`/`||` binary operators can never
-    /// begin an entry, so `x\n.isEmpty ->` or `a &&\nb ->` stays one condition.
-    /// `+`/`-`/`*`/`/`/`%`/comparisons still split, matching the statement
-    /// boundary policy (`a\n-1` may legitimately start a `-1` entry).
-    private func whenConditionContinuesAfterLineBreak(_ token: Token) -> Bool {
-        switch token.kind {
-        case .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
-             .symbol(.questionColon), .symbol(.ampAmp), .symbol(.barBar),
-             .keyword(.is), .keyword(.in), .keyword(.as):
-            return true
-        case .symbol(.bang):
-            let next = stream.peek(1)
-            return next.kind == .keyword(.is) || next.kind == .keyword(.in)
-        default:
-            return false
-        }
     }
 
     func classifyStatementLeadingToken(_ token: Token) -> SyntaxKind {
@@ -886,15 +865,7 @@ extension KotlinParser {
     /// means a name is present (named declaration); `:`/`{` immediately after
     /// means there is none (object expression).
     func isObjectExpressionStart(_ token: Token) -> Bool {
-        guard case .keyword(.object) = token.kind else {
-            return false
-        }
-        switch stream.peek(1).kind {
-        case .symbol(.colon), .symbol(.lBrace):
-            return true
-        default:
-            return false
-        }
+        LeanParser.isObjectExpressionStart(self, kind: token.kind)
     }
 
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
@@ -953,16 +924,7 @@ extension KotlinParser {
     /// `context(...) { ... }` helper call). A single token of lookahead
     /// can't tell these apart.
     func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
-        switch token.kind {
-        case let .keyword(kw):
-            return Self.isDeclarationModifierKeyword(kw)
-        case .softKeyword(.context):
-            return true
-        case .symbol(.at):
-            return true
-        default:
-            return false
-        }
+        LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
     }
 
     enum DeclarationPrefixVerdict: Equatable {
@@ -1160,38 +1122,7 @@ extension KotlinParser {
     }
 
     func offsetPastTypeArguments(from offset: Int) -> Int {
-        var angleDepth = 0
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
-        var templateDepth = 0
-        var index = offset
-        while true {
-            let kind = stream.peek(index).kind
-            if kind == .eof { break }
-            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
-            if !inExpressionGroup {
-                if kind == .symbol(.lessThan) {
-                    angleDepth += 1
-                } else if kind == .symbol(.greaterThan) {
-                    angleDepth -= 1
-                    if angleDepth == 0 { return index + 1 }
-                }
-            }
-            switch kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            case .templateExprStart: templateDepth += 1
-            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
-            default: break
-            }
-            index += 1
-        }
-        return index
+        LeanParser.offsetPastTypeArguments(self, from: offset)
     }
 
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
@@ -1271,7 +1202,7 @@ extension KotlinParser {
                 break
             }
             if stopsAtFunctionDelegation, atTopLevel, !sawAssignment {
-                let expectsTypeName = functionTypeNameAfterAnnotation || canStartTypeName(after: lastConsumedToken?.kind)
+                let expectsTypeName = functionTypeNameAfterAnnotation || LeanParser.canStartTypeName(self, after: lastConsumedToken?.kind)
                 if token.kind == .symbol(.at), expectsTypeName {
                     var work = 0
                     if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
@@ -1293,7 +1224,7 @@ extension KotlinParser {
                atTopLevel,
                !sawAssignment,
                token.kind == .softKeyword(.by),
-               !canStartTypeName(after: lastConsumedToken?.kind)
+               !LeanParser.canStartTypeName(self, after: lastConsumedToken?.kind)
             {
                 diagnostics.error(
                     "KSWIFTK-PARSE-0006",
@@ -1459,18 +1390,6 @@ extension KotlinParser {
         }
         if !progress, !shouldStopStatementBefore(stream.peek(), inBlock: inBlock) {
             _ = consumeToken(into: &children, range: &range)
-        }
-    }
-
-    private func canStartTypeName(after kind: TokenKind?) -> Bool {
-        guard let kind else { return false }
-        switch kind {
-        case .symbol(.colon), .symbol(.dot), .symbol(.questionDot), .symbol(.lessThan),
-             .symbol(.comma), .symbol(.lParen), .symbol(.arrow),
-             .keyword(.in), .softKeyword(.out):
-            return true
-        default:
-            return false
         }
     }
 }

@@ -4,6 +4,7 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/ExperimentalStdlibApi.kt",
+    "kotlin/uuid/ExperimentalUuidApi.kt",
     "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
@@ -568,7 +569,7 @@
       "path": "declarations/UnsignedArrayConversions.kt",
       "virtualPath": "<kswiftk-jvm>/unsigned-array-conversions.kt",
       "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/collections/unsigned/UArraysKt"
+      "runtimeFacade": "kotlin/collections/UArraysKt"
     },
     {
       "path": "declarations/UnsignedArrayOperations.kt",
@@ -654,6 +655,12 @@
     {
       "path": "declarations/CollectionFirstPredicate.kt",
       "virtualPath": "<kswiftk-jvm>/collection-first-predicate.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/CollectionLastPredicate.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-last-predicate.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },

@@ -3731,11 +3731,14 @@ final class JVMClasspathIndex {
             $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
                 && memberSourceName(for: $0) == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                 && ($0.descriptor.hasPrefix(descriptor)
-                    || isComposeMemberCall($0, descriptorTypes: descriptorTypes))
+                    || isComposeMemberCall($0, descriptorTypes: descriptorTypes)
+                    || composeCallbackParameters($0, descriptorTypes: descriptorTypes) != nil)
                 && ($0.isStatic == staticMember || info.isKotlinObject)
         }) else { return }
         if isComposeMemberCall(method, descriptorTypes: descriptorTypes) {
             importedComposableSymbols.insert(symbol.id)
+        } else if let callbacks = composeCallbackParameters(method, descriptorTypes: descriptorTypes) {
+            importedComposableParameters[symbol.id] = callbacks
         }
         if let logical = method.logicalSuspendMethod {
             // The call IR holds the logical signature. Coroutine lowering

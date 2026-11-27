@@ -231,6 +231,8 @@ extension JVMClasspathIndex {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
                     external fun isHighSurrogate(value: Char): Boolean
+                    external fun isLetter(value: Char): Boolean
+                    external fun isLetterOrDigit(value: Char): Boolean
                     external fun isLowSurrogate(value: Char): Boolean
                     external fun isLowerCase(value: Char): Boolean
                     external fun isLowerCase(value: Int): Boolean
@@ -246,6 +248,8 @@ extension JVMClasspathIndex {
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
                 method("java/lang/Character", "isHighSurrogate", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLetter", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLetterOrDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowSurrogate", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.int], .boolean, staticMember: true),
@@ -261,6 +265,10 @@ extension JVMClasspathIndex {
             package java.util.function
             fun interface ToIntFunction<T> { fun applyAsInt(value: T): Int }
             """, 0x0601, "java/lang/Object", [method("java/util/function/ToIntFunction", "applyAsInt", [object], .int, interface: true)]),
+            ("java/util/function/IntFunction", """
+            package java.util.function
+            fun interface IntFunction<R> { fun apply(value: Int): R }
+            """, 0x0601, "java/lang/Object", [method("java/util/function/IntFunction", "apply", [.int], object, interface: true)]),
             ("java/lang/Runnable", """
             package java.lang
             fun interface Runnable {

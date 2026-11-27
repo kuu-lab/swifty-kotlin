@@ -37,7 +37,7 @@ extension JVMProgramBuilder {
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
             let jvmName: String
             if case .unsignedArray? = extensionReceiver,
-               ["kotlin/collections/ArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
+               ["kotlin/collections/ArraysKt", "kotlin/collections/UArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
                 let hashArguments = params.map(valueClassMangleElement).joined()
                 jvmName = explicitName ?? name + "-" + JVMNameHash.suffix(hashArguments)
             } else if params.contains(where: { $0.unsignedName != nil }) {
@@ -547,6 +547,14 @@ extension JVMFunctionBuilder {
            let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
            let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
             return JVMIntrinsicResult(value: emitted)
+        }
+        if isStdlibUnsignedArrayViewConversion(binding.chosenCallee, args: args),
+           let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id) {
+            let resultType = try program.expressionType(id)
+            guard receiver.type.descriptor == resultType.descriptor else {
+                throw fail("JVM unsigned array view conversion requires matching physical types.", id)
+            }
+            return JVMIntrinsicResult(value: try convert(receiver, to: resultType))
         }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,

@@ -8,40 +8,45 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
 
-        var path: [InternedString] = []
-        var argRefs: [TypeArgRef] = []
+        var segments: [NamedTypeSegment] = []
         var terminalExprID: ExprID?
 
         func appendPath(from exprID: ExprID) -> Bool {
             guard let expr = ast.arena.expr(exprID) else { return false }
             switch expr {
             case let .nameRef(name, _):
-                path.append(name)
+                segments.append(NamedTypeSegment(name: name))
                 terminalExprID = exprID
                 return true
             case let .memberCall(owner, name, segmentTypeArgs, segmentArgs, _):
                 guard segmentArgs.isEmpty, !ast.arena.isExplicitCall(exprID),
                       appendPath(from: owner)
                 else { return false }
-                path.append(name)
-                argRefs.append(contentsOf: segmentTypeArgs.map { TypeArgRef.invariant($0) })
+                segments.append(NamedTypeSegment(name: name, args: segmentTypeArgs.map { TypeArgRef.invariant($0) }))
                 return true
             case let .call(callee, callTypeArgs, callArgs, _):
                 guard callArgs.isEmpty, ast.arena.isTypeQualifierCall(exprID),
                       appendPath(from: callee)
                 else { return false }
-                argRefs.append(contentsOf: callTypeArgs.map { TypeArgRef.invariant($0) })
+                guard let last = segments.popLast() else { return false }
+                segments.append(NamedTypeSegment(
+                    name: last.name,
+                    args: last.args + callTypeArgs.map { TypeArgRef.invariant($0) }
+                ))
                 return true
             default:
                 return false
             }
         }
 
-        guard appendPath(from: calleeID), !path.isEmpty else { return nil }
+        guard appendPath(from: calleeID), !segments.isEmpty else { return nil }
 
-        let typeRefID = ast.arena.appendTypeRef(
-            .named(path: path, args: argRefs, nullable: false)
-        )
+        let typeRef: TypeRef = if segments.dropLast().contains(where: { !$0.args.isEmpty }) {
+            .qualifiedNamed(segments: segments, nullable: false)
+        } else {
+            .named(path: segments.map(\.name), args: segments.last?.args ?? [], nullable: false)
+        }
+        let typeRefID = ast.arena.appendTypeRef(typeRef)
         let resolved = driver.helpers.resolveTypeRef(
             typeRefID,
             ast: ast,

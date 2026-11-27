@@ -43,6 +43,16 @@ struct NestedTypeAliasResolutionTests {
         _ = try expectAlias(["Alias"], target: ["Outer", "Nested"], in: ctx)
     }
 
+    @Test
+    func genericNestedTypeAliasResolvesBeforeTypeParameterRegistration() throws {
+        let ctx = try semaContext(from: """
+        class Outer { class Nested<T> }
+        typealias Box = Outer.Nested<String>
+        """, includeStdlib: false)
+        let alias = try expectAlias(["Box"], target: ["Outer", "Nested"], in: ctx)
+        #expect(alias.args.count == 1)
+    }
+
     @Test(arguments: [true, false])
     func importedNestedTypesResolveAcrossFiles(ownerFirst: Bool) throws {
         let owner = """

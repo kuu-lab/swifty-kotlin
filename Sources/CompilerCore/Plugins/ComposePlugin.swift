@@ -318,7 +318,7 @@ struct ComposePlugin: CompilerPlugin {
                 return true
             }
             return typeRefHasAnnotation(base, arena: arena, predicate: predicate)
-        case .named, .functionType, .intersection:
+        case .named, .qualifiedNamed, .functionType, .intersection:
             return false
         }
     }

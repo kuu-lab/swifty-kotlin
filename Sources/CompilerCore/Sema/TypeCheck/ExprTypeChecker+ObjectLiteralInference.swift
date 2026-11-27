@@ -1720,11 +1720,12 @@ extension ExprTypeChecker {
     ) {
         guard let typeRef = ast.arena.typeRef(typeRefID) else { return }
         switch typeRef {
-        case let .named(path, args, _):
-            if let last = path.last {
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else { return }
+            if let last = namedType.path.last {
                 names.insert(last)
             }
-            for arg in args {
+            for arg in namedType.args {
                 switch arg {
                 case let .invariant(typeRef), let .out(typeRef), let .in(typeRef):
                     collectObjectLiteralTypeRefNames(typeRef, ast: ast, into: &names)

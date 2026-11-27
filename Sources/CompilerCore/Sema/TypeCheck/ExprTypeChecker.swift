@@ -762,11 +762,11 @@ final class ExprTypeChecker {
             let isNullToNullableCast = sourceType == sema.types.nullableNothingType
                 && sema.types.nullability(of: targetType) == .nullable
             if let typeRef = ast.arena.typeRef(typeRefID),
-               case let .named(_, argRefs, _) = typeRef,
-               !argRefs.isEmpty,
+               let namedType = typeRef.namedType,
+               !namedType.args.isEmpty,
                !isNullToNullableCast
             {
-                let hasNonStarArg = argRefs.contains { arg in
+                let hasNonStarArg = namedType.args.contains { arg in
                     if case .star = arg {
                         return false
                     }

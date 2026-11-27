@@ -62,6 +62,26 @@ extension JVMClasspathIndex {
         return masks.count == expectedMasks && masks.allSatisfy({ $0 == .int })
     }
 
+    func composeCallbackParameters(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Set<Int>? {
+        guard !method.isStatic, method.parameters.count == descriptorTypes.count,
+              let function = kotlinFunction(method), !function.isSuspend, function.receiver == nil,
+              function.parameters.count == method.parameters.count else { return nil }
+        let callbacks = Set(function.parameters.indices.filter { index in
+            if case .function(_, _, _, _, false, _, true) = function.parameters[index].type { return true }
+            return false
+        })
+        guard !callbacks.isEmpty else { return nil }
+        let functionPrefix = "kotlin/jvm/functions/Function"
+        let matches = zip(method.parameters, descriptorTypes).enumerated().allSatisfy { index, pair in
+            let (physical, logical) = pair
+            guard callbacks.contains(index) else { return physical.descriptor == logical.descriptor }
+            guard let carrier = logical.referenceName, carrier.hasPrefix(functionPrefix),
+                  let arity = Int(carrier.dropFirst(functionPrefix.count)) else { return false }
+            return physical.referenceName == functionPrefix + String(arity + 2)
+        }
+        return matches ? callbacks : nil
+    }
+
     func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {
         guard let function = kotlinFunction(method) else { return false }
         let parameterCount = kotlinFunctionParameterCount(function)
@@ -98,13 +118,14 @@ extension JVMClasspathIndex {
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):
             return kotlinSourceType(lower, parameters: parameters)
-        case .function(let inputs, let result, let receiver, let nullable, let suspend, let context):
+        case .function(let inputs, let result, let receiver, let nullable, let suspend, let context, let composable):
             let inputs = inputs.map { kotlinSourceType($0, parameters: parameters) }.joined(separator: ", ")
             let receiver = receiver.map { kotlinSourceType($0, parameters: parameters) + "." } ?? ""
             let result = kotlinSourceType(result, parameters: parameters)
             let contextClause = context.isEmpty ? ""
                 : "context(" + context.map { kotlinSourceType($0, parameters: parameters) }.joined(separator: ", ") + ") "
-            let declaration = contextClause + (suspend ? "suspend " : "") + receiver + "(" + inputs + ") -> " + result
+            let declaration = (composable ? "@androidx.compose.runtime.Composable " : "") + contextClause
+                + (suspend ? "suspend " : "") + receiver + "(" + inputs + ") -> " + result
             return nullable ? "(" + declaration + ")?" : declaration
         }
     }
@@ -121,7 +142,7 @@ extension JVMClasspathIndex {
         case .flexible(let lower, let upper):
             kotlinMetadataClassNames(lower, into: &names)
             kotlinMetadataClassNames(upper, into: &names)
-        case .function(let inputs, let result, let receiver, _, _, let context):
+        case .function(let inputs, let result, let receiver, _, _, let context, _):
             for input in inputs + context { kotlinMetadataClassNames(input, into: &names) }
             kotlinMetadataClassNames(result, into: &names)
             if let receiver { kotlinMetadataClassNames(receiver, into: &names) }
@@ -152,8 +173,8 @@ extension JVMClasspathIndex {
             return kotlinErasure(bound, parameters: parameters, boxed: true)
         case .flexible(let lower, _):
             return kotlinErasure(lower, parameters: parameters, boxed: boxed)
-        case .function(let inputs, _, let receiver, _, let suspend, _):
-            let arity = inputs.count + (receiver == nil ? 0 : 1) + (suspend ? 1 : 0)
+        case .function(let inputs, _, let receiver, _, let suspend, let context, let composable):
+            let arity = context.count + inputs.count + (receiver == nil ? 0 : 1) + (suspend ? 1 : 0) + (composable ? 2 : 0)
             return "Lkotlin/jvm/functions/Function\(arity);"
         }
     }

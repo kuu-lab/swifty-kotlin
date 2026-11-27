@@ -18,6 +18,7 @@ import kotlin.jvm.internal.__jvmIsLowerChar
 import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmIndexOf
 import kotlin.jvm.internal.__jvmLastIndexOf
+import kotlin.jvm.internal.__jvmStringRegionMatches
 import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
@@ -324,6 +325,40 @@ public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignore
     }
     return -1
 }
+private fun textSearchForwardStart(startIndex: Int): Int = if (startIndex < 0) 0 else startIndex
+private fun textSearchBackwardStart(startIndex: Int, size: Int): Int =
+    if (startIndex < size - 1) startIndex else size - 1
+private fun textSearchCharsMatchAt(value: CharSequence, pos: Int, chars: CharArray, ignoreCase: Boolean): Boolean {
+    if (pos < 0 || pos >= value.length) return false
+    var i = 0
+    while (i < chars.size) {
+        if (charsEqual(value[pos], chars[i], ignoreCase)) return true
+        i++
+    }
+    return false
+}
+private fun textSearchStringMatchesAt(value: CharSequence, pos: Int, string: String, ignoreCase: Boolean): Boolean {
+    if (value is String) return __jvmStringRegionMatches(value, ignoreCase, pos, string, 0, string.length)
+    return regionMatches(value, pos, string, ignoreCase)
+}
+private fun textSearchStringsMatchAt(value: CharSequence, pos: Int, strings: List<String>, ignoreCase: Boolean): Int {
+    var i = 0
+    while (i < strings.size) {
+        if (textSearchStringMatchesAt(value, pos, strings[i], ignoreCase)) return i
+        i++
+    }
+    return -1
+}
+public fun CharSequence.indexOfAny(strings: Collection<String>, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
+    val needles = strings.toList()
+    if (needles.size == 1 && !ignoreCase && this is String) return indexOf(needles[0], startIndex)
+    var index = textSearchForwardStart(startIndex)
+    while (index <= length) {
+        if (textSearchStringsMatchAt(this, index, needles, ignoreCase) >= 0) return index
+        index++
+    }
+    return -1
+}
 public fun CharSequence.lastIndexOf(string: String, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
     if (!ignoreCase && this is String) return __jvmLastIndexOf(this, string, startIndex)
     var i = if (startIndex < this.length) startIndex else this.length - 1
@@ -340,6 +375,52 @@ public fun CharSequence.lastIndexOf(char: Char, startIndex: Int = this.length - 
         i--
     }
     return -1
+}
+public fun CharSequence.lastIndexOfAny(chars: CharArray, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
+    var index = textSearchBackwardStart(startIndex, length)
+    while (index >= 0) {
+        if (textSearchCharsMatchAt(this, index, chars, ignoreCase)) return index
+        index--
+    }
+    return -1
+}
+public fun CharSequence.lastIndexOfAny(strings: Collection<String>, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
+    val needles = strings.toList()
+    if (needles.size == 1 && !ignoreCase && this is String) return lastIndexOf(needles[0], startIndex)
+    var index = textSearchBackwardStart(startIndex, length)
+    while (index >= 0) {
+        if (textSearchStringsMatchAt(this, index, needles, ignoreCase) >= 0) return index
+        index--
+    }
+    return -1
+}
+public fun CharSequence.findAnyOf(strings: Collection<String>, startIndex: Int = 0, ignoreCase: Boolean = false): Pair<Int, String>? {
+    val needles = strings.toList()
+    if (needles.size == 1 && !ignoreCase && this is String) {
+        val index = indexOf(needles[0], startIndex)
+        return if (index < 0) null else Pair(index, needles[0])
+    }
+    var index = textSearchForwardStart(startIndex)
+    while (index <= length) {
+        val matchIndex = textSearchStringsMatchAt(this, index, needles, ignoreCase)
+        if (matchIndex >= 0) return Pair(index, needles[matchIndex])
+        index++
+    }
+    return null
+}
+public fun CharSequence.findLastAnyOf(strings: Collection<String>, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Pair<Int, String>? {
+    val needles = strings.toList()
+    if (needles.size == 1 && !ignoreCase && this is String) {
+        val index = lastIndexOf(needles[0], startIndex)
+        return if (index < 0) null else Pair(index, needles[0])
+    }
+    var index = textSearchBackwardStart(startIndex, length)
+    while (index >= 0) {
+        val matchIndex = textSearchStringsMatchAt(this, index, needles, ignoreCase)
+        if (matchIndex >= 0) return Pair(index, needles[matchIndex])
+        index--
+    }
+    return null
 }
 public operator fun CharSequence.contains(other: CharSequence): Boolean = contains(other, ignoreCase = false)
 public fun CharSequence.contains(other: CharSequence, ignoreCase: Boolean = false): Boolean {
@@ -438,6 +519,46 @@ public fun String.substringAfterLast(delimiter: String, missingDelimiterValue: S
 public fun String.substringAfterLast(delimiter: Char, missingDelimiterValue: String = this): String {
     val index = this.lastIndexOf(delimiter)
     return if (index < 0) missingDelimiterValue else __jvmSubstring(this, index + 1, this.length)
+}
+
+public fun String.replaceBefore(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceBefore(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceAfter(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + delimiter.length) + replacement
+}
+
+public fun String.replaceAfter(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.indexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + 1) + replacement
+}
+
+public fun String.replaceBeforeLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else replacement + __jvmSubstring(this, index, this.length)
+}
+
+public fun String.replaceAfterLast(delimiter: String, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + delimiter.length) + replacement
+}
+
+public fun String.replaceAfterLast(delimiter: Char, replacement: String, missingDelimiterValue: String = this): String {
+    val index = this.lastIndexOf(delimiter)
+    return if (index < 0) missingDelimiterValue else __jvmSubstring(this, 0, index + 1) + replacement
 }
 
 public fun String.replace(oldValue: String, newValue: String, ignoreCase: Boolean = false): String {

@@ -10,6 +10,10 @@ public inline fun Char.isLowSurrogate(): Boolean = java.lang.Character.isLowSurr
 @kotlin.internal.InlineOnly
 public inline fun Char.isDigit(): Boolean = java.lang.Character.isDigit(this)
 @kotlin.internal.InlineOnly
+public inline fun Char.isLetter(): Boolean = java.lang.Character.isLetter(this)
+@kotlin.internal.InlineOnly
+public inline fun Char.isLetterOrDigit(): Boolean = java.lang.Character.isLetterOrDigit(this)
+@kotlin.internal.InlineOnly
 public inline fun Char.isLowerCase(): Boolean = java.lang.Character.isLowerCase(this)
 @kotlin.internal.InlineOnly
 public inline fun Char.isUpperCase(): Boolean = java.lang.Character.isUpperCase(this)
@@ -24,6 +28,7 @@ public inline fun Char.lowercase(): String = this.toString().lowercase()
 fun Char.titlecase(): String = null!!
 fun Char.isWhitespace(): Boolean = false
 val Char.directionality: CharDirectionality get() = null!!
+fun Char.digitToInt(): Int = 0
 fun Char.digitToInt(radix: Int): Int = 0
 fun Char.digitToIntOrNull(): Int? = null
 fun Char.digitToIntOrNull(radix: Int): Int? = null

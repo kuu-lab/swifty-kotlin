@@ -14,7 +14,8 @@
 ## クイックスタート
 
 ```bash
-# ビルド
+# ビルド（Sources/LeanParser/lean-toolchain の Lean を使用）
+bash Scripts/build_lean.sh
 swift build
 
 # コンパイル & 実行
@@ -49,6 +50,7 @@ socket の場所を変更する場合は `KSWIFTK_DAEMON_SOCKET` を設定して
 ## ビルド & テスト
 
 ```bash
+bash Scripts/build_lean.sh       # Lean ソースを変更した後にも実行
 swift build                    # デバッグビルド
 swift build -c release         # リリースビルド
 

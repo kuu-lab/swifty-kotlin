@@ -95,7 +95,12 @@ extension ExprLowerer {
         }
 
         switch typeRef {
-        case let .named(path, _, nullable):
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else {
+                return emitLiteral(RuntimeTypeCheckToken.unknownBase)
+            }
+            let path = namedType.path
+            let nullable = namedType.nullable
             guard let last = path.last else {
                 return emitLiteral(RuntimeTypeCheckToken.unknownBase)
             }

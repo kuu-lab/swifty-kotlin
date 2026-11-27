@@ -253,8 +253,7 @@ enum TypeRefParserCore {
             return nil
         }
 
-        var path: [InternedString] = [firstName]
-        var typeArgs: [TypeArgRef] = []
+        var segments: [NamedTypeSegment] = [NamedTypeSegment(name: firstName)]
         var next = start + 1
 
         if next < tokens.count,
@@ -269,7 +268,7 @@ enum TypeRefParserCore {
                        recursionDepth: recursionDepth
                    )
         {
-            typeArgs = parsedArgs.args
+            segments[0] = NamedTypeSegment(name: firstName, args: parsedArgs.args)
             next = parsedArgs.next
         }
 
@@ -278,7 +277,7 @@ enum TypeRefParserCore {
                   tokens[next].kind == .symbol(.dot),
                   let name = identifier(from: tokens[next + 1], interner: interner, options: options)
             {
-                path.append(name)
+                segments.append(NamedTypeSegment(name: name))
                 next += 2
 
                 if next < tokens.count,
@@ -293,13 +292,18 @@ enum TypeRefParserCore {
                        recursionDepth: recursionDepth
                    )
                 {
-                    typeArgs.append(contentsOf: parsedArgs.args)
+                    segments[segments.count - 1] = NamedTypeSegment(name: name, args: parsedArgs.args)
                     next = parsedArgs.next
                 }
             }
         }
 
-        let receiverRef = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        let receiverTypeRef: TypeRef = if segments.dropLast().contains(where: { !$0.args.isEmpty }) {
+            .qualifiedNamed(segments: segments, nullable: false)
+        } else {
+            .named(path: segments.map(\.name), args: segments.last?.args ?? [], nullable: false)
+        }
+        let receiverRef = astArena.appendTypeRef(receiverTypeRef)
         if options.allowFunctionType {
             if let receiverFnType = parseReceiverFunctionTypeRefSuffix(
                 tokens,
@@ -615,6 +619,8 @@ enum TypeRefParserCore {
         switch ref {
         case let .named(path, args, innerNullable):
             return astArena.appendTypeRef(.named(path: path, args: args, nullable: innerNullable || nullable))
+        case let .qualifiedNamed(segments, innerNullable):
+            return astArena.appendTypeRef(.qualifiedNamed(segments: segments, nullable: innerNullable || nullable))
         case let .functionType(innerContextReceivers, receiver, params, returnType, innerIsSuspend, innerNullable):
             return astArena.appendTypeRef(.functionType(
                 contextReceivers: contextReceivers + innerContextReceivers,
@@ -648,7 +654,7 @@ enum TypeRefParserCore {
                 return true
             case let .annotated(base, _):
                 current = base
-            case .named, .intersection:
+            case .named, .qualifiedNamed, .intersection:
                 return false
             }
         }
@@ -855,6 +861,8 @@ enum TypeRefParserCore {
         switch astArena.typeRef(ref) {
         case let .named(path, args, nullable):
             return nullable ? ref : astArena.appendTypeRef(.named(path: path, args: args, nullable: true))
+        case let .qualifiedNamed(segments, nullable):
+            return nullable ? ref : astArena.appendTypeRef(.qualifiedNamed(segments: segments, nullable: true))
         case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
             return nullable ? ref : astArena.appendTypeRef(.functionType(
                 contextReceivers: contextReceivers,
@@ -945,8 +953,7 @@ enum TypeRefParserCore {
             return nil
         }
 
-        var path: [InternedString] = [firstName]
-        var typeArgs: [TypeArgRef] = []
+        var segments: [NamedTypeSegment] = [NamedTypeSegment(name: firstName)]
         var next = start + 1
 
         if next < tokens.count,
@@ -955,7 +962,7 @@ enum TypeRefParserCore {
                tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
            )
         {
-            typeArgs = parsedArgs.args
+            segments[0] = NamedTypeSegment(name: firstName, args: parsedArgs.args)
             next = parsedArgs.next
         }
 
@@ -964,7 +971,7 @@ enum TypeRefParserCore {
                   tokens[next].kind == .symbol(.dot),
                   let name = identifier(from: tokens[next + 1], interner: interner, options: options)
             {
-                path.append(name)
+                segments.append(NamedTypeSegment(name: name))
                 next += 2
 
                 if next < tokens.count,
@@ -973,7 +980,7 @@ enum TypeRefParserCore {
                        tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
                    )
                 {
-                    typeArgs.append(contentsOf: parsedArgs.args)
+                    segments[segments.count - 1] = NamedTypeSegment(name: name, args: parsedArgs.args)
                     next = parsedArgs.next
                 }
             }
@@ -984,7 +991,12 @@ enum TypeRefParserCore {
             nullable = true
             next += 1
         }
-        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: nullable))
+        let typeRef: TypeRef = if segments.dropLast().contains(where: { !$0.args.isEmpty }) {
+            .qualifiedNamed(segments: segments, nullable: nullable)
+        } else {
+            .named(path: segments.map(\.name), args: segments.last?.args ?? [], nullable: nullable)
+        }
+        let ref = astArena.appendTypeRef(typeRef)
         return (ref, next)
     }
 

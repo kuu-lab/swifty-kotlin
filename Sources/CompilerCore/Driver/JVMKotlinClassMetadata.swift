@@ -238,6 +238,7 @@ private struct JVMKotlinMetadataTypes {
             if qualified.hasPrefix(functionPrefix), Int(qualified.dropFirst(functionPrefix.count)) != nil,
                args.allSatisfy({ $0.type != nil }), let result = args.last?.type {
                 let extensionType = try message.messages(100).contains { try name($0.integer(1)) == "kotlin/ExtensionFunctionType" }
+                let composable = try message.messages(100).contains { try name($0.integer(1)) == "androidx/compose/runtime/Composable" }
                 var parameters = args.dropLast().compactMap(\.type)
                 var contextCount = 0
                 for annotation in try message.messages(100) where try name(annotation.integer(1)) == "kotlin/ContextFunctionTypeParams" {
@@ -252,9 +253,9 @@ private struct JVMKotlinMetadataTypes {
                 if isSuspend, case .named("kotlin/coroutines/Continuation", let arguments, _) = parameters.last,
                    let suspendResult = arguments.first?.type {
                     parameters.removeLast()
-                    type = .function(parameters, suspendResult, receiver: receiver, nullable: isNullable, isSuspend: true, context: context)
+                    type = .function(parameters, suspendResult, receiver: receiver, nullable: isNullable, isSuspend: true, context: context, isComposable: composable)
                 } else {
-                    type = .function(parameters, result, receiver: receiver, nullable: isNullable, context: context)
+                    type = .function(parameters, result, receiver: receiver, nullable: isNullable, context: context, isComposable: composable)
                 }
             } else {
                 type = .named(binary, args, nullable: isNullable)

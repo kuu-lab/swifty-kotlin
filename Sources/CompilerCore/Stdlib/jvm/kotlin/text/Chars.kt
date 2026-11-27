@@ -6,6 +6,7 @@ import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmWhitespace
 import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
+import kotlin.jvm.internal.__jvmIsLetter
 import kotlin.jvm.internal.__jvmCharDigit
 import kotlin.jvm.internal.__jvmDirectionality
 import kotlin.jvm.internal.__jvmIsLowerCase
@@ -22,6 +23,10 @@ public fun Char.isHighSurrogate(): Boolean = this >= '\uD800' && this <= '\uDBFF
 public fun Char.isLowSurrogate(): Boolean = this >= '\uDC00' && this <= '\uDFFF'
 
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
+
+public fun Char.isLetter(): Boolean = __jvmIsLetter(this)
+
+public fun Char.isLetterOrDigit(): Boolean = isLetter() || isDigit()
 
 public fun Char.isLowerCase(): Boolean = __jvmIsLowerCase(this)
 
@@ -48,6 +53,12 @@ public fun Char.titlecase(): String {
 }
 
 public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceChar(this)
+
+public fun Char.digitToInt(): Int =
+    digitToIntOrNull(10) ?: throw IllegalArgumentException("Char $this is not a decimal digit")
+
+public fun Char.digitToInt(radix: Int): Int =
+    digitToIntOrNull(radix) ?: throw IllegalArgumentException("Char $this is not a digit in the given radix=$radix")
 
 public fun Char.digitToIntOrNull(): Int? = digitToIntOrNull(10)
 

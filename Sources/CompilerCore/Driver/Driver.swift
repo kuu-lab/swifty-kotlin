@@ -1220,14 +1220,15 @@ public final class CompilerDriver {
         guard let typeRef = ast.arena.typeRef(typeRefID) else { return }
 
         switch typeRef {
-        case let .named(path, args, _):
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else { return }
             // Use only the last path component (the simple type name) to match
             // provided symbol granularity. Earlier components are package/module
             // qualifiers that don't correspond to per-file provided symbols.
-            if let last = path.last {
+            if let last = namedType.path.last {
                 depended.insert(interner.resolve(last))
             }
-            for arg in args {
+            for arg in namedType.args {
                 switch arg {
                 case let .invariant(typeRef), let .out(typeRef), let .in(typeRef):
                     collectTypeRefDependencies(typeRefID: typeRef, ast: ast, interner: interner, depended: &depended)

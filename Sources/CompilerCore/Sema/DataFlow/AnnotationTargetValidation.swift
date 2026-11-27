@@ -391,8 +391,8 @@ extension DataFlowSemaPhase {
             return false
         }
         switch typeRef {
-        case let .named(_, args, _):
-            return args.contains { arg in
+        case .named, .qualifiedNamed:
+            return (typeRef.namedType?.args ?? []).contains { arg in
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
                     typeRefContainsAnnotations(inner, arena: arena)
@@ -1779,8 +1779,8 @@ private extension DataFlowSemaPhase {
         }
 
         switch typeRef {
-        case let .named(_, args, _):
-            for arg in args {
+        case .named, .qualifiedNamed:
+            for arg in typeRef.namedType?.args ?? [] {
                 switch arg {
                 case let .invariant(inner), let .out(inner), let .in(inner):
                     validateTypeAnnotationTargets(typeRefID: inner, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)

@@ -1881,11 +1881,12 @@ final class DataFlowAnalyzer {
         interner: StringInterner
     ) -> TypeID? {
         guard let typeRef = ast.arena.typeRef(typeRefID),
-              case let .named(path, _, _) = typeRef,
-              let shortName = path.last
+              let namedType = typeRef.namedType,
+              let shortName = namedType.path.last
         else {
             return nil
         }
+        let path = namedType.path
 
         if path.count == 1,
            let typeParameterSymbol = TypeCheckHelpers().resolveTypeParameterSymbol(shortName, scope: scope, sema: sema),

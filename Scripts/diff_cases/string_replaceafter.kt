@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("a:b:c".replaceAfter(":", "X", "MISS"))
     println("abc".replaceAfter(":", "X", "MISS"))
@@ -8,5 +9,8 @@ fun main() {
     println("a:b:c".replaceAfter(':', "X", "MISS"))
     println("abc".replaceAfter(':', "X", "MISS"))
     println("abc".replaceAfter(':', "X"))
+    println("abc".replaceAfter(delimiter = ':', replacement = "X"))
     println("abc".replaceAfter('a', "X", "MISS"))
+    val replaceAfter: (String, String, String) -> String = String::replaceAfter
+    println(replaceAfter("abc", ":", "X"))
 }
