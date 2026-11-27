@@ -34,6 +34,9 @@ jobs:
         uses: ./.github/actions/setup-swift
         with:
           swift-version: "6.3"
+      - uses: ./.github/actions/setup-lean
+      - name: Build bundled Lean parser
+        run: bash Scripts/build_lean.sh
       - name: Setup release SwiftPM cache
         uses: ./.github/actions/setup-swiftpm-cache
         with:

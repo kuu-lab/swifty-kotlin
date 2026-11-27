@@ -68,6 +68,7 @@ let package = Package(
             dependencies: ["RuntimeABI", "CSHA256"],
             resources: [
                 .copy("Stdlib"),
+                .copy("LeanParserResources"),
             ],
             swiftSettings: compilerCoreSwiftSettings
         ),

@@ -135,6 +135,9 @@ jobs:
         uses: ./.github/actions/setup-swift
         with:
           swift-version: "6.3"
+      - uses: ./.github/actions/setup-lean
+      - name: Build bundled Lean parser
+        run: bash Scripts/build_lean.sh
       - name: Show toolchain versions
         run: swift --version
       - name: Setup SwiftPM build cache
@@ -157,6 +160,8 @@ jobs:
           echo "Detected $worker_count logical CPUs"
       - name: Build Swift test bundle
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Check bundled Lean parser
+        run: bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/' $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
         run: |
