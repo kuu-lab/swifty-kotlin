@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
 lean_bin=${LEAN:-lean}
-lean_prefix=$("$lean_bin" --print-prefix)
-version=$("$lean_bin" --version)
-toolchain=$(<Sources/LeanParser/lean-toolchain)
+case "$lean_bin" in
+    /*) ;;
+    */*) lean_bin="$PWD/$lean_bin" ;;
+esac
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+source_dir=Sources/LeanParser
+lean_prefix=$(cd "$source_dir" && "$lean_bin" --print-prefix)
+version=$(cd "$source_dir" && "$lean_bin" --version)
+toolchain=$(<"$source_dir/lean-toolchain")
 if [[ "$version" != "Lean (version ${toolchain##*:v},"* ]]; then
     echo "Expected $toolchain, found $version" >&2
     exit 1
@@ -26,7 +32,6 @@ case "$(uname -s)" in
     *) echo 'The Lean parser build supports macOS and Linux.' >&2; exit 1 ;;
 esac
 
-source_dir=Sources/LeanParser
 resource_dir=Sources/CompilerCore/LeanParserResources
 build_dir=$(mktemp -d "$resource_dir/.build.XXXXXX")
 trap 'rm -rf "$build_dir"' EXIT
