@@ -11,4 +11,6 @@ fun main() {
     println("abc".replaceAfter(':', "X"))
     println("abc".replaceAfter(delimiter = ':', replacement = "X"))
     println("abc".replaceAfter('a', "X", "MISS"))
+    val replaceAfter: (String, String, String) -> String = String::replaceAfter
+    println(replaceAfter("abc", ":", "X"))
 }
