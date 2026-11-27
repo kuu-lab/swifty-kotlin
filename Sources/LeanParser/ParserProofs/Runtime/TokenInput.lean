@@ -69,7 +69,9 @@ structure Effects where
   runs : List CacheRun := []
   budgetAt : Option Nat := none
 
-def modifierLookahead (input : Input) (index : Nat) : Nat → Bool × Nat × Option Nat
+def modifierLookahead (input : Input) (index : Nat) (work : Nat)
+    (contextAfterModifierIsBoundary : Bool := false) : Bool × Nat × Option Nat :=
+  match work with
   | 0 =>
     match (input.get index).modifierCache with
     | some declares => (declares, index, none)
@@ -79,8 +81,10 @@ def modifierLookahead (input : Input) (index : Nat) : Nat → Bool × Nat × Opt
     match token.modifierCache with
     | some declares => (declares, index, none)
     | none =>
-      if token.kind == .modifier then modifierLookahead input (index + 1) n
-      else (isDeclarationStart input index token.kind, index + 1, none)
+      if token.kind == .modifier then modifierLookahead input (index + 1) n contextAfterModifierIsBoundary
+      else
+        (isDeclarationStart input index token.kind ||
+          (contextAfterModifierIsBoundary && token.kind == .context), index + 1, none)
 
 theorem modifierLookaheadStaysWithinBudget (input : Input) (index work : Nat) :
     index ≤ (modifierLookahead input index work).2.1 ∧
