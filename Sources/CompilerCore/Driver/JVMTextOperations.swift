@@ -88,6 +88,16 @@ struct JVMTextOperation {
                 add(name, [p(char ? "char" : "string", char ? .char : .string), p("startIndex", .int, name == "indexOf" ? "0" : "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, jvmReceiver: sequence)
             }
         }
+        let pair = JVMValueType.reference("kotlin/Pair", nullable: true)
+        let characters = JVMValueType.reference("[C", nullable: false)
+        let strings = JVMValueType.reference("java/util/Collection", nullable: false)
+        let stringsOwner = "kotlin/text/StringsKt"
+        add("indexOfAny", [p("chars", characters), p("startIndex", .int, "0"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
+        add("indexOfAny", [p("strings", strings), p("startIndex", .int, "0"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
+        add("lastIndexOfAny", [p("chars", characters), p("startIndex", .int, "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
+        add("lastIndexOfAny", [p("strings", strings), p("startIndex", .int, "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
+        add("findAnyOf", [p("strings", strings), p("startIndex", .int, "0"), p("ignoreCase", .boolean, "false")], sourceResult: "Pair<Int, String>?", result: pair, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
+        add("findLastAnyOf", [p("strings", strings), p("startIndex", .int, "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Pair<Int, String>?", result: pair, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
         for name in ["substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast"] {
             for char in [false, true] { add(name, [p("delimiter", char ? .char : .string), p("missingDelimiterValue", .string, "this")]) }
         }
