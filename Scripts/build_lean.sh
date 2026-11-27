@@ -29,7 +29,11 @@ build_dir=$(mktemp -d "$resource_dir/.build.XXXXXX")
 trap 'rm -rf "$build_dir"' EXIT
 
 (cd "$source_dir" && "$lean_prefix/bin/lake" build)
-generated=("$source_dir"/.lake/build/ir/ParserProofs/*.c)
+generated=()
+while IFS= read -r -d '' module; do
+    relative=${module#"$source_dir"/}
+    generated+=("$source_dir/.lake/build/ir/${relative%.lean}.c")
+done < <(find "$source_dir/ParserProofs" -name '*.lean' -type f -print0)
 "${CC:-cc}" -fPIC -O2 -I "$lean_prefix/include" "$source_dir/Bridge.c" "${generated[@]}" \
     "$lean_prefix/lib/lean/libInit.a" "$lean_prefix/lib/lean/libleanrt.a" \
     "$lean_prefix/lib/libgmp.a" "$lean_prefix/lib/libuv.a" \
