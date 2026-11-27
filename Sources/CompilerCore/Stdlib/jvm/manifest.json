@@ -4,6 +4,7 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/ExperimentalStdlibApi.kt",
+    "kotlin/uuid/ExperimentalUuidApi.kt",
     "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
