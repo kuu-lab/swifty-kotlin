@@ -14,8 +14,14 @@ struct WasmSuspendLoopControlFlowTests {
         }
 
         class JobIterator {
-            operator fun hasNext(): Boolean = false
-            operator fun next(): Job = Job()
+            private var index = 0
+
+            operator fun hasNext(): Boolean = index < 3
+
+            operator fun next(): Job {
+                index += 1
+                return Job()
+            }
         }
 
         class JobCollection {
@@ -32,6 +38,11 @@ struct WasmSuspendLoopControlFlowTests {
         fun retry(): Boolean = false
 
         fun main(): Int {
+            var visited = 0
+            for (job in JobCollection()) {
+                visited += 1
+            }
+
             var last = 0
             for (i in 1..3) {
                 last = i
@@ -41,7 +52,7 @@ struct WasmSuspendLoopControlFlowTests {
                 if (retry()) continue
             } while (if (retry()) continue else false)
 
-            return last
+            return last * 10 + visited
         }
         """
 
@@ -75,7 +86,7 @@ struct WasmSuspendLoopControlFlowTests {
             #expect(Array(wasm.prefix(8)) == [0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00])
             if let execution = try runExportedMainUnderNode(Array(wasm)) {
                 #expect(execution.status == 0)
-                #expect(execution.stdout == "3\n")
+                #expect(execution.stdout == "33\n")
             }
         }
     }
