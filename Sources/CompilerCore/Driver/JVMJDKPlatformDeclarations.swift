@@ -231,6 +231,8 @@ extension JVMClasspathIndex {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
                     external fun isHighSurrogate(value: Char): Boolean
+                    external fun isLetter(value: Char): Boolean
+                    external fun isLetterOrDigit(value: Char): Boolean
                     external fun isLowSurrogate(value: Char): Boolean
                     external fun isLowerCase(value: Char): Boolean
                     external fun isLowerCase(value: Int): Boolean
@@ -246,6 +248,8 @@ extension JVMClasspathIndex {
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
                 method("java/lang/Character", "isHighSurrogate", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLetter", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLetterOrDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowSurrogate", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.int], .boolean, staticMember: true),

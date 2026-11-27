@@ -10,6 +10,10 @@ public inline fun Char.isLowSurrogate(): Boolean = java.lang.Character.isLowSurr
 @kotlin.internal.InlineOnly
 public inline fun Char.isDigit(): Boolean = java.lang.Character.isDigit(this)
 @kotlin.internal.InlineOnly
+public inline fun Char.isLetter(): Boolean = java.lang.Character.isLetter(this)
+@kotlin.internal.InlineOnly
+public inline fun Char.isLetterOrDigit(): Boolean = java.lang.Character.isLetterOrDigit(this)
+@kotlin.internal.InlineOnly
 public inline fun Char.isLowerCase(): Boolean = java.lang.Character.isLowerCase(this)
 @kotlin.internal.InlineOnly
 public inline fun Char.isUpperCase(): Boolean = java.lang.Character.isUpperCase(this)

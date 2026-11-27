@@ -6,6 +6,7 @@ import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmWhitespace
 import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
+import kotlin.jvm.internal.__jvmIsLetter
 import kotlin.jvm.internal.__jvmCharDigit
 import kotlin.jvm.internal.__jvmDirectionality
 import kotlin.jvm.internal.__jvmIsLowerCase
@@ -22,6 +23,10 @@ public fun Char.isHighSurrogate(): Boolean = this >= '\uD800' && this <= '\uDBFF
 public fun Char.isLowSurrogate(): Boolean = this >= '\uDC00' && this <= '\uDFFF'
 
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
+
+public fun Char.isLetter(): Boolean = __jvmIsLetter(this)
+
+public fun Char.isLetterOrDigit(): Boolean = isLetter() || isDigit()
 
 public fun Char.isLowerCase(): Boolean = __jvmIsLowerCase(this)
 
