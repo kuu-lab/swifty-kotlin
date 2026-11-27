@@ -7,22 +7,10 @@ extension KotlinParser {
 
         var modifierChildren: [SyntaxChild] = []
         var modifierRange = RangeAccumulator()
-        var contextClauseConsumed = false
-        // `context(...)` is a declaration prefix that Kotlin accepts on either
-        // side of the annotation/modifier run: `context(x) @OptIn fun f` and
-        // `@OptIn context(x) inline fun f` are the same declaration. Consume it
-        // wherever it appears inside the prefix; previously it was only eaten
-        // as the very first token, so `@OptIn context(x) fun f` degraded into
-        // a statement and silently dropped the annotations (KUU-4094).
-        func consumeContextClauseIfPresent() {
-            guard !contextClauseConsumed,
-                  case .softKeyword(.context) = stream.peek().kind
-            else {
-                return
-            }
-            contextClauseConsumed = true
+        func consumeContextClause(_ clause: LeanParser.DeclarationContextClause) {
+            guard clause != .absent else { return }
             _ = consumeToken(into: &modifierChildren, range: &modifierRange)
-            if case .symbol(.lParen) = stream.peek().kind {
+            if clause == .group {
                 let group = parseBalancedGroup(opening: .lParen, closing: .rParen)
                 modifierChildren.append(.node(group))
                 modifierRange.append(childRange(.node(group)))
@@ -36,136 +24,118 @@ extension KotlinParser {
                 )
             }
         }
-        consumeContextClauseIfPresent()
-        parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
-        consumeContextClauseIfPresent()
-        parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
-        companionDispatch: while true {
-        let token = stream.peek()
-        switch token.kind {
-        case .keyword(.class):
-            return parseNamedDeclaration(
-                kind: .classDecl,
-                leadingChildren: modifierChildren,
-                leadingRange: modifierRange.value
-            )
-        case .keyword(.object):
-            return parseNamedDeclaration(
-                kind: .objectDecl,
-                leadingChildren: modifierChildren,
-                leadingRange: modifierRange.value
-            )
-        case .keyword(.interface):
-            return parseNamedDeclaration(
-                kind: .interfaceDecl,
-                leadingChildren: modifierChildren,
-                leadingRange: modifierRange.value
-            )
-        case .keyword(.fun):
-            if stream.peek(1).kind == .keyword(.interface) {
-                _ = consumeToken(into: &modifierChildren, range: &modifierRange)
-                return parseNamedDeclaration(
-                    kind: .interfaceDecl,
-                    leadingChildren: modifierChildren,
-                    leadingRange: modifierRange.value
-                )
-            }
-            return parseFunctionDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
-        case .keyword(.val), .keyword(.var):
-            return parsePropertyDeclaration(
-                leadingChildren: modifierChildren, leadingRange: modifierRange.value,
-                allowsBodylessAccessors: !isLocal
-            )
-        case .keyword(.typealias):
-            return parseTypeAliasDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
-        case .keyword(.enum):
-            if stream.peek(1).kind == .keyword(.class) || isIdentifierLike(stream.peek(1).kind) {
-                return parseEnumDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
-            }
-            _ = consumeToken(into: &modifierChildren, range: &modifierRange)
-            continue companionDispatch
-        case .keyword(.package):
-            return parsePackageHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
-        case .keyword(.import):
-            return parseImportHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
-        case .keyword(.constructor), .softKeyword(.constructor):
-            return parseConstructorDeclaration(
-                leadingChildren: modifierChildren,
-                leadingRange: modifierRange.value
-            )
-        case .keyword(.companion):
-            _ = consumeToken(into: &modifierChildren, range: &modifierRange)
-            if case .keyword(.object) = stream.peek().kind {
-                return parseNamedDeclaration(
-                    kind: .objectDecl,
-                    leadingChildren: modifierChildren,
-                    leadingRange: modifierRange.value
-                )
-            }
-            if case .symbol(.lBrace) = stream.peek().kind {
-                let body = parseBlock()
-                modifierChildren.append(.node(body))
-                modifierRange.append(childRange(.node(body)))
-                return arena.appendNode(
-                    kind: .statement,
-                    range: modifierRange.value ?? invalidRange,
-                    modifierChildren
-                )
+        if let head = LeanParser.declarationPrefixHead(self) {
+            switch head {
+            case let .contextFirst(clause):
+                consumeContextClause(clause)
+                parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
+            case let .prefixFirst(consumed, recovered, clause):
+                appendScannedLeadingPrefix(consumed, recovered: recovered, into: &modifierChildren, range: &modifierRange)
+                consumeContextClause(clause)
             }
             parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
-            continue companionDispatch
-        default:
-            if !modifierChildren.isEmpty {
-                if case let .softKeyword(soft) = token.kind,
-                   soft == .get || soft == .set
-                {
+        }
+        while let dispatch = LeanParser.declarationDispatch(self, hasPrefix: !modifierChildren.isEmpty) {
+            switch dispatch {
+            case .classDecl:
+                return parseNamedDeclaration(
+                    kind: .classDecl, leadingChildren: modifierChildren, leadingRange: modifierRange.value
+                )
+            case .objectDecl, .companionObject:
+                if dispatch == .companionObject {
+                    _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+                }
+                return parseNamedDeclaration(
+                    kind: .objectDecl, leadingChildren: modifierChildren, leadingRange: modifierRange.value
+                )
+            case .interfaceDecl, .funInterface:
+                if dispatch == .funInterface {
+                    _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+                }
+                return parseNamedDeclaration(
+                    kind: .interfaceDecl, leadingChildren: modifierChildren, leadingRange: modifierRange.value
+                )
+            case .function:
+                return parseFunctionDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .property:
+                return parsePropertyDeclaration(
+                    leadingChildren: modifierChildren, leadingRange: modifierRange.value,
+                    allowsBodylessAccessors: !isLocal
+                )
+            case .typeAlias:
+                return parseTypeAliasDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .enumDecl:
+                return parseEnumDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .packageHeader:
+                return parsePackageHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .importHeader:
+                return parseImportHeader(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .constructor:
+                return parseConstructorDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
+            case .companionBlock:
+                _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+                let body: SyntaxChild = .node(parseBlock())
+                modifierChildren.append(body)
+                modifierRange.append(childRange(body))
+                return arena.appendNode(
+                    kind: .statement, range: modifierRange.value ?? invalidRange, modifierChildren
+                )
+            case .retryAfterCompanion:
+                _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+                parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
+            case .retryAfterEnum:
+                _ = consumeToken(into: &modifierChildren, range: &modifierRange)
+            case .statement:
+                return parseStatement(inBlock: false)
+            case .prefixedStatement, .invalidAccessor:
+                if dispatch == .invalidAccessor {
                     diagnostics.error(
-                        "KSWIFTK-PARSE-0002",
-                        "Expecting member declaration.",
-                        range: token.range
+                        "KSWIFTK-PARSE-0002", "Expecting member declaration.", range: stream.peek().range
                     )
                 }
-                let nextKind = stream.peek().kind
-                if nextKind != .keyword(.package), nextKind != .keyword(.import) {
-                    parseTail(inBlock: false, into: &modifierChildren, range: &modifierRange)
-                }
-                return arena.appendNode(kind: .statement, range: modifierRange.value ?? invalidRange, modifierChildren)
+                parseTail(inBlock: false, into: &modifierChildren, range: &modifierRange)
+                return arena.appendNode(
+                    kind: .statement, range: modifierRange.value ?? invalidRange, modifierChildren
+                )
             }
-            return parseStatement(inBlock: false)
         }
-        }
+        return arena.appendNode(kind: .statement, range: modifierRange.value ?? invalidRange, modifierChildren)
     }
 
     func parsePackageHeader(leadingChildren: [SyntaxChild] = [], leadingRange: SourceRange? = nil) -> NodeID {
-        parseHeaderDeclaration(keyword: .keyword(.package), kind: .packageHeader, allowWildcard: false, leadingChildren: leadingChildren, leadingRange: leadingRange)
+        parseHeaderDeclaration(isImport: false, leadingChildren: leadingChildren, leadingRange: leadingRange)
     }
 
     func parseImportHeader(leadingChildren: [SyntaxChild] = [], leadingRange: SourceRange? = nil) -> NodeID {
-        parseHeaderDeclaration(keyword: .keyword(.import), kind: .importHeader, allowWildcard: true, allowAlias: true, leadingChildren: leadingChildren, leadingRange: leadingRange)
+        parseHeaderDeclaration(isImport: true, leadingChildren: leadingChildren, leadingRange: leadingRange)
     }
 
-    func parseHeaderDeclaration(
-        keyword: TokenKind,
-        kind: SyntaxKind,
-        allowWildcard: Bool,
-        allowAlias: Bool = false,
-        leadingChildren: [SyntaxChild],
-        leadingRange: SourceRange?
+    private func parseHeaderDeclaration(
+        isImport: Bool, leadingChildren: [SyntaxChild], leadingRange: SourceRange?
     ) -> NodeID {
         var range = RangeAccumulator(value: leadingRange)
-        var children: [SyntaxChild] = leadingChildren
-        consumeIf(expected: keyword, into: &children, range: &range, code: "KSWIFTK-PARSE-0001")
-        parseQualifiedPath(into: &children, range: &range, allowImportWildcard: allowWildcard, stopAtAs: allowAlias)
-        if allowAlias, case .keyword(.as) = stream.peek().kind {
-            _ = consumeToken(into: &children, range: &range)
-            if isIdentifierLike(stream.peek().kind) {
+        var children = leadingChildren
+        if let plan = LeanParser.headerPlan(self, isImport: isImport) {
+            if plan.hasKeyword {
                 _ = consumeToken(into: &children, range: &range)
             } else {
+                let keyword: TokenKind = .keyword(isImport ? .import : .package)
+                insertMissingToken(expected: keyword, into: &children, range: &range, code: "KSWIFTK-PARSE-0001", message: "Expected \(keyword).")
+            }
+            if plan.pathCount == 0 {
+                insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0003", message: "Expected name in package/import path.")
+            }
+            for _ in 0..<(plan.pathCount + plan.alias.rawValue) {
+                _ = consumeToken(into: &children, range: &range)
+            }
+            if plan.alias == .missing {
                 insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0005", message: "Expected alias name after 'as'.")
             }
+            if plan.hasTerminator {
+                _ = consumeToken(into: &children, range: &range)
+            }
         }
-        appendOptionalTerminator(into: &children, range: &range)
-        return arena.appendNode(kind: kind, range: range.value ?? invalidRange, children)
+        return arena.appendNode(kind: isImport ? .importHeader : .packageHeader, range: range.value ?? invalidRange, children)
     }
 
     func parseNamedDeclaration(
@@ -216,7 +186,7 @@ extension KotlinParser {
         // A primary-constructor annotation may start on the next line. Prove
         // that the prefix ends in `constructor (` before consuming it, so a
         // following annotated declaration remains outside this class.
-        if kind == .classDecl, startsPrimaryConstructorHeader() {
+        if kind == .classDecl, LeanParser.startsPrimaryConstructorHeader(self) {
             parseLeadingDeclarationPrefix(into: &children, range: &range)
             _ = consumeToken(into: &children, range: &range)
             let parameters = parseBalancedGroup(
@@ -240,23 +210,6 @@ extension KotlinParser {
         )
     }
 
-    private func startsPrimaryConstructorHeader() -> Bool {
-        var offset = 0
-        while true {
-            let kind = stream.peek(offset).kind
-            if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
-                return stream.peek(offset + 1).kind == .symbol(.lParen)
-            }
-            if case let .keyword(keyword) = kind, Self.isDeclarationModifierKeyword(keyword) {
-                offset += 1
-                continue
-            }
-            guard kind == .symbol(.at) else { return false }
-            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
-            offset = end
-        }
-    }
-
     func parseFunctionDeclaration(
         leadingChildren: [SyntaxChild] = [],
         leadingRange: SourceRange? = nil
@@ -273,9 +226,7 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
-        while isReceiverAnnotationPrefix() {
-            _ = consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range)
-        }
+        consumeLeadingPrefix(.receiver, into: &children, range: &range)
         if offsetAfterParenthesizedReceiver(from: 0) != nil {
             let receiverGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
             children.append(.node(receiverGroup))
@@ -345,7 +296,9 @@ extension KotlinParser {
 
     func offsetAfterParenthesizedReceiver(from start: Int, maxDistance: Int? = nil) -> Int? {
         guard stream.peek(start).kind == .symbol(.lParen) else { return nil }
-        var offset = offsetPastBalancedGroup(from: start, maxDistance: maxDistance)
+        var offset = offsetPastBalancedGroup(
+            from: start, maxDistance: maxDistance
+        )
         if stream.peek(offset).kind == .symbol(.question) {
             offset += 1
         }
@@ -586,12 +539,12 @@ extension KotlinParser {
                 break
             }
 
-            if enumBodyStartsDeclaration() {
+            if LeanParser.enumBodyStartsDeclaration(self) {
                 children.append(.node(parseDeclaration()))
                 continue
             }
             if !entryListEnded,
-               isIdentifierLike(token.kind) || enumEntryStartsAfterLeadingAnnotations()
+               isIdentifierLike(token.kind) || LeanParser.enumEntryStartsAfterLeadingAnnotations(self)
             {
                 children.append(.node(parseEnumEntryDeclaration()))
                 continue
@@ -612,44 +565,11 @@ extension KotlinParser {
         return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
     }
 
-    private func enumBodyStartsDeclaration() -> Bool {
-        let kind = stream.peek().kind
-        if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
-            return true
-        }
-        if kind == .symbol(.at) {
-            return !enumEntryStartsAfterLeadingAnnotations()
-        }
-        if case .softKeyword(.context) = kind {
-            return declarationPrefixVerdict(at: 0) == .declaration
-        }
-        guard case let .keyword(keyword) = kind, Self.isDeclarationKeyword(keyword) else {
-            return false
-        }
-        if Self.isDeclarationModifierKeyword(keyword) {
-            return isDeclarationStart(stream.peek(1).kind)
-        }
-        return true
-    }
-
-    private func enumEntryStartsAfterLeadingAnnotations() -> Bool {
-        guard stream.peek().kind == .symbol(.at) else { return false }
-
-        var offset = 0
-        while stream.peek(offset).kind == .symbol(.at) {
-            guard let end = offsetPastAnnotationPrefix(from: offset) else { return false }
-            offset = end
-        }
-
-        let nextKind = stream.peek(offset).kind
-        return isIdentifierLike(nextKind) && !isDeclarationStart(nextKind)
-    }
-
     func parseEnumEntryDeclaration() -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
 
-        while consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range) {}
+        consumeLeadingPrefix(.annotations, into: &children, range: &range)
         if isIdentifierLike(stream.peek().kind) {
             _ = consumeToken(into: &children, range: &range)
         }
@@ -732,20 +652,8 @@ extension KotlinParser {
             }
         }
 
-        var parenDepth = 0
-        while !stream.atEOF() {
-            let token = stream.peek()
-            if token.kind == .eof { break }
-            if case .symbol(.rBrace) = token.kind, parenDepth == 0 { break }
-            if case .symbol(.lBrace) = token.kind, parenDepth == 0 { break }
-            if hasLeadingNewline(token), parenDepth == 0, !children.isEmpty, token.kind != .symbol(.colon), token.kind != .keyword(.this), token.kind != .keyword(.super) { break }
-            if case .symbol(.semicolon) = token.kind, parenDepth == 0 {
-                _ = consumeToken(into: &children, range: &range)
-                break
-            }
+        for _ in 0..<LeanParser.constructorTailCount(self) {
             _ = consumeToken(into: &children, range: &range)
-            if case .symbol(.lParen) = token.kind { parenDepth += 1 }
-            if case .symbol(.rParen) = token.kind { parenDepth = max(0, parenDepth - 1) }
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {
