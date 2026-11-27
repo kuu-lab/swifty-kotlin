@@ -15,8 +15,10 @@ extension JVMClasspathIndex {
         guard let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
         let candidates = metadata.functions.filter { function in
             let parameterCount = kotlinFunctionParameterCount(function)
+            let exactComposeDescriptor = method.kotlinComposeABI != nil && function.descriptor == method.descriptor
             return function.jvmName == method.name && (function.isPublic || function.isProtected)
                 && (parameterCount == method.parameters.count
+                    || exactComposeDescriptor
                     || isComposeMemberABI(method, function: function, parameterCount: parameterCount))
         }
         if candidates.count == 1, let function = candidates.first,
@@ -56,8 +58,10 @@ extension JVMClasspathIndex {
         guard hiddenCount > 1 else { return false }
         let suffix = method.parameters.suffix(hiddenCount)
         guard suffix.first?.referenceName == JVMCompose.composer else { return false }
-        let expectedMasks = (function.parameters.count + 31) / 32
-            + (function.parameters.contains(where: \.hasDefault) ? 1 : 0)
+        let expectedChangeMasks = max(1, (parameterCount + 9) / 10)
+        let expectedDefaultMasks = function.parameters.contains(where: \.hasDefault)
+            ? (function.parameters.count + 31) / 32 : 0
+        let expectedMasks = expectedChangeMasks + expectedDefaultMasks
         let masks = suffix.dropFirst()
         return masks.count == expectedMasks && masks.allSatisfy({ $0 == .int })
     }
@@ -187,9 +191,11 @@ extension JVMClasspathIndex {
         }
 
         return parameterIndices.allSatisfy { index in
-            guard function.parameters.indices.contains(index),
-                  !composableParameters.contains(index) || isComposableFunction(function.parameters[index].type) else { return false }
-            return matches(function.parameters[index].type, sourceTypes[index])
+            guard function.parameters.indices.contains(index) else { return false }
+            let parameter = function.parameters[index]
+            let metadataType = parameter.varargType ?? parameter.type
+            guard !composableParameters.contains(index) || isComposableFunction(metadataType) else { return false }
+            return matches(metadataType, sourceTypes[index])
         }
     }
 
