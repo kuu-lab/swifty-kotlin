@@ -20,7 +20,7 @@ extension JVMBackendTests {
                 values.last { it > 10 }
                 println("unexpected")
             } catch (e: NoSuchElementException) {
-                println("NoSuchElementException")
+                println(e.message)
             }
         }
 
@@ -38,13 +38,13 @@ extension JVMBackendTests {
             try {
                 println(listOf(1, 2, 2, 3, 1).last { it > 10 })
             } catch (e: NoSuchElementException) {
-                println("NoSuchElementException")
+                println(e.message)
             }
             expectNoMatch(emptyList())
             expectNoMatch(listOf(1))
         }
         """
-        let expected = "3\n2\nIterable forward\n42\nNoSuchElementException\nNoSuchElementException\nNoSuchElementException\n"
+        let expected = "3\n2\nIterable forward\n42\nList contains no element matching the predicate.\nList contains no element matching the predicate.\nList contains no element matching the predicate.\n"
 
         try withWorkspace { root in
             try runRuntimeParity(source, expected: expected, mode: mode, root: root)

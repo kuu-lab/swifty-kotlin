@@ -21,5 +21,5 @@ public inline fun <T> List<T>.last(predicate: (T) -> Boolean): T {
         val element = cursor.previous()
         if (predicate(element)) return element
     }
-    throw NoSuchElementException("Collection contains no element matching the predicate.")
+    throw NoSuchElementException("List contains no element matching the predicate.")
 }
