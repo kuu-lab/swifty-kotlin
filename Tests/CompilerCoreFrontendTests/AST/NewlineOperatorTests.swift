@@ -25,17 +25,21 @@ struct NewlineOperatorTests {
     ])
     func leadingOperatorsDoNotContinueStatements(op: String) {
         let previous = lex("value").tokens.dropLast()
-        let next = lex("\(op) other").tokens.dropLast()
+        let lexed = lex("\(op) other")
+        let next = lexed.tokens.dropLast()
         #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
-        #expect(ParserBoundaryPolicy.shouldSplitStatementOnNewline(next.first!.kind))
+        #expect(LeanParser.shouldSplitStatementOnNewline(next.first!, diagnostics: lexed.diagnostics))
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
     }
 
     @Test(arguments: [".", "?.", "?:", "&&", "||", "as", "as?", ",", ")", "]"])
     func leadingContinuationsRemainSupported(op: String) {
         let previous = lex("value").tokens.dropLast()
-        let next = lex("\(op) other").tokens.dropLast()
+        let lexed = lex("\(op) other")
+        let next = lexed.tokens.dropLast()
         #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
-        #expect(!ParserBoundaryPolicy.shouldSplitStatementOnNewline(next.first!.kind))
+        #expect(!LeanParser.shouldSplitStatementOnNewline(next.first!, diagnostics: lexed.diagnostics))
+        #expect(lexed.diagnostics.diagnostics.isEmpty)
     }
 
     @Test

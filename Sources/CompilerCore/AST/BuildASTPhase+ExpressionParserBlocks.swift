@@ -231,7 +231,8 @@ extension BuildASTPhase.ExpressionParser {
                    !(token.kind == .keyword(.else) && unpairedTopLevelIfCount > 0),
                    !BuildASTPhase.isContinuationBoundary(
                        previousTail: tokens[groupStart ... lastTokenIndex],
-                       nextHead: tokens[idx...]
+                       nextHead: tokens[idx...],
+                       diagnostics: diagnostics
                    )
                 {
                     ranges.append((groupStart, lastTokenIndex + 1))
