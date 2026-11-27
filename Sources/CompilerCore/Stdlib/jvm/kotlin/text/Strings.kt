@@ -324,16 +324,9 @@ public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignore
     }
     return -1
 }
-private fun textSearchForwardStart(startIndex: Int, ignoreCase: Boolean, size: Int): Int {
-    val lowerClamped = if (startIndex < 0) 0 else startIndex
-    if (ignoreCase) return lowerClamped
-    return if (lowerClamped > size) size else lowerClamped
-}
-private fun textSearchBackwardStart(startIndex: Int, ignoreCase: Boolean, size: Int): Int {
-    if (ignoreCase) return if (startIndex < size - 1) startIndex else size - 1
-    if (startIndex < 0) return -1
-    return if (startIndex < size) startIndex else size
-}
+private fun textSearchForwardStart(startIndex: Int): Int = if (startIndex < 0) 0 else startIndex
+private fun textSearchBackwardStart(startIndex: Int, size: Int): Int =
+    if (startIndex < size - 1) startIndex else size - 1
 private fun textSearchCharsMatchAt(value: CharSequence, pos: Int, chars: CharArray, ignoreCase: Boolean): Boolean {
     if (pos < 0 || pos >= value.length) return false
     var i = 0
@@ -343,17 +336,22 @@ private fun textSearchCharsMatchAt(value: CharSequence, pos: Int, chars: CharArr
     }
     return false
 }
+private fun textSearchStringMatchesAt(value: CharSequence, pos: Int, string: String, ignoreCase: Boolean): Boolean {
+    if (value is String) return value.regionMatches(ignoreCase, pos, string, 0, string.length)
+    return regionMatches(value, pos, string, ignoreCase)
+}
 private fun textSearchStringsMatchAt(value: CharSequence, pos: Int, strings: List<String>, ignoreCase: Boolean): Int {
     var i = 0
     while (i < strings.size) {
-        if (regionMatches(value, pos, strings[i], ignoreCase)) return i
+        if (textSearchStringMatchesAt(value, pos, strings[i], ignoreCase)) return i
         i++
     }
     return -1
 }
 public fun CharSequence.indexOfAny(strings: Collection<String>, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     val needles = strings.toList()
-    var index = textSearchForwardStart(startIndex, ignoreCase, length)
+    if (needles.size == 1 && !ignoreCase && this is String) return indexOf(needles[0], startIndex)
+    var index = textSearchForwardStart(startIndex)
     while (index <= length) {
         if (textSearchStringsMatchAt(this, index, needles, ignoreCase) >= 0) return index
         index++
@@ -387,7 +385,8 @@ public fun CharSequence.lastIndexOfAny(chars: CharArray, startIndex: Int = this.
 }
 public fun CharSequence.lastIndexOfAny(strings: Collection<String>, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
     val needles = strings.toList()
-    var index = textSearchBackwardStart(startIndex, ignoreCase, length)
+    if (needles.size == 1 && !ignoreCase && this is String) return lastIndexOf(needles[0], startIndex)
+    var index = textSearchBackwardStart(startIndex, length)
     while (index >= 0) {
         if (textSearchStringsMatchAt(this, index, needles, ignoreCase) >= 0) return index
         index--
@@ -396,7 +395,11 @@ public fun CharSequence.lastIndexOfAny(strings: Collection<String>, startIndex: 
 }
 public fun CharSequence.findAnyOf(strings: Collection<String>, startIndex: Int = 0, ignoreCase: Boolean = false): Pair<Int, String>? {
     val needles = strings.toList()
-    var index = textSearchForwardStart(startIndex, ignoreCase, length)
+    if (needles.size == 1 && !ignoreCase && this is String) {
+        val index = indexOf(needles[0], startIndex)
+        return if (index < 0) null else Pair(index, needles[0])
+    }
+    var index = textSearchForwardStart(startIndex)
     while (index <= length) {
         val matchIndex = textSearchStringsMatchAt(this, index, needles, ignoreCase)
         if (matchIndex >= 0) return Pair(index, needles[matchIndex])
@@ -406,7 +409,11 @@ public fun CharSequence.findAnyOf(strings: Collection<String>, startIndex: Int =
 }
 public fun CharSequence.findLastAnyOf(strings: Collection<String>, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Pair<Int, String>? {
     val needles = strings.toList()
-    var index = textSearchBackwardStart(startIndex, ignoreCase, length)
+    if (needles.size == 1 && !ignoreCase && this is String) {
+        val index = lastIndexOf(needles[0], startIndex)
+        return if (index < 0) null else Pair(index, needles[0])
+    }
+    var index = textSearchBackwardStart(startIndex, length)
     while (index >= 0) {
         val matchIndex = textSearchStringsMatchAt(this, index, needles, ignoreCase)
         if (matchIndex >= 0) return Pair(index, needles[matchIndex])

@@ -91,7 +91,7 @@ struct JVMTextOperation {
         let pair = JVMValueType.reference("kotlin/Pair", nullable: true)
         let characters = JVMValueType.reference("[C", nullable: false)
         let strings = JVMValueType.reference("java/util/Collection", nullable: false)
-        let stringsOwner = "kotlin/text/StringsKt__StringsKt"
+        let stringsOwner = "kotlin/text/StringsKt"
         add("indexOfAny", [p("chars", characters), p("startIndex", .int, "0"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
         add("indexOfAny", [p("strings", strings), p("startIndex", .int, "0"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)
         add("lastIndexOfAny", [p("chars", characters), p("startIndex", .int, "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, receiver: "CharSequence", jvmReceiver: sequence, owner: stringsOwner)

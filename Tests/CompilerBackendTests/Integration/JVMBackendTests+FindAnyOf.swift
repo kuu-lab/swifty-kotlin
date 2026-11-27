@@ -26,5 +26,47 @@ extension JVMBackendTests {
             """#, expected: "5\n6\n0\n7\n(0, こんにちは)\n(7, こんにちは)\n(1, bc)\n(0, ABC)\n(2, C)\n(0, a)\n", mode: mode, root: root)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func findAnyOfMatchesKotlinSearchBoundaries(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11(#"""
+            fun main() {
+                val text = "abc"
+                val builder = StringBuilder("abc")
+                val multiple = listOf("", "z")
+                val single = listOf("")
+                println(text.indexOfAny(multiple, startIndex = 4))
+                println(text.findAnyOf(multiple, startIndex = 4))
+                println(builder.indexOfAny(multiple, startIndex = 4))
+                println(builder.findAnyOf(multiple, startIndex = 4))
+                println(text.lastIndexOfAny(multiple, startIndex = 3))
+                println(text.findLastAnyOf(multiple, startIndex = 3))
+                println(builder.lastIndexOfAny(multiple, startIndex = 3))
+                println(builder.findLastAnyOf(multiple, startIndex = 3))
+                println(text.indexOfAny(single, startIndex = 4))
+                println(text.findAnyOf(single, startIndex = 4))
+                println(builder.indexOfAny(single, startIndex = 4))
+                println(builder.findAnyOf(single, startIndex = 4))
+                println(text.lastIndexOfAny(single, startIndex = 3))
+                println(text.findLastAnyOf(single, startIndex = 3))
+                println(builder.lastIndexOfAny(single, startIndex = 3))
+                println(builder.findLastAnyOf(single, startIndex = 3))
+
+                val supplementary = listOf("𐐨")
+                val capital = "𐐀"
+                val capitalBuilder = StringBuilder(capital)
+                println(capital.indexOfAny(supplementary, ignoreCase = true))
+                println(capital.lastIndexOfAny(supplementary, ignoreCase = true))
+                println(capital.findAnyOf(supplementary, ignoreCase = true))
+                println(capital.findLastAnyOf(supplementary, ignoreCase = true))
+                println(capitalBuilder.indexOfAny(supplementary, ignoreCase = true))
+                println(capitalBuilder.lastIndexOfAny(supplementary, ignoreCase = true))
+                println(capitalBuilder.findAnyOf(supplementary, ignoreCase = true))
+                println(capitalBuilder.findLastAnyOf(supplementary, ignoreCase = true))
+            }
+            """#, expected: "-1\nnull\n-1\nnull\n2\n(2, )\n2\n(2, )\n3\n(3, )\n-1\nnull\n3\n(3, )\n2\n(2, )\n0\n0\n(0, 𐐨)\n(0, 𐐨)\n-1\n-1\nnull\nnull\n", mode: mode, root: root)
+        }
+    }
 }
 #endif
