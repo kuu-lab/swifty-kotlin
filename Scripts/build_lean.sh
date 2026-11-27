@@ -38,10 +38,10 @@ trap 'rm -rf "$build_dir"' EXIT
 
 (cd "$source_dir" && "$lean_prefix/bin/lake" build)
 generated=()
-while IFS= read -r -d '' module; do
+for module in "$source_dir"/ParserProofs/*.lean; do
     relative=${module#"$source_dir"/}
     generated+=("$source_dir/.lake/build/ir/${relative%.lean}.c")
-done < <(find "$source_dir/ParserProofs" -name '*.lean' -type f -print0)
+done
 "${CC:-cc}" -fPIC -O2 -I "$lean_prefix/include" "$source_dir/Bridge.c" "${generated[@]}" \
     "${runtime_link[@]}" "${platform_flags[@]}" -o "$build_dir/$library"
 if [[ "$library" == *.so ]]; then
