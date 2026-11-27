@@ -12,9 +12,12 @@ enum LeanParser {
 
     private typealias FindOffset = @convention(c) (UnsafeMutableRawPointer, ReadToken, Int, Int) -> UInt
 
+    private typealias Scan = @convention(c) (UnsafeMutableRawPointer, ReadToken, ReadToken, Int) -> UInt64
+
     private struct Bindings: Sendable {
         let canStart: CanStart
         let findOffset: FindOffset
+        let scan: Scan
     }
 
     private static let bindings: Bindings? = {
@@ -30,6 +33,7 @@ enum LeanParser {
         guard let initialize = dlsym(handle, "kswiftk_lean_parser_init"),
               let canStart = dlsym(handle, "kswiftk_lean_parser_can_start_type_arguments"),
               let findOffset = dlsym(handle, "kswiftk_lean_parser_offset_past_type_arguments"),
+              let scan = dlsym(handle, "kswiftk_lean_parser_consume_type_arguments"),
               unsafeBitCast(initialize, to: Initialize.self)() == 1
         else {
             dlclose(handle)
@@ -37,7 +41,8 @@ enum LeanParser {
         }
         return Bindings(
             canStart: unsafeBitCast(canStart, to: CanStart.self),
-            findOffset: unsafeBitCast(findOffset, to: FindOffset.self)
+            findOffset: unsafeBitCast(findOffset, to: FindOffset.self),
+            scan: unsafeBitCast(scan, to: Scan.self)
         )
     }()
 
@@ -106,6 +111,27 @@ enum LeanParser {
             return offset
         }
         return Int(result)
+    }
+
+    private static let readBoundary: ReadToken = { state, offset in
+        let parser = Unmanaged<KotlinParser>.fromOpaque(state).takeUnretainedValue()
+        let token = parser.stream.peek(offset)
+        guard parser.hasLeadingNewline(token), parser.isLikelyTopLevelDeclarationStart(token, at: offset) else {
+            return 0
+        }
+        return parser.continuesAngleBracketListAtNewlineAnnotation(token, at: offset) ? 0 : 1
+    }
+
+    static func scanTypeArguments(_ parser: KotlinParser) -> (consumed: Int, unterminated: Bool)? {
+        let count = parser.stream.tokens.count - parser.stream.index
+        let result = withExtendedLifetime(parser) {
+            bindings?.scan(Unmanaged.passUnretained(parser).toOpaque(), readToken, readBoundary, count)
+        }
+        guard let result, let consumed = Int(exactly: result >> 2), consumed <= count else {
+            reportUnavailable(parser)
+            return nil
+        }
+        return (consumed, result & 3 >= 2)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {
