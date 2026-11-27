@@ -56,6 +56,7 @@ enum LeanParser {
         case openParen, closeParen, openBracket, closeBracket, openBrace, closeBrace
         case templateStart, templateEnd, varianceIn, eof
         case identifier, star, varianceOut, comma, question, questionDot, doubleColon
+        case forKeyword, whileKeyword, doKeyword
     }
 
     private static let readToken: ReadToken = { state, offset in
@@ -87,6 +88,9 @@ enum LeanParser {
         case .symbol(.question): .question
         case .symbol(.questionDot): .questionDot
         case .symbol(.doubleColon): .doubleColon
+        case .keyword(.for): .forKeyword
+        case .keyword(.while): .whileKeyword
+        case .keyword(.do): .doKeyword
         default: .other
         }
     }
@@ -140,7 +144,7 @@ enum LeanParser {
     }
 
     private enum Policy: UInt8 {
-        case labelStart
+        case labelStart, loopStart
     }
 
     private static func classify(_ parser: KotlinParser, _ policy: Policy, first: UInt8, second: UInt8 = 0) -> Bool {
@@ -157,6 +161,10 @@ enum LeanParser {
             first: parser.stream.peek().kind.isLabelName ? 1 : 0,
             second: tokenCode(parser.stream.peek(1).kind).rawValue
         )
+    }
+
+    static func isLoopStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
+        classify(parser, .loopStart, first: tokenCode(kind).rawValue)
     }
 
     static func reportUnavailable(_ parser: KotlinParser) {
