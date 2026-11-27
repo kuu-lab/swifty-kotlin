@@ -530,10 +530,6 @@ extension KotlinParser {
         return collected.reversed()
     }
 
-    /// A modifier keyword at the start of a new line is only a declaration
-    /// boundary when a real declaration keyword follows it. This keeps a
-    /// modifier keyword used as a parameter name inside a multiline group
-    /// from prematurely terminating that group.
     var invalidRange: SourceRange {
         SourceRange(
             start: SourceLocation(file: FileID.invalid, offset: 0),

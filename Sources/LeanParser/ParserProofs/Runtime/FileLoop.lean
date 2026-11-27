@@ -18,9 +18,8 @@ def encodeTopLevelDispatch : TopLevelDispatch → UInt8
 def directTopLevelDispatch : Kind → TopLevelDispatch
   | .packageKeyword => .packageHeader
   | .importKeyword => .importHeader
-  | .declaration | .funKeyword | .objectKeyword => .declaration
   | .eof => .eof
-  | _ => .statement
+  | kind => if isBareDeclarationStart kind then .declaration else .statement
 
 def topLevelDispatchAfterLookahead (kind : Kind) (verdict : GenuineVerdict) : TopLevelDispatch :=
   if kind = .context then
@@ -78,8 +77,7 @@ def enumBodyStartsDeclaration (input : Input) (index : Nat) (probe : IO GenuineV
   | .at => return !enumEntryAfterAnnotations input index
   | .context => return (← probe) == .declaration
   | .modifier => return isBareDeclarationStart (input.get (index + 1)).kind
-  | .declaration | .funKeyword | .objectKeyword => return true
-  | _ => return false
+  | kind => return isBareDeclarationStart kind
 
 theorem enumBodyConstructorStartsDeclaration (constructor : (input.get index).constructorKeyword = true) :
     enumBodyStartsDeclaration input index probe = pure true := by
