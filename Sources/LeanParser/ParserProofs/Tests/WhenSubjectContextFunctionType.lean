@@ -41,4 +41,22 @@ example :
     | (.found 16, []) => true
     | _ => false) = true := by decide
 
+example :
+    (match whenSubjectPrefixLookahead (subjectWithContext
+      [{ kind := .identifier, identifierLike := true }, { kind := .questionDot },
+        { kind := .openParen }, { kind := .closeParen }, { kind := .arrow },
+        { kind := .identifier }, { kind := .assign }]) 0 16 with
+    | (.found 13, []) => true
+    | _ => false) = true := by decide
+
+example :
+    (match whenSubjectPrefixLookahead (subjectWithContext
+      [{ kind := .openParen }, { kind := .identifier, identifierLike := true },
+        { kind := .openAngle }, { kind := .identifier }, { kind := .closeAngle },
+        { kind := .question }, { kind := .closeParen }, { kind := .dot },
+        { kind := .openParen }, { kind := .closeParen }, { kind := .arrow },
+        { kind := .identifier }, { kind := .assign }]) 0 22 with
+    | (.found 19, []) => true
+    | _ => false) = true := by decide
+
 end TypeArguments.FFI
