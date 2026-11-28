@@ -30,6 +30,8 @@ public value class Duration internal constructor(internal val rawValue: Long) : 
     public override fun toString(): String = durationToString(rawValue)
 
     public companion object {
+        public val ZERO: Duration get() = Duration(0L)
+
         public fun convert(value: Double, sourceUnit: DurationUnit, targetUnit: DurationUnit): Double {
             val sourceScale = durationUnitScale(sourceUnit).toDouble()
             val targetScale = durationUnitScale(targetUnit).toDouble()
@@ -300,12 +302,10 @@ public fun Long.toDuration(unit: DurationUnit): Duration = Duration(durationRawF
 public fun Double.toDuration(unit: DurationUnit): Duration =
     durationFromDouble(this, durationUnitScale(unit))
 
-// Companion-scoped constants and parsing entry points use the Companion
+// INFINITE and parsing entry points use the Companion
 // short-form dispatch fallback (CallTypeChecker+MemberCallInferenceRegularResolution)
-// so both `Duration.ZERO` and `Duration.Companion.ZERO` resolve. The __kk_duration_*
+// so both `Duration.INFINITE` and `Duration.Companion.INFINITE` resolve. The __kk_duration_*
 // bridges are receiver-less package-scope functions, called without `this.`.
-public val Duration.Companion.ZERO: Duration get() = Duration(0L)
-
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
 public fun Duration.Companion.parse(value: String): Duration =

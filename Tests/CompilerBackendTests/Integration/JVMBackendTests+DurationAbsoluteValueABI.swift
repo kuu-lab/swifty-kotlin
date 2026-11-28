@@ -49,7 +49,7 @@ extension JVMBackendTests {
             import kotlin.time.toDuration
 
             fun absoluteSeconds(value: Duration?): Long? = value?.absoluteValue?.inWholeSeconds
-            fun absoluteOrZero(value: Duration?): Duration = value?.absoluteValue ?: 0.toDuration(DurationUnit.SECONDS)
+            fun absoluteOrZero(value: Duration?): Duration = value?.absoluteValue ?: Duration.ZERO
 
             fun main() {
                 val negative: Duration? = (-30).toDuration(DurationUnit.SECONDS)

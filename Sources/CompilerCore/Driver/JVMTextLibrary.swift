@@ -71,6 +71,11 @@ extension JVMProgramBuilder {
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }
                 let name = context.interner.resolve(p.name), type = try type(semantic)
+                if owner == "kotlin/time/Duration$Companion", ["ZERO", "INFINITE"].contains(name) {
+                    let getter = "get" + name + "-UwyO8pc"
+                    textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: false, isInterface: interface, isAbstract: false)
+                    continue
+                }
                 if owner == "kotlin/time/Duration",
                    name == "absoluteValue" || name.hasPrefix("inWhole") {
                     let getter = name == "absoluteValue"
