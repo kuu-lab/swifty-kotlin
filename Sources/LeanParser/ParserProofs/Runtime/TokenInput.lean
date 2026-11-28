@@ -69,7 +69,9 @@ structure Effects where
   runs : List CacheRun := []
   budgetAt : Option Nat := none
 
-def modifierLookahead (input : Input) (index : Nat) : Nat → Bool × Nat × Option Nat
+def modifierLookahead (input : Input) (index : Nat) (work : Nat)
+    (contextAfterModifierIsBoundary : Bool := false) : Bool × Nat × Option Nat :=
+  match work with
   | 0 =>
     match (input.get index).modifierCache with
     | some declares => (declares, index, none)
@@ -79,12 +81,15 @@ def modifierLookahead (input : Input) (index : Nat) : Nat → Bool × Nat × Opt
     match token.modifierCache with
     | some declares => (declares, index, none)
     | none =>
-      if token.kind == .modifier then modifierLookahead input (index + 1) n
-      else (isDeclarationStart input index token.kind, index + 1, none)
+      if token.kind == .modifier then modifierLookahead input (index + 1) n contextAfterModifierIsBoundary
+      else
+        (isDeclarationStart input index token.kind ||
+          (contextAfterModifierIsBoundary && token.kind == .context), index + 1, none)
 
-theorem modifierLookaheadStaysWithinBudget (input : Input) (index work : Nat) :
-    index ≤ (modifierLookahead input index work).2.1 ∧
-      (modifierLookahead input index work).2.1 ≤ index + work := by
+theorem modifierLookaheadStaysWithinBudget (input : Input) (index work : Nat)
+    (contextAfterModifierIsBoundary : Bool := false) :
+    index ≤ (modifierLookahead input index work contextAfterModifierIsBoundary).2.1 ∧
+      (modifierLookahead input index work contextAfterModifierIsBoundary).2.1 ≤ index + work := by
   induction work generalizing index with
   | zero =>
     cases hit : (input.get index).modifierCache <;> simp [modifierLookahead, hit]
@@ -105,9 +110,10 @@ inductive UncachedModifiers (input : Input) : Nat → Nat → Prop where
       (rest : UncachedModifiers input (index + 1) visited) :
       UncachedModifiers input index (visited + 1)
 
-theorem modifierLookaheadTraversesPrefix (path : UncachedModifiers input index visited) :
-    modifierLookahead input index (visited + work) =
-      modifierLookahead input (index + visited) work := by
+theorem modifierLookaheadTraversesPrefix (path : UncachedModifiers input index visited)
+    (contextAfterModifierIsBoundary : Bool := false) :
+    modifierLookahead input index (visited + work) contextAfterModifierIsBoundary =
+      modifierLookahead input (index + visited) work contextAfterModifierIsBoundary := by
   induction path with
   | empty => simp
   | @next index visited modifier miss rest ih =>
@@ -117,26 +123,30 @@ theorem modifierLookaheadTraversesPrefix (path : UncachedModifiers input index v
 
 theorem modifierLookaheadUsesFirstCache
     (path : UncachedModifiers input index visited)
-    (hit : (input.get (index + visited)).modifierCache = some declares) :
-    modifierLookahead input index (visited + work) = (declares, index + visited, none) := by
-  rw [modifierLookaheadTraversesPrefix path]
+    (hit : (input.get (index + visited)).modifierCache = some declares)
+    (contextAfterModifierIsBoundary : Bool := false) :
+    modifierLookahead input index (visited + work) contextAfterModifierIsBoundary = (declares, index + visited, none) := by
+  rw [modifierLookaheadTraversesPrefix path contextAfterModifierIsBoundary]
   cases work <;> simp [modifierLookahead, hit]
 
 theorem modifierLookaheadExhaustsAtFirstUnchargedToken
     (path : UncachedModifiers input index work)
-    (miss : (input.get (index + work)).modifierCache = none) :
-    modifierLookahead input index work = (true, index + work, some (index + work)) := by
-  have finish := modifierLookaheadTraversesPrefix (work := 0) path
+    (miss : (input.get (index + work)).modifierCache = none)
+    (contextAfterModifierIsBoundary : Bool := false) :
+    modifierLookahead input index work contextAfterModifierIsBoundary = (true, index + work, some (index + work)) := by
+  have finish := modifierLookaheadTraversesPrefix (work := 0) path contextAfterModifierIsBoundary
   simpa [modifierLookahead, miss] using finish
 
 theorem modifierLookaheadChargesTerminal
     (path : UncachedModifiers input index visited)
     (miss : (input.get (index + visited)).modifierCache = none)
-    (terminal : (input.get (index + visited)).kind ≠ .modifier) :
-    modifierLookahead input index (visited + (work + 1)) =
-      (isDeclarationStart input (index + visited) (input.get (index + visited)).kind,
+    (terminal : (input.get (index + visited)).kind ≠ .modifier)
+    (contextAfterModifierIsBoundary : Bool := false) :
+    modifierLookahead input index (visited + (work + 1)) contextAfterModifierIsBoundary =
+      (isDeclarationStart input (index + visited) (input.get (index + visited)).kind ||
+          (contextAfterModifierIsBoundary && (input.get (index + visited)).kind == .context),
         index + visited + 1, none) := by
-  rw [modifierLookaheadTraversesPrefix path]
+  rw [modifierLookaheadTraversesPrefix path contextAfterModifierIsBoundary]
   simp [modifierLookahead, miss, terminal]
 
 inductive DeclarationEffect where

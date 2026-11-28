@@ -20,8 +20,9 @@ struct VerifyLeanParser: BuildToolPlugin {
         #else
         let libraries = ["liblean_parser.so", "libleanshared.so"]
         #endif
-        let artifacts = (libraries + [".lean-parser-fingerprint"])
-            .map { resources.appendingPathComponent($0) }
+        let identity = root.appendingPathComponent("Sources/CompilerCore/Parser/LeanParserBuildIdentity.swift")
+        let artifacts = ((libraries + [".lean-parser-fingerprint", ".build-id"])
+            .map { resources.appendingPathComponent($0) } + [identity])
             .filter { FileManager.default.fileExists(atPath: $0.path) }
         return [
             .buildCommand(

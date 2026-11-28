@@ -625,7 +625,7 @@ extension KotlinParser {
         if case .softKeyword(.context) = kind {
             return declarationPrefixVerdict(at: 0) == .declaration
         }
-        guard case let .keyword(keyword) = kind, isDeclarationKeyword(keyword) else {
+        guard case let .keyword(keyword) = kind, Self.isDeclarationKeyword(keyword) else {
             return false
         }
         if Self.isDeclarationModifierKeyword(keyword) {

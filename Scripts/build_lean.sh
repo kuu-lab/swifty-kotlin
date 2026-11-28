@@ -35,6 +35,12 @@ esac
 
 resource_dir=Sources/CompilerCore/LeanParserResources
 fingerprint_file="$resource_dir/.lean-parser-fingerprint"
+build_id="$resource_dir/.build-id"
+swift_identity=Sources/CompilerCore/Parser/LeanParserBuildIdentity.swift
+
+swift_identity_source() {
+    printf 'enum LeanParserBuildIdentity {\n    static let fingerprint = "%s"\n}\n' "$1"
+}
 
 source_fingerprint() {
     {
@@ -63,6 +69,12 @@ if [[ ${1:-} == --verify ]]; then
         echo 'error: Stale Lean parser resources. Run bash Scripts/build_lean.sh to regenerate them.' >&2
         exit 1
     fi
+    current_id=$("${hash[@]}" < "$fingerprint_file" | cut -d ' ' -f 1)
+    if [[ ! -s "$build_id" || $(<"$build_id") != "$current_id" ||
+          ! -s "$swift_identity" || $(<"$swift_identity") != "$(swift_identity_source "$current_id")" ]]; then
+        echo 'error: Stale Lean parser build identity. Run bash Scripts/build_lean.sh.' >&2
+        exit 1
+    fi
     exit 0
 fi
 
@@ -87,7 +99,7 @@ trap 'rm -rf "$build_dir"' EXIT
 
 (cd "$source_dir" && "$lean_prefix/bin/lake" build)
 generated=()
-for module in "$source_dir"/ParserProofs/*.lean; do
+for module in "$source_dir"/ParserProofs/*.lean "$source_dir"/ParserProofs/Runtime/*.lean; do
     relative=${module#"$source_dir"/}
     generated+=("$source_dir/.lake/build/ir/${relative%.lean}.c")
 done
@@ -106,7 +118,14 @@ fi
     printf '%s\n' "$compiled_sources"
     library_fingerprints "$build_dir"
 } > "$build_dir/fingerprint"
+compiled_id=$("${hash[@]}" < "$build_dir/fingerprint" | cut -d ' ' -f 1)
 for artifact in "${libraries[@]}"; do
     mv "$build_dir/$artifact" "$resource_dir/$artifact"
 done
+printf '%s\n' "$compiled_id" > "$build_dir/build-id"
+swift_identity_source "$compiled_id" > "$build_dir/LeanParserBuildIdentity.swift"
+if ! cmp -s "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"; then
+    mv "$build_dir/LeanParserBuildIdentity.swift" "$swift_identity"
+fi
+mv "$build_dir/build-id" "$build_id"
 mv "$build_dir/fingerprint" "$fingerprint_file"
