@@ -1923,11 +1923,29 @@ extension LambdaLowerer {
         body.append(.constValue(result: lhsExpr, value: .symbolRef(lhsParam.symbol)))
         let rhsExpr = arena.appendExpr(.symbolRef(rhsParam.symbol), type: rhsParam.type)
         body.append(.constValue(result: rhsExpr, value: .symbolRef(rhsParam.symbol)))
+        let lhs = normalizeHOFPrimitiveParameter(
+            lhsExpr,
+            type: operandType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body,
+            isRawCallbackParameter: true
+        )
+        let rhs = normalizeHOFPrimitiveParameter(
+            rhsExpr,
+            type: operandType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body,
+            isRawCallbackParameter: true
+        )
         let opResult = arena.appendTemporary(type: returnType)
         if let intrinsicCallee {
-            body.append(.call(callee: intrinsicCallee, arguments: [lhsExpr, rhsExpr], result: opResult, canThrow: false))
+            body.append(.call(callee: intrinsicCallee, arguments: [lhs, rhs], result: opResult, canThrow: false))
         } else if let kirOp {
-            body.append(.binary(op: kirOp, lhs: lhsExpr, rhs: rhsExpr, result: opResult))
+            body.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: opResult))
         }
         body.append(.returnValue(opResult))
         body.append(.endBlock)
@@ -2023,8 +2041,17 @@ extension LambdaLowerer {
         var body: [KIRInstruction] = [.beginBlock]
         let operandExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
         body.append(.constValue(result: operandExpr, value: .symbolRef(valueParam.symbol)))
+        let operand = normalizeHOFPrimitiveParameter(
+            operandExpr,
+            type: operandType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body,
+            isRawCallbackParameter: true
+        )
         let opResult = arena.appendTemporary(type: returnType)
-        body.append(.unary(op: .not, operand: operandExpr, result: opResult))
+        body.append(.unary(op: .not, operand: operand, result: opResult))
         body.append(.returnValue(opResult))
         body.append(.endBlock)
 

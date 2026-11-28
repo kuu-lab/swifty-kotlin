@@ -99,6 +99,27 @@ struct FlowScopeOwnershipTests {
         #expect(inferred.contains(symbol) == !escapes)
     }
 
+    @Test
+    func doesNotInferFreshReturnWhenBorrowedCallReusesResultID() {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let result = arena.appendTemporary()
+        let callback = arena.appendExpr(.intLiteral(0))
+        let symbol = SymbolID(rawValue: 1)
+        let body: [KIRInstruction] = [
+            .call(callee: interner.intern("flow"), arguments: [callback], result: result, canThrow: false),
+            .call(callee: interner.intern("__kk_flow_retain"), arguments: [result], result: result, canThrow: false),
+            .returnValue(result),
+        ]
+        let declaration = arena.appendDecl(.function(KIRFunction(
+            symbol: symbol, name: interner.intern("factory"), params: [],
+            returnType: .invalid, body: body, isSuspend: false, isInline: false
+        )))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declaration])], arena: arena)
+        let inferred = CoroutineLoweringPass().freshFlowFunctions(module: module, ctx: makeKIRContext(interner: interner))
+        #expect(!inferred.contains(symbol))
+    }
+
     @Test(arguments: [false, true])
     func emissionResultsAreNotOwnedAndEmittedHandlesEscape(emitOwnedFlow: Bool) {
         let interner = StringInterner()
