@@ -4,7 +4,7 @@
 import Testing
 
 extension TypeArgumentsLeanParityTests {
-    @Test(arguments: [("context@", true), ("`when`@", true), ("when@", false), ("name()", false), ("@", false)])
+    @Test(arguments: [("name@", true), ("context@", true), ("`when`@", true), ("when@", false), ("name()", false), ("@", false)])
     func labelStartRequiresANameFollowedByAtSign(source: String, expected: Bool) {
         let lexed = lex(source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
