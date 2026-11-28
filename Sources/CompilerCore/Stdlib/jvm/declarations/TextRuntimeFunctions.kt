@@ -5,6 +5,7 @@ import java.math.BigDecimal
 
 fun String.isEmpty(): Boolean = null!!
 fun String.isNotEmpty(): Boolean = null!!
+fun String.intern(): String = null!!
 fun String.isBlank(): Boolean = null!!
 fun String.isNotBlank(): Boolean = null!!
 fun String.first(): Char = null!!
