@@ -49,11 +49,14 @@ extension JVMBackendTests {
             import kotlin.time.toDuration
 
             fun absoluteSeconds(value: Duration?): Long? = value?.absoluteValue?.inWholeSeconds
+            fun absoluteOrZero(value: Duration?): Duration = value?.absoluteValue ?: 0.toDuration(DurationUnit.SECONDS)
 
             fun main() {
                 val negative: Duration? = (-30).toDuration(DurationUnit.SECONDS)
                 println(absoluteSeconds(negative))
                 println(absoluteSeconds(null))
+                println(absoluteOrZero(negative).inWholeSeconds)
+                println(absoluteOrZero(null).inWholeSeconds)
             }
             """
             let (app, exit, diagnostics) = try m22Build(
@@ -66,7 +69,7 @@ extension JVMBackendTests {
 
             let result = try java(["-Xverify:all", "-cp", app.path + ":" + own.path, "DurationAbsoluteValueNullableProbeKt"])
             #expect(result.exitCode == 0, "\(result.stderr)")
-            #expect(result.stdout == "30\nnull\n")
+            #expect(result.stdout == "30\nnull\n30\n0\n")
             #expect(result.stderr.isEmpty)
         }
     }

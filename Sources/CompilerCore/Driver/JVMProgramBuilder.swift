@@ -665,7 +665,7 @@ final class JVMFunctionBuilder {
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
         if !context.options.stdlibOnly {
-            if source.type.referenceName == "kotlin/time/Duration", !source.type.isNullable, type == .long {
+            if source.type.referenceName == "kotlin/time/Duration", type == .long {
                 let result = try value(.long)
                 instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "unbox-impl", descriptor: "()J", parameters: [], result: .long, isStatic: false, isInterface: false, isAbstract: false), receiver: source, arguments: [], result: result))
                 return result
