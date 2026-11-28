@@ -1,5 +1,8 @@
 package kotlin.time
 
+public val Instant.isDistantPast: Boolean get() = null!!
+public val Instant.isDistantFuture: Boolean get() = null!!
+
 public class Instant internal constructor(
     public val epochSeconds: Long,
     public val nanosecondsOfSecond: Int,

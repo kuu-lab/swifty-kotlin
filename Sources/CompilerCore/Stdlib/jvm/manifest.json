@@ -58,7 +58,8 @@
     {
       "path": "declarations/Instant.kt",
       "virtualPath": "<kswiftk-jvm>/instant.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/InstantKt"
     },
     {
       "path": "declarations/InstantConversions.kt",

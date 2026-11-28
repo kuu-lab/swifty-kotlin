@@ -15,6 +15,8 @@ extension JVMBackendTests {
             import kotlin.time.Duration
             import kotlin.time.DurationUnit
             import kotlin.time.Instant
+            import kotlin.time.isDistantFuture
+            import kotlin.time.isDistantPast
             import kotlin.time.toDuration
             import kotlin.time.toJavaInstant
             import kotlin.time.toKotlinInstant
@@ -35,6 +37,10 @@ extension JVMBackendTests {
                 println(Instant.fromEpochSeconds(Long.MIN_VALUE).toEpochMilliseconds())
                 println(Instant.DISTANT_PAST)
                 println(Instant.DISTANT_FUTURE)
+                println(Instant.DISTANT_PAST.isDistantPast)
+                println(Instant.fromEpochSeconds(-3_217_862_419_200L).isDistantPast)
+                println(Instant.DISTANT_FUTURE.isDistantFuture)
+                println(Instant.fromEpochSeconds(3_093_527_980_799L).isDistantFuture)
                 val one = 1L.toDuration(DurationUnit.NANOSECONDS)
                 println(negative + one)
                 println(negative - one)

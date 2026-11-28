@@ -71,3 +71,9 @@ public class Instant internal constructor(
         public fun parseOrNull(input: CharSequence): Instant? = instantParseOrNull(input.toString())
     }
 }
+
+public val Instant.isDistantPast: Boolean
+    get() = this.epochSeconds <= INSTANT_DISTANT_PAST_SECONDS
+
+public val Instant.isDistantFuture: Boolean
+    get() = this.epochSeconds >= INSTANT_DISTANT_FUTURE_SECONDS

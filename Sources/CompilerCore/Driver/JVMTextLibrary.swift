@@ -234,7 +234,8 @@ extension JVMProgramBuilder {
                         } else if let receiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol) {
                             let receiverType = try type(receiverSemantic)
                             let resultType = try type(valueType)
-                            let getter = "get" + name.prefix(1).uppercased() + name.dropFirst()
+                            let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
+                            let getter = booleanIs ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
                             let parameters = [receiverType]
                             textLibraryProperties[symbol] = JVMForeignMethod(
                                 owner: owner,
