@@ -3251,6 +3251,7 @@ final class JVMClasspathIndex {
     ) -> String {
         if usesKotlinMetadata, method.kotlinFunction?.hasInlineContextCallback != true,
            method.kotlinFunction?.composableParameters.isEmpty != false,
+           method.kotlinFunction?.contextParameters.isEmpty != false,
            let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }

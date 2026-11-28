@@ -58,9 +58,9 @@ extension JVMClasspathIndex {
         guard hiddenCount > 1 else { return false }
         let suffix = method.parameters.suffix(hiddenCount)
         guard suffix.first?.referenceName == JVMCompose.composer else { return false }
-        let expectedChangeMasks = max(1, (parameterCount + 9) / 10)
+        let expectedChangeMasks = max(1, (parameterCount + 10) / 10)
         let expectedDefaultMasks = function.parameters.contains(where: \.hasDefault)
-            ? (function.parameters.count + 31) / 32 : 0
+            ? (function.parameters.count + 30) / 31 : 0
         let expectedMasks = expectedChangeMasks + expectedDefaultMasks
         let masks = suffix.dropFirst()
         return masks.count == expectedMasks && masks.allSatisfy({ $0 == .int })

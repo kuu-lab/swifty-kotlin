@@ -59,8 +59,13 @@ extension JVMBackendTests {
 
             public final class Driver {
                 private static final class Methods implements ComposableMethods {
+                    private int emptyCalls;
+                    private int manyCalls;
+                    private int renderCalls;
+
                     public void empty(Composer composer, int changed) {
                         if (composer != Bridge.COMPOSER || changed != 0) throw new AssertionError("empty ABI");
+                        emptyCalls++;
                     }
                     public void many(int p0, int p1, int p2, int p3, int p4, int p5,
                                      int p6, int p7, int p8, int p9, int p10,
@@ -69,16 +74,25 @@ extension JVMBackendTests {
                                 || p6 != 6 || p7 != 7 || p8 != 8 || p9 != 9 || p10 != 10
                                 || composer != Bridge.COMPOSER || changed0 != 0 || changed1 != 0)
                             throw new AssertionError("multi-mask ABI");
+                        manyCalls++;
                     }
                     public void render(String[] labels, Function2 content, Composer composer, int changed) {
                         if (labels.length != 1 || !labels[0].equals("headline") || content == null
                                 || composer != Bridge.COMPOSER || changed != 0)
                             throw new AssertionError("vararg callback ABI");
+                        renderCalls++;
                         content.invoke(composer, Integer.valueOf(0));
+                    }
+
+                    public void verifyCalls() {
+                        if (emptyCalls != 1 || manyCalls != 1 || renderCalls != 1)
+                            throw new AssertionError("missing composable member call");
                     }
                 }
                 public static void main(String[] args) {
-                    ScreenKt.Screen(new Methods(), Bridge.COMPOSER, 0);
+                    Methods methods = new Methods();
+                    ScreenKt.Screen(methods, Bridge.COMPOSER, 0);
+                    methods.verifyCalls();
                 }
             }
             """.write(to: root.appendingPathComponent("Driver.java"), atomically: true, encoding: .utf8)
@@ -90,6 +104,63 @@ extension JVMBackendTests {
             #expect(run.exitCode == 0, "\(run.stderr)")
             #expect(run.stdout == "callback\n")
         }
+    }
+
+    @Test
+    func composeMemberMetadataInfersReceiverAwareChangeAndDefaultMasks() {
+        let owner = "fixture/MaskEdges"
+        let index = JVMClasspathIndex()
+        let composer = JVMCompose.composerType
+        let annotation = JVMAnnotation(descriptor: "Landroidx/compose/runtime/Composable;", visible: false)
+
+        func function(_ name: String, parameterCount: Int, hasDefault: Bool = false) -> JVMKotlinFunctionInfo {
+            let parameters = (0..<parameterCount).map { index in
+                JVMKotlinParameterInfo(
+                    name: "p\(index)", type: .named("kotlin/Int", [], nullable: false), varargType: nil,
+                    hasDefault: hasDefault && index == parameterCount - 1
+                )
+            }
+            return JVMKotlinFunctionInfo(
+                name: name, jvmName: name,
+                descriptor: "(" + String(repeating: "I", count: parameterCount) + ")V", flags: 6,
+                typeParameters: [], receiver: nil, parameters: parameters,
+                result: .named("kotlin/Unit", [], nullable: false)
+            )
+        }
+
+        func method(_ name: String, parameterCount: Int, changeMasks: Int, defaultMasks: Int = 0) -> JVMForeignMethod {
+            let parameters = Array(repeating: JVMValueType.int, count: parameterCount)
+                + [composer] + Array(repeating: JVMValueType.int, count: changeMasks + defaultMasks)
+            let descriptor = "(" + parameters.map(\.descriptor).joined() + ")V"
+            var method = JVMForeignMethod(
+                owner: owner, name: name, descriptor: descriptor, parameters: parameters,
+                result: .unit, isStatic: false, isInterface: true, isAbstract: true
+            )
+            method.annotations = [annotation]
+            return method
+        }
+
+        func binds(_ method: JVMForeignMethod, to function: JVMKotlinFunctionInfo) -> Bool {
+            index.classes[owner] = JVMClassInfo(
+                name: owner, flags: 0x0200, superclass: "java/lang/Object", interfaces: [], methods: [method]
+            )
+            index.kotlinMetadataByClass[owner] = JVMKotlinClassMetadata(
+                classFlags: 0, companion: nil, typeParameters: [], functions: [function],
+                properties: [], typeAliases: [], isPackage: false
+            )
+            return index.kotlinFunction(method) != nil
+        }
+
+        let empty = function("empty", parameterCount: 0)
+        #expect(binds(method("empty", parameterCount: 0, changeMasks: 1), to: empty))
+
+        let ten = function("ten", parameterCount: 10)
+        #expect(binds(method("ten", parameterCount: 10, changeMasks: 2), to: ten))
+        #expect(!binds(method("ten", parameterCount: 10, changeMasks: 1), to: ten))
+
+        let default32 = function("default32", parameterCount: 32, hasDefault: true)
+        #expect(binds(method("default32", parameterCount: 32, changeMasks: 4, defaultMasks: 2), to: default32))
+        #expect(!binds(method("default32", parameterCount: 32, changeMasks: 4, defaultMasks: 1), to: default32))
     }
 }
 #endif

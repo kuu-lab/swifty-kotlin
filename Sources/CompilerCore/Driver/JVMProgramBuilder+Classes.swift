@@ -111,7 +111,6 @@ extension JVMProgramBuilder {
                 throw JVMFrontendError(message: "JVM @Composable requires a compatible AndroidX Compose Runtime on the classpath.", range: function.range)
             }
             guard allowComposable, function.receiverType == nil, !function.isSuspend, !function.isInline, !function.isTailrec,
-                  signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty,
                   parameters.count <= 10, !unsigned,
                   !function.valueParams.contains(where: \.isVararg),
                   !signature.valueParameterSymbols.contains(where: sema.composableFunctionParameters.contains)
