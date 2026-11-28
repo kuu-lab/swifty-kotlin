@@ -106,14 +106,16 @@ extension JVMFunctionBuilder {
         case let .operation(op):
             returned = try helper.emitTextOperation(op, source: source, values: values)
             physicalResult = try program.type(signature.returnType)
+            let isJDKStringIntern = op.name == "intern" && op.owner == "java/lang/String" && op.instance
             // JVM stubs narrow some CharSequence extensions to String (`String.isBlank`).
             // Recording the stub's receiver breaks `KFunction.call`, which looks the
             // method up by this descriptor; kotlinc records the real declaration.
             let realReceiver = !op.instance && op.method == nil && op.owner == "kotlin/text/StringsKt"
                 && op.receiverType.descriptor != receiverType.descriptor && op.result.descriptor == physicalResult.descriptor
-            sourceOwner = "kotlin/text/StringsKt"
-            signatureName = nil
-            sourceDescriptor = "(" + ([realReceiver ? op.receiverType : receiverType] + parameterTypes).map(\.descriptor).joined() + ")" + physicalResult.descriptor
+            sourceOwner = isJDKStringIntern ? op.owner : "kotlin/text/StringsKt"
+            signatureName = isJDKStringIntern ? (op.method ?? op.name) : nil
+            let sourceParameters = isJDKStringIntern ? parameterTypes : [realReceiver ? op.receiverType : receiverType] + parameterTypes
+            sourceDescriptor = "(" + sourceParameters.map(\.descriptor).joined() + ")" + physicalResult.descriptor
         case let .facade(method, _):
             physicalResult = method.result
             sourceOwner = method.owner
