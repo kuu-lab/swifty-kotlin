@@ -68,6 +68,9 @@ struct JVMKotlinClassProperty {
     let name: String
     let getterName: String
     let getterDescriptor: String
+    let hasGetterSignature: Bool
+    let annotationsMethodName: String?
+    let annotationsMethodDescriptor: String?
     let fieldName: String?
     let fieldDescriptor: String?
     let isNullable: Bool
@@ -393,23 +396,40 @@ struct JVMKotlinMetadataPayload {
             let fieldDescriptor = encodedFieldDescriptor ?? (field != nil ? metadataFieldType?.descriptor : nil)
             let getterName: String
             let descriptor: String
+            let hasGetterSignature: Bool
             if let getter = try signature.message(3),
                let encodedName = try names.resolve(getter.int32(1)),
                let encodedDescriptor = try names.resolve(getter.int32(2)) {
                 getterName = encodedName
                 descriptor = encodedDescriptor
+                hasGetterSignature = true
             } else {
                 guard let fieldDescriptor else { return nil }
                 getterName = "get" + String(name.prefix(1)).uppercased() + name.dropFirst()
                 descriptor = "()" + fieldDescriptor
+                hasGetterSignature = false
             }
             let setter = try signature.message(4)
             let setterName = try names.resolve(setter?.int32(1))
             let setterDescriptor = try names.resolve(setter?.int32(2))
+            let annotationsMethod = try signature.message(2)
+            let annotationsMethodName = try names.resolve(annotationsMethod?.int32(1))
+            let encodedAnnotationsMethodDescriptor = try names.resolve(annotationsMethod?.int32(2))
+            let annotationsMethodDescriptor: String?
+            if let encodedAnnotationsMethodDescriptor {
+                annotationsMethodDescriptor = encodedAnnotationsMethodDescriptor
+            } else if annotationsMethodName != nil, let closingParenthesis = descriptor.firstIndex(of: ")") {
+                annotationsMethodDescriptor = String(descriptor[...closingParenthesis]) + "V"
+            } else {
+                annotationsMethodDescriptor = nil
+            }
             let flags = property.int32(11) ?? 6
             let visibility = (flags >> 1) & 7
             let sourceType = try Self.sourceType(type, types: types, names: names)
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+                                           hasGetterSignature: hasGetterSignature,
+                                           annotationsMethodName: annotationsMethodName,
+                                           annotationsMethodDescriptor: annotationsMethodDescriptor,
                                            fieldName: fieldName, fieldDescriptor: fieldDescriptor,
                                            isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
                                            setterName: setterName, setterDescriptor: setterDescriptor,

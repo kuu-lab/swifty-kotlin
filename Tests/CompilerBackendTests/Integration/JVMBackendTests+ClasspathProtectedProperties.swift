@@ -245,5 +245,116 @@ extension JVMBackendTests {
             #expect(receiverDiagnostics.filter { $0.code == "KSWIFTK-SEMA-0041" }.count == 4)
         }
     }
+
+    @Test
+    func importedPropertyDeprecationAndAccessorlessSignaturesRemainDistinct() throws {
+        let provider = """
+        package fixture
+
+        open class ProtectedPropertyBase {
+            protected val status: String = "visible"
+
+            @Deprecated("removed", level = DeprecationLevel.HIDDEN)
+            protected val String.status: String get() = this
+
+            @Deprecated("removed", level = DeprecationLevel.HIDDEN)
+            protected open var legacy: String = "old"
+
+            @get:JvmSynthetic
+            protected open val syntheticValue: String = "synthetic"
+
+            lateinit var name: String
+                @Deprecated("removed", level = DeprecationLevel.HIDDEN)
+                protected set
+        }
+
+        open class FieldAndGetter {
+            @JvmField var value: String = "field"
+            fun getValue(): String = "method"
+        }
+        """
+
+        try withWorkspace { root in
+            try provider.write(to: root.appendingPathComponent("Provider.kt"), atomically: true, encoding: .utf8)
+            let dependency = root.appendingPathComponent("provider.jar")
+            let providerBuild = try jvmTool("kotlinc", ["Provider.kt", "-d", dependency.path], root: root)
+            try #require(providerBuild.exitCode == 0, "\(providerBuild.stderr)")
+            let archive = try ZipArchive(data: Data(contentsOf: dependency))
+            func readProviderClass(_ name: String) throws -> JVMClassInfo {
+                let entry = try #require(archive.entries.first { $0.name == name })
+                var reader = JVMClassReader(bytes: Array(try archive.contents(of: entry)))
+                return try reader.read()
+            }
+
+            let propertyInfo = try readProviderClass("fixture/ProtectedPropertyBase.class")
+            let status = try #require(propertyInfo.kotlinMemberProperties["status"])
+            #expect(status.getter.isProtected)
+            #expect(propertyInfo.kotlinMemberProperties["legacy"] == nil)
+            #expect(!propertyInfo.methods.contains { $0.name == "getLegacy" })
+            #expect(propertyInfo.kotlinMemberProperties["syntheticValue"] != nil)
+            let name = try #require(propertyInfo.kotlinMemberProperties["name"])
+            #expect(!name.getter.isHiddenByDeprecation)
+            #expect(name.setter == nil)
+
+            let fieldInfo = try readProviderClass("fixture/FieldAndGetter.class")
+            let value = try #require(fieldInfo.kotlinMemberProperties["value"])
+            #expect(value.getter.isAccessorlessField)
+            #expect(fieldInfo.kotlinFieldProperties["value"]?.isVar == true)
+
+            let runtime = try ownStdlibLibrary()
+            let classpath = [dependency.path, runtime.path]
+            let consumer = """
+            package consumer
+            import fixture.FieldAndGetter
+            import fixture.ProtectedPropertyBase
+
+            class Derived : ProtectedPropertyBase() {
+                fun readStatus(): String = status
+                fun readName(): String = name
+                fun readSynthetic(): String = syntheticValue
+            }
+
+            class FieldDerived : FieldAndGetter() {
+                fun readValue(): String = value
+                fun writeValue(value: String) { this.value = value }
+            }
+
+            fun main() {
+                val fields = FieldDerived()
+                println(fields.readValue())
+                fields.writeValue("updated")
+                println(fields.readValue())
+                println(Derived().readStatus())
+                println(Derived().readSynthetic())
+            }
+            """
+            let (app, exit, diagnostics) = try m22Build(
+                root: root, sources: [("Consumer.kt", consumer)], name: "app.jar", classpath: classpath
+            )
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-cp", ([app.path] + classpath).joined(separator: ":"), "consumer.ConsumerKt"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "field\nupdated\nvisible\nsynthetic\n")
+
+            let hiddenSetterWrite = """
+            package consumer
+            import fixture.ProtectedPropertyBase
+
+            class HiddenSetterWrite : ProtectedPropertyBase() {
+                fun readName(): String = name
+                fun writeName(value: String) { name = value }
+                fun readLegacy(): String = legacy
+            }
+            """
+            let (_, setterExit, setterDiagnostics) = try m22Build(
+                root: root, sources: [("HiddenSetterWrite.kt", hiddenSetterWrite)],
+                name: "hidden-setter.jar", classpath: classpath
+            )
+            #expect(setterExit == 1, "\(setterDiagnostics.map(\.message))")
+            #expect(setterDiagnostics.filter { $0.severity == .error }.count == 2)
+            #expect(setterDiagnostics.contains { $0.message.contains("Val cannot be reassigned") })
+            #expect(setterDiagnostics.contains { $0.message.contains("legacy") })
+        }
+    }
 }
 #endif

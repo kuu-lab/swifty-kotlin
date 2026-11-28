@@ -924,10 +924,10 @@ struct JVMClassReader {
            }),
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
             for property in properties {
-                var getter = methods.first(where: {
+                var getter = property.hasGetterSignature ? methods.first(where: {
                     (!$0.isProtected || property.isProtected)
                         && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
-                })
+                }) : nil
                 let physicalField = property.fieldName.flatMap { fieldName in
                     fields.first { $0.name == fieldName && $0.descriptor == property.fieldDescriptor }
                 }
@@ -954,8 +954,15 @@ struct JVMClassReader {
                     $0.name == property.name && !$0.isStatic && $0.access & 0x1000 == 0
                         && ($0.isPublic || $0.isProtected || $0.isPackagePrivate)
                 })
-                // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
-                let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
+                let setter = methods.first {
+                    !$0.isStatic && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
+                }
+                let isHiddenByDeprecation = Self.isHiddenByDeprecation(
+                    propertyGetter: getter,
+                    annotationsMethodName: property.annotationsMethodName,
+                    annotationsMethodDescriptor: property.annotationsMethodDescriptor,
+                    methods: methods
+                )
                 if isHiddenByDeprecation {
                     let accessors = Set([
                         getter.name + getter.descriptor,
@@ -965,6 +972,10 @@ struct JVMClassReader {
                     ].compactMap { $0 })
                     info.methods.removeAll { accessors.contains($0.name + $0.descriptor) }
                     continue
+                }
+                let hasHiddenSetter = setter?.isHiddenByDeprecation == true
+                if hasHiddenSetter, let setter {
+                    info.methods.removeAll { $0.name == setter.name && $0.descriptor == setter.descriptor }
                 }
                 let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
@@ -985,10 +996,7 @@ struct JVMClassReader {
                                       || !property.isVar && getter.name == property.name)),
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
-                    let setter = methods.first {
-                        !$0.isStatic && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
-                    }
-                    info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
+                    info.kotlinMemberProperties[property.name] = (getter, hasHiddenSetter ? nil : setter, sourceType)
                 }
             }
         }
@@ -1008,9 +1016,16 @@ struct JVMClassReader {
         return info
     }
 
-    private static func isHiddenByDeprecation(propertyGetter getter: JVMForeignMethod, methods: [JVMForeignMethod]) -> Bool {
-        getter.isHiddenByDeprecation || methods.contains {
-            $0.name == getter.name + "$annotations" && $0.isHiddenByDeprecation
+    private static func isHiddenByDeprecation(
+        propertyGetter getter: JVMForeignMethod,
+        annotationsMethodName: String?,
+        annotationsMethodDescriptor: String?,
+        methods: [JVMForeignMethod]
+    ) -> Bool {
+        if getter.isHiddenByDeprecation { return true }
+        guard let annotationsMethodName, let annotationsMethodDescriptor else { return false }
+        return methods.contains {
+            $0.name == annotationsMethodName && $0.descriptor == annotationsMethodDescriptor && $0.isHiddenByDeprecation
         }
     }
 
