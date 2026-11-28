@@ -14,7 +14,7 @@ import Testing
         let context = makeContextFromSource("fun f() { val x = value\n\(op) \(operand) }", emit: .jvmJar)
         try LexPhase().run(context)
         try JVMSourceValidationPhase().run(context)
-        #expect(context.errorDiagnostics.isEmpty)
+        assertExpectedDiagnostics([], in: context)
     }
 
     @Test
@@ -22,7 +22,7 @@ import Testing
         let context = makeContextFromSource("fun f() { val x = 1\n* 2 }", emit: .jvmJar)
         try LexPhase().run(context)
         try JVMSourceValidationPhase().run(context)
-        #expect(context.errorDiagnostics.map(\.code) == ["KSWIFTK-JVM-0001"])
+        assertExpectedDiagnostics([.error("KSWIFTK-JVM-0001")], in: context)
     }
 }
 #endif
