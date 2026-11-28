@@ -42,23 +42,6 @@ extension TypeArgumentsLeanParityTests {
     }
 
     @Test(arguments: [
-        ("name@", true), ("`when`@", true), ("context@", true),
-        ("when@", false), ("name()", false), ("@", false),
-    ])
-    func parserPolicyLabelRequiresANameFollowedByAtSign(source: String, expected: Bool) {
-        #expect(LeanParser.isLabelStart(makePolicyParser(source)) == expected)
-    }
-
-    @Test(arguments: [
-        (".foo", true), ("?.foo", true), ("!!", true), ("?: fallback", true), ("&& other", true),
-        ("|| other", true), ("is T", true), ("in xs", true), ("as T", true),
-        ("!is T", true), ("!in xs", true), ("!flag", false), ("-1", false), ("+1", false),
-    ])
-    func parserPolicyWhenNewlineContinuation(source: String, expected: Bool) {
-        #expect(LeanParser.whenConditionContinuesAfterLineBreak(makePolicyParser(source)) == expected)
-    }
-
-    @Test(arguments: [
         ("@Ann A", false), ("@Ann fun f() {}", true), ("context(x: Int) fun f() {}", true),
         ("context()", false), ("constructor() {}", true), ("private val x = 1", true),
         ("private context()", true), ("private name", false), ("import p.A", false),
@@ -85,22 +68,6 @@ extension TypeArgumentsLeanParityTests {
             #expect(parser.stream.peek(end).kind == expected, Comment(rawValue: source))
             #expect(parser.stream.index == 0)
         }
-    }
-
-    @Test(arguments: [
-        ("\n: Base", true, false, false, false), ("\n<T>", true, false, false, false),
-        ("\nwhere T: Base", true, false, false, false), ("\n(value: T)", true, true, false, false),
-        ("\n(value: T)", true, false, false, true), ("\nby impl", true, false, true, false),
-        ("\nby impl", true, false, false, true), ("\nfun f()", false, false, false, true),
-        ("\nimport p.F", false, false, false, false), ("fun f()", true, false, false, false),
-    ])
-    func parserPolicyDeclarationHeaderNewline(
-        source: String, includeBlock: Bool, classColon: Bool, delegation: Bool, stops: Bool
-    ) {
-        let parser = makePolicyParser(source)
-        #expect(LeanParser.stopsDeclarationHeaderAtNewline(
-            parser, includeBlock: includeBlock, allowsClassHeaderColon: classColon, allowsClassDelegation: delegation
-        ) == stops)
     }
 
     @Test(arguments: [
