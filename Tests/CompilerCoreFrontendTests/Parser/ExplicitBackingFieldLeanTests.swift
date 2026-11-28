@@ -15,7 +15,7 @@ extension TypeArgumentsLeanParityTests {
         let lexed = lex("anchor " + source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
         parser.lastConsumedToken = parser.stream.advance()
-        #expect(parser.isExplicitBackingFieldStart(parser.stream.peek()) == accepts)
+        #expect(LeanParser.isExplicitBackingFieldStart(parser) == accepts)
         #expect(parser.stream.index == 1)
         #expect(parser.lastConsumedToken == lexed.tokens[0])
         #expect(parser.arena.tokens.isEmpty)

@@ -437,10 +437,6 @@ enum LeanParser {
         isObjectExpressionStart(parser)
     }
 
-    static func isExplicitBackingFieldStart(_ parser: KotlinParser, kind _: TokenKind) -> Bool {
-        isExplicitBackingFieldStart(parser)
-    }
-
     static func isAmbiguousDeclarationPrefix(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         lookahead(
             parser, offset: 0, operation: .ambiguousDeclarationPrefix,

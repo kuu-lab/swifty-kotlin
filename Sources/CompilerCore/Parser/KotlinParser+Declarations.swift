@@ -429,7 +429,7 @@ extension KotlinParser {
                 {
                     break
                 }
-                if isExplicitBackingFieldStart(stream.peek()) {
+                if LeanParser.isExplicitBackingFieldStart(self) {
                     parseExplicitBackingField(into: &children, range: &range)
                     absorbedBareDefaultAccessor = false
                 } else if isPropertyAccessorStart(allowsBodyless: allowsBodylessAccessors) {
