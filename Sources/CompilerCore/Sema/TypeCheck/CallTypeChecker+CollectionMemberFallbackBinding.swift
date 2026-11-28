@@ -780,6 +780,8 @@ extension CallTypeChecker {
              "dropWhile", "distinct", "sortedDescending", "flatMap", "intersect",
              "union", "subtract", "withIndex", "shuffled":
             return true
+        case "average":
+            return argCount == 0
         case "count":
             return argCount == 1
         default:

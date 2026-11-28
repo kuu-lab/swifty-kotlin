@@ -12,15 +12,21 @@ extension JVMFunctionBuilder {
         }
         guard ["sum", "average"].contains(name), args.isEmpty else { return nil }
         guard let receiverType = program.sema.bindings.exprType(for: receiverID),
-              case let .classType(receiverClass) = program.sema.types.kind(of: receiverType),
-              let argument = receiverClass.args.first,
-              let owner = try program.type(receiverType).referenceName,
-              ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/ArrayList"].contains(owner) else { return nil }
+              let owner = try program.expressionType(receiverID).referenceName else { return nil }
+        let isIntRangeOwner = ["kotlin/ranges/IntRange", "kotlin/ranges/IntProgression"].contains(owner)
+        guard ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/ArrayList"].contains(owner)
+            || name == "average" && isIntRangeOwner else { return nil }
 
         let element: TypeID
-        switch argument {
-        case let .invariant(type), let .out(type): element = type
-        case .in, .star: return nil
+        if isIntRangeOwner {
+            element = program.sema.types.intType
+        } else {
+            guard case let .classType(receiverClass) = program.sema.types.kind(of: receiverType) else { return nil }
+            guard let argument = receiverClass.args.first else { return nil }
+            switch argument {
+            case let .invariant(type), let .out(type): element = type
+            case .in, .star: return nil
+            }
         }
         guard program.sema.types.nullability(of: element) == .nonNull,
               case .primitive(_, .nonNull) = program.sema.types.kind(of: element) else { return nil }
@@ -40,7 +46,7 @@ extension JVMFunctionBuilder {
             }
         }
 
-        let collection = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
+        let collection = try convert(requireValue(receiverID), to: .reference("java/lang/Iterable", nullable: false))
         let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
         guard let iterator = try jdkCall("java/lang/Iterable", "iterator", [], iteratorType, receiver: collection, interface: true) else { return nil }
         let accumulator = try value(accumulatorType)
