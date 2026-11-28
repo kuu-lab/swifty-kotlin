@@ -345,9 +345,7 @@ extension KotlinParser {
 
     func offsetAfterParenthesizedReceiver(from start: Int, maxDistance: Int? = nil) -> Int? {
         guard stream.peek(start).kind == .symbol(.lParen) else { return nil }
-        var offset = offsetPastBalancedGroup(
-            from: start, open: .symbol(.lParen), close: .symbol(.rParen), maxDistance: maxDistance
-        )
+        var offset = offsetPastBalancedGroup(from: start, maxDistance: maxDistance)
         if stream.peek(offset).kind == .symbol(.question) {
             offset += 1
         }

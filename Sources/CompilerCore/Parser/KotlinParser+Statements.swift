@@ -59,7 +59,7 @@ extension KotlinParser {
                 hasDeclarationPrefix = true
             }
             let isAnonymousFunction = isAnonymousFunctionExpressionStart()
-            if isDeclarationStart(token.kind), hasDeclarationPrefix, !isObjectExpressionStart(token),
+            if isDeclarationStart(token.kind), hasDeclarationPrefix, !LeanParser.isObjectExpressionStart(self),
                !isAnonymousFunction,
                hasLeadingNewline(token) || atBlockStart || precededBySemicolon || precededByBlockClose || startsCompanionMember
             {
@@ -134,28 +134,26 @@ extension KotlinParser {
 
         while !stream.atEOF() {
             let token = stream.peek()
-            let canContinueWithElseLikeKeyword = sawIfOrTryKeyword
-                && !isLabelStart
-                && ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
-            let canContinueWithSymbol: Bool = if case .symbol = token.kind {
-                ParserBoundaryPolicy.continuesExpressionBeforeNewline(token.kind)
-            } else {
-                false
-            }
             if inBlock,
                !children.isEmpty,
                depth.paren == 0,
                depth.bracket == 0,
                depth.template == 0,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind),
-               !canContinueWithSymbol,
-               !canContinueWithElseLikeKeyword,
-               !endsWithPendingInfixOperator(children),
-               !endsWithControlFlowCondition(children),
-               !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
+               LeanParser.shouldSplitStatementOnNewline(token, diagnostics: diagnostics)
             {
-                break
+                let checksContinuation = if case .symbol = token.kind {
+                    true
+                } else {
+                    sawIfOrTryKeyword && !isLabelStart
+                }
+                if !(checksContinuation && LeanParser.continuesExpressionBeforeNewline(token, diagnostics: diagnostics)),
+                   !endsWithPendingInfixOperator(children),
+                   !endsWithControlFlowCondition(children),
+                   !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
+                {
+                    break
+                }
             }
             // An `if`/`try` inside a `${ ... }` template arms `else`-like
             // continuations only for the template's own expression, never
@@ -177,7 +175,7 @@ extension KotlinParser {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
-                let blockID = consumedTokensEndWithWhenSubject(children)
+                let blockID = LeanParser.consumedTokensEndWithWhenSubject(self, children: children)
                     ? parseWhenBody(inBlock: inBlock)
                     : parseBlock()
                 children.append(.node(blockID))
@@ -433,14 +431,14 @@ extension KotlinParser {
                children.count > startChildCount,
                atBodyBoundary,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind),
+               LeanParser.shouldSplitStatementOnNewline(token, diagnostics: diagnostics),
                !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
             {
                 break
             }
 
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
-                let block = consumedTokensEndWithWhenSubject(children)
+                let block = LeanParser.consumedTokensEndWithWhenSubject(self, children: children)
                     ? parseWhenBody(inBlock: inBlock)
                     : parseBlock()
                 children.append(.node(block))
@@ -461,8 +459,10 @@ extension KotlinParser {
                 // Only symbol continuations here: a newline-leading `else` /
                 // `catch` / `finally` belongs to the enclosing control-flow
                 // statement, which consumes it itself.
-                let nextKind = stream.peek().kind
-                if case .symbol = nextKind, ParserBoundaryPolicy.continuesExpressionBeforeNewline(nextKind) {
+                let next = stream.peek()
+                if case .symbol = next.kind,
+                   LeanParser.continuesExpressionBeforeNewline(next, diagnostics: diagnostics)
+                {
                     continue
                 }
                 if endsWithPendingInfixOperator(children) {
@@ -569,35 +569,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .whenConditionList, range: range.value ?? invalidRange, children)
     }
 
-    /// Whether the flat tokens already consumed end in `when` or
-    /// `when (subject)`, so a `{` at the current position opens a when body
-    /// rather than a plain block or lambda. `when` reached through generic
-    /// statement/declaration tails (`= when (x) {`, `return when (x) {`,
-    /// `x = when (x) {`) routes here so entries are parsed as when entries —
-    /// otherwise a newline-leading `if` (a Kotlin 2.1 branch guard:
-    /// `cond\nif g ->`, `else\nif g ->`) would be reclaimed as an if
-    /// statement.
-    private func consumedTokensEndWithWhenSubject(_ children: [SyntaxChild]) -> Bool {
-        var parenDepth = 0
-        for child in children.reversed() {
-            guard case let .token(tokenID) = child, let token = arena.token(tokenID) else {
-                continue
-            }
-            switch token.kind {
-            case .symbol(.rParen):
-                parenDepth += 1
-            case .symbol(.lParen):
-                parenDepth -= 1
-                if parenDepth < 0 { return false }
-            default:
-                if parenDepth == 0 {
-                    return token.kind == .keyword(.when)
-                }
-            }
-        }
-        return false
-    }
-
     private func consumedTokensEndWithContextClause(_ children: [SyntaxChild]) -> Bool {
         var flatTokens: [Token] = []
         for child in children {
@@ -664,7 +635,7 @@ extension KotlinParser {
                    token.kind != .keyword(.if),
                    lastConsumedToken?.kind != .keyword(.if),
                    !endsWithPendingInfixOperator(children),
-                   !LeanParser.whenConditionContinuesAfterLineBreak(self, kind: token.kind)
+                   !LeanParser.whenConditionContinuesAfterLineBreak(self)
                 {
                     break
                 }
@@ -819,7 +790,7 @@ extension KotlinParser {
             if atTopLevel,
                !bodyChildren.isEmpty,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind)
+               LeanParser.shouldSplitStatementOnNewline(token, diagnostics: diagnostics)
             {
                 break
             }
@@ -852,79 +823,8 @@ extension KotlinParser {
         range.append(arena.node(bodyNode).range)
     }
 
-    func shouldSplitStatementOnNewline(_ kind: TokenKind) -> Bool {
-        ParserBoundaryPolicy.shouldSplitStatementOnNewline(kind)
-    }
-
-    /// `object` is ambiguous as a bare token: `object Foo : Base { ... }` starts
-    /// a new top-level declaration, but `object : Base(x) { ... }` / `object { ... }`
-    /// is an anonymous object *expression* continuing the current one (e.g. as the
-    /// value of an expression-bodied function's `= object : Base(x) { ... }`,
-    /// possibly on its own line). `isDeclarationStart` cannot tell these apart
-    /// since it only sees the `object` keyword itself — an identifier following it
-    /// means a name is present (named declaration); `:`/`{` immediately after
-    /// means there is none (object expression).
-    func isObjectExpressionStart(_ token: Token) -> Bool {
-        LeanParser.isObjectExpressionStart(self, kind: token.kind)
-    }
-
     func isAnonymousFunctionExpressionStart(at offset: Int = 0) -> Bool {
-        guard stream.peek(offset).kind == .keyword(.fun) else { return false }
-        var cursor = offset + 1
-        var depth = 0
-        var prevNonTriviaKind: TokenKind? = .keyword(.fun)
-        while cursor < offset + 200 {
-            let token = stream.peek(cursor)
-            if token.kind == .eof { break }
-            switch token.kind {
-            case .symbol(.lParen):
-                if depth == 0 {
-                    if let prev = prevNonTriviaKind {
-                        if (prev == .keyword(.fun) || prev == .symbol(.greaterThan)),
-                           let nameOffset = offsetAfterParenthesizedReceiver(from: cursor, maxDistance: 4096),
-                           isIdentifierLike(stream.peek(nameOffset).kind)
-                        {
-                            return false
-                        }
-                        switch prev {
-                        case .keyword(.fun),
-                             .symbol(.greaterThan),
-                             .symbol(.dot),
-                             .symbol(.questionDot):
-                            return true
-                        default:
-                            return false
-                        }
-                    }
-                    return false
-                }
-                depth += 1
-            case .symbol(.rParen):
-                depth -= 1
-            case .symbol(.lBracket), .symbol(.lessThan):
-                depth += 1
-            case .symbol(.rBracket), .symbol(.greaterThan):
-                depth -= 1
-            case .symbol(.lBrace), .symbol(.rBrace), .symbol(.semicolon), .symbol(.assign):
-                if depth == 0 { return false }
-            default:
-                break
-            }
-            prevNonTriviaKind = token.kind
-            cursor += 1
-        }
-        return false
-    }
-
-    /// A modifier keyword (`suspend`, `private`, ...) or the `context` soft
-    /// keyword is ambiguous the same way `object` is (see
-    /// `isObjectExpressionStart` above): it can introduce a genuine
-    /// declaration (`suspend fun f() {}`, `context(x: T) fun f() {}`) or
-    /// appear inside an expression (`suspend { ... }` lambda literal,
-    /// `context(...) { ... }` helper call). A single token of lookahead
-    /// can't tell these apart.
-    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
-        LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
+        LeanParser.isAnonymousFunctionExpressionStart(self, at: offset)
     }
 
     enum DeclarationPrefixVerdict: Equatable {
@@ -934,150 +834,11 @@ extension KotlinParser {
     }
 
     func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
-        if stream.peek(offset).kind.isLabelName,
-           stream.peek(offset + 1).kind == .symbol(.at) {
-            return .notDeclaration
-        }
-        let startIndex = stream.index + offset
-        if let cached = genuineDeclarationLookahead[startIndex] {
-            return cached ? .declaration : .notDeclaration
-        }
-
-        var cursor = offset
-        var work = 0
-        var prefixIndices: [Int] = []
-        var sawValueModifier = false
-        while true {
-            guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
-                cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                return .overBudget
-            }
-
-            let token = stream.peek(cursor)
-            if token.kind == .symbol(.at) {
-                prefixIndices.append(stream.index + cursor)
-                switch annotationPrefixEnd(from: cursor, work: &work) {
-                case let .complete(end):
-                    cursor = end
-                case .incomplete:
-                    cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                    return .declaration
-                case .overBudget:
-                    cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                    return .overBudget
-                }
-                continue
-            }
-            if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
-                if kw == .value {
-                    sawValueModifier = true
-                }
-                prefixIndices.append(stream.index + cursor)
-                cursor += 1
-                continue
-            }
-            if case .softKeyword(.context) = token.kind {
-                prefixIndices.append(stream.index + cursor)
-                cursor += 1
-                if stream.peek(cursor).kind == .symbol(.lParen) {
-                    var depth = 0
-                    repeat {
-                        guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
-                            cacheGenuineDeclarationLookahead(true, for: prefixIndices)
-                            return .overBudget
-                        }
-                        let kind = stream.peek(cursor).kind
-                        if kind == .symbol(.lParen) {
-                            depth += 1
-                        } else if kind == .symbol(.rParen) {
-                            depth -= 1
-                        } else if kind == .eof {
-                            break
-                        }
-                        cursor += 1
-                    } while depth > 0
-                }
-                continue
-            }
-
-            // `value` is a modifier for a value class, but it is also a legal
-            // identifier in an expression. In `fun f() =\n value\n fun g() = 0`,
-            // the next `fun` is a separate declaration, not one modified by
-            // `value`; otherwise `f` loses its expression body.
-            let isAnonymousFunction = isAnonymousFunctionExpressionStart(at: cursor)
-            let isAnonymousObject = token.kind == .keyword(.object)
-                && (stream.peek(cursor + 1).kind == .symbol(.lBrace) || stream.peek(cursor + 1).kind == .symbol(.colon))
-            let isCompanionCall = token.kind == .keyword(.companion)
-                && stream.peek(cursor + 1).kind == .symbol(.lParen)
-            let startsDeclaration = isDeclarationStart(token.kind) && !isAnonymousFunction && !isAnonymousObject && !isCompanionCall
-            let result = startsDeclaration
-                && (!sawValueModifier || token.kind == .keyword(.class))
-            if sawValueModifier, !result {
-                // A suffix such as `suspend fun` can still start a declaration
-                // after the expression's `value` has been consumed. Do not
-                // cache this false verdict for every prefix token.
-                genuineDeclarationLookahead[startIndex] = false
-            } else {
-                cacheGenuineDeclarationLookahead(result, for: prefixIndices)
-            }
-            genuineDeclarationLookahead[stream.index + cursor] = startsDeclaration
-            return result ? .declaration : .notDeclaration
-        }
+        LeanParser.declarationPrefixVerdict(self, at: offset)
     }
 
     func startsGenuineDeclaration(at offset: Int) -> Bool {
         declarationPrefixVerdict(at: offset) != .notDeclaration
-    }
-
-    private enum AnnotationPrefixEnd {
-        case complete(Int)
-        case incomplete
-        case overBudget
-    }
-
-    private func annotationPrefixEnd(from offset: Int, work: inout Int) -> AnnotationPrefixEnd {
-        var cursor = offset + 1
-        if isAnnotationUseSiteTarget(stream.peek(cursor)),
-           stream.peek(cursor + 1).kind == .symbol(.colon) {
-            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
-            cursor += 2
-        }
-        guard isIdentifierLike(stream.peek(cursor).kind) else { return .incomplete }
-        guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
-        cursor += 1
-        while stream.peek(cursor).kind == .symbol(.dot), isIdentifierLike(stream.peek(cursor + 1).kind) {
-            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
-            cursor += 2
-        }
-        if stream.peek(cursor).kind == .symbol(.lessThan) {
-            let typeArgumentsEnd = offsetPastTypeArguments(from: cursor)
-            while cursor < typeArgumentsEnd {
-                guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
-                cursor += 1
-            }
-        }
-        guard stream.peek(cursor).kind == .symbol(.lParen) else { return .complete(cursor) }
-        var closingSymbols: [Symbol] = [.rParen]
-        cursor += 1
-        while !closingSymbols.isEmpty {
-            guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
-            let token = stream.peek(cursor)
-            if token.kind == .eof { return .incomplete }
-            if closingSymbols.count == 1, hasLeadingNewline(token), isAnnotationArgumentRecoveryBoundary(at: cursor) {
-                return .incomplete
-            }
-            if case let .symbol(symbol) = token.kind {
-                switch symbol {
-                case .lParen: closingSymbols.append(.rParen)
-                case .lBracket: closingSymbols.append(.rBracket)
-                case .lBrace: closingSymbols.append(.rBrace)
-                default:
-                    if symbol == closingSymbols.last { closingSymbols.removeLast() }
-                }
-            }
-            cursor += 1
-        }
-        return .complete(cursor)
     }
 
     static let declarationLookaheadWorkLimit = 4096
@@ -1090,6 +851,14 @@ extension KotlinParser {
         )
     }
 
+    func isObjectExpressionStart(_ token: Token) -> Bool {
+        LeanParser.isObjectExpressionStart(self)
+    }
+
+    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
+        LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
+    }
+
     func consumeDeclarationLookaheadWork(_ work: inout Int, at offset: Int) -> Bool {
         guard work < Self.declarationLookaheadWorkLimit else {
             reportDeclarationLookaheadBudget(at: offset)
@@ -1099,77 +868,12 @@ extension KotlinParser {
         return true
     }
 
-    private func cacheGenuineDeclarationLookahead(_ result: Bool, for indices: [Int]) {
-        for index in indices {
-            genuineDeclarationLookahead[index] = result
-        }
-    }
-
-    func offsetPastBalancedGroup(
-        from offset: Int, open: TokenKind, close: TokenKind, maxDistance: Int? = nil
-    ) -> Int {
-        var depth = 0
-        var index = offset
-        repeat {
-            if let maxDistance, index - offset >= maxDistance { return offset }
-            let kind = stream.peek(index).kind
-            if kind == .eof { break }
-            if kind == open {
-                depth += 1
-            } else if kind == close {
-                depth -= 1
-            }
-            index += 1
-        } while depth > 0
-        return index
+    func offsetPastBalancedGroup(from offset: Int, maxDistance: Int? = nil) -> Int {
+        LeanParser.offsetPastParens(self, from: offset, maxDistance: maxDistance)
     }
 
     func offsetPastTypeArguments(from offset: Int) -> Int {
         LeanParser.offsetPastTypeArguments(self, from: offset)
-    }
-
-    private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
-        let isAnonymousFunction = isAnonymousFunctionExpressionStart()
-        guard isAmbiguousDeclarationPrefix(token) || isAnonymousFunction else {
-            return true
-        }
-        return startsGenuineDeclaration(at: 0)
-    }
-
-    private func isTrailingLambdaOperatorContinuation(_ token: Token) -> Bool {
-        guard !hasLeadingNewline(token) else { return false }
-        switch token.kind {
-        case .keyword(.in):
-            return true
-        case .symbol(.bang):
-            let next = stream.peek(1).kind
-            return next == .keyword(.in) || next == .keyword(.is)
-        case .symbol(.bangBang):
-            return true
-        case .identifier, .backtickedIdentifier:
-            return canStartInfixCallArgument(stream.peek(1).kind)
-        default:
-            return false
-        }
-    }
-
-    private func canStartInfixCallArgument(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .identifier, .backtickedIdentifier,
-             .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral,
-             .keyword(.true), .keyword(.false), .keyword(.null), .keyword(.if), .keyword(.when),
-             .keyword(.try), .keyword(.throw), .keyword(.return), .keyword(.for), .keyword(.while),
-             .keyword(.do), .keyword(.super), .keyword(.this), .keyword(.object),
-             .symbol(.lParen), .symbol(.lBrace), .symbol(.lBracket), .symbol(.minus), .symbol(.plus),
-             .symbol(.bang), .symbol(.doubleColon),
-             .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote,
-             .softKeyword:
-            return true
-        case let .keyword(keyword):
-            return Self.isDeclarationModifierKeyword(keyword)
-        default:
-            return false
-        }
     }
 
     func parseTail(
@@ -1189,7 +893,6 @@ extension KotlinParser {
         var sawSupertypeColon = false
         var sawByKeyword = false
         var sawTryKeyword = false
-        var sawIfKeyword = false
         var functionTypeNameAfterAnnotation = false
         var delegateBraceTracker = DelegateExpressionBraceTracker()
         var depth = BracketDepth()
@@ -1198,7 +901,7 @@ extension KotlinParser {
             let atTopLevel = depth.isTopLevel
                 && depth.template == 0
             if allowsPropertyDelegation, atTopLevel, depth.angle == 0, !sawAssignment,
-               isExplicitBackingFieldStart(token),
+               LeanParser.isExplicitBackingFieldStart(self),
                lastConsumedToken?.kind != .symbol(.dot),
                lastConsumedToken?.kind != .symbol(.questionDot)
             {
@@ -1207,8 +910,7 @@ extension KotlinParser {
             if stopsAtFunctionDelegation, atTopLevel, !sawAssignment {
                 let expectsTypeName = functionTypeNameAfterAnnotation || LeanParser.canStartTypeName(self, after: lastConsumedToken?.kind)
                 if token.kind == .symbol(.at), expectsTypeName {
-                    var work = 0
-                    if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
+                    if case let .complete(end) = LeanParser.annotationPrefixEnd(self, from: 0) {
                         for _ in 0..<end { _ = consumeToken(into: &children, range: &range) }
                         functionTypeNameAfterAnnotation = true
                         progress = true
@@ -1240,7 +942,7 @@ extension KotlinParser {
                token.kind == .keyword(.this)
             {
                 let continuesAfterPreviousToken = lastConsumedToken.map {
-                    ParserBoundaryPolicy.continuesExpressionAfterNewline($0.kind)
+                    LeanParser.continuesExpressionAfterNewline(self, kind: $0.kind)
                 } ?? false
                 if !continuesAfterPreviousToken,
                    !endsWithPendingInfixOperator(children),
@@ -1252,14 +954,13 @@ extension KotlinParser {
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, token.kind == .symbol(.colon) { sawSupertypeColon = true }
             if atTopLevel, token.kind == .softKeyword(.by) { sawByKeyword = true }
-            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
-               isGenuineDeclarationBoundary(token)
+            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !LeanParser.isObjectExpressionStart(self),
+               LeanParser.isGenuineDeclarationBoundary(self)
             {
                 break
             }
             if atTopLevel, token.kind == .symbol(.at), !startsGenuineDeclaration(at: 0) {
-                var work = 0
-                if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
+                if case let .complete(end) = LeanParser.annotationPrefixEnd(self, from: 0) {
                     for _ in 0..<end { _ = consumeToken(into: &children, range: &range) }
                     progress = true
                     continue
@@ -1284,7 +985,7 @@ extension KotlinParser {
                 continue
             }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
-                let blockID = consumedTokensEndWithWhenSubject(children)
+                let blockID = LeanParser.consumedTokensEndWithWhenSubject(self, children: children)
                     ? parseWhenBody(inBlock: inBlock)
                     : parseBlock()
                 children.append(.node(blockID))
@@ -1293,48 +994,19 @@ extension KotlinParser {
                 continue
             }
             if case .symbol(.lBrace) = token.kind, atTopLevel {
-                let blockID = consumedTokensEndWithWhenSubject(children)
+                let blockID = LeanParser.consumedTokensEndWithWhenSubject(self, children: children)
                     ? parseWhenBody(inBlock: inBlock)
                     : parseBlock(isClassBody: isClassBody)
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true
-                let nextAfterBlock = stream.peek()
-                if sawTryKeyword {
-                    if case .keyword(.catch) = nextAfterBlock.kind { continue }
-                    if case .keyword(.finally) = nextAfterBlock.kind { continue }
-                }
-                if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
-                if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) {
-                    // `+` and `-` can begin a prefix-unary expression, so a
-                    // newline before them ends the `{ }` statement
-                    // (`fun f() { }\n+x` is `f() { }` then `+x`, matching how
-                    // Kotlin treats a line starting with `+`/`-` as a new
-                    // statement). Same-line `f() { } + g()` still continues.
-                    // The remaining continuation symbols cannot start a
-                    // statement, so they extend the expression across the
-                    // newline (`f() { }\n?.member`, `f() { }\n?: fallback`).
-                    let canStartNewStatement = nextAfterBlock.kind == .symbol(.plus)
-                        || nextAfterBlock.kind == .symbol(.minus)
-                    if !canStartNewStatement || !hasLeadingNewline(nextAfterBlock) {
-                        continue
-                    }
-                }
-                if nextAfterBlock.kind == .symbol(.lParen),
-                   !hasLeadingNewline(nextAfterBlock)
-                {
-                    continue
-                }
-                if isTrailingLambdaOperatorContinuation(nextAfterBlock) {
+                if LeanParser.continuesAfterBlock(self, sawTry: sawTryKeyword) {
                     continue
                 }
                 break
             }
             if case .keyword(.try) = token.kind {
                 sawTryKeyword = true
-            }
-            if case .keyword(.if) = token.kind {
-                sawIfKeyword = true
             }
             let consumedToken = consumeToken(into: &children, range: &range)
             progress = true
@@ -1349,16 +1021,15 @@ extension KotlinParser {
                 if stillGrouped {
                     continue
                 }
-                if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind)
+                if LeanParser.continuesExpressionAfterNewline(self, kind: token.kind)
                     || (allowsFunctionWhereClause && !sawAssignment && token.kind == .softKeyword(.where))
                 {
-                    let nextToken = stream.peek()
-                    if startsGenuineDeclaration(at: 0), !isObjectExpressionStart(nextToken) {
+                    if startsGenuineDeclaration(at: 0), !LeanParser.isObjectExpressionStart(self) {
                         break
                     }
                     continue
                 }
-                if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
+                if LeanParser.continuesExpressionBeforeNewline(stream.peek(), diagnostics: diagnostics)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || (allowsPropertyDelegation && !sawAssignment && stream.peek().kind == .softKeyword(.by))
                     || (allowsFunctionWhereClause && !sawAssignment

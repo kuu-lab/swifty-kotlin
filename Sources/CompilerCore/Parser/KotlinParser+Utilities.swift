@@ -174,8 +174,7 @@ extension KotlinParser {
             cursor = offsetPastTypeArguments(from: cursor)
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
-            cursor = offsetPastBalancedGroup(from: cursor,
-                                             open: .symbol(.lParen), close: .symbol(.rParen))
+            cursor = offsetPastBalancedGroup(from: cursor)
         }
         return cursor
     }
@@ -381,8 +380,7 @@ extension KotlinParser {
                     offset = offsetPastTypeArguments(from: offset)
                 }
                 if stream.peek(offset).kind == .symbol(.lParen) {
-                    offset = offsetPastBalancedGroup(from: offset,
-                                                    open: .symbol(.lParen), close: .symbol(.rParen))
+                    offset = offsetPastBalancedGroup(from: offset)
                     guard stream.peek(offset - 1).kind == .symbol(.rParen) else { return nil }
                 }
                 continue
