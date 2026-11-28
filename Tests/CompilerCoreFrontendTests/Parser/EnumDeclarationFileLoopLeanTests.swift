@@ -19,11 +19,17 @@ extension TypeArgumentsLeanParityTests {
             guard case let .node(id) = child, arena.node(id).kind == .block else { return nil }
             return id
         }.first)
-        let members = arena.children(of: body).compactMap { child -> SyntaxKind? in
+        let members = arena.children(of: body).compactMap { child -> NodeID? in
             guard case let .node(id) = child else { return nil }
-            return arena.node(id).kind
+            return id
         }
-        #expect(members == [.enumEntry, .objectDecl])
+        #expect(members.map { arena.node($0).kind } == [.enumEntry, .objectDecl])
+        let companion = try #require(members.first { arena.node($0).kind == .objectDecl })
+        let header = arena.children(of: companion).compactMap { child -> TokenKind? in
+            guard case let .token(id) = child else { return nil }
+            return arena.token(id)?.kind
+        }
+        #expect(header.prefix(2).elementsEqual([.keyword(.companion), .keyword(.object)]))
         #expect(parser.stream.index == lexed.tokens.count - 1)
         #expect(lexed.diagnostics.diagnostics.isEmpty)
     }
