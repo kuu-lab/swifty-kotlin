@@ -59,7 +59,6 @@ struct TypeArgumentsLeanParityTests {
             try compareWithSwift(oracleCase)
         }
         print("Compared \(cases.count) Lean oracle cases with the compiler's bundled Lean parser.")
-        try checkLookaheadBudget()
     }
 
     private func compareWithSwift(_ oracleCase: OracleCase) throws {
@@ -97,7 +96,8 @@ struct TypeArgumentsLeanParityTests {
         }
     }
 
-    private func checkLookaheadBudget() throws {
+    @Test
+    func typeArgumentLookaheadBudgetAndCache() throws {
         let limit = KotlinParser.declarationLookaheadWorkLimit
         let lexed = lex("<T\n" + String(repeating: "private ", count: limit) + "T>")
         let modifierStart = 2

@@ -4,7 +4,11 @@
 import Testing
 
 extension TypeArgumentsLeanParityTests {
-    @Test(arguments: [("!is T", true), ("!in xs", true), ("!flag", false), ("?.member", true), ("-1", false)])
+    @Test(arguments: [
+        (".foo", true), ("?.member", true), ("!!", true), ("?: fallback", true),
+        ("&& other", true), ("|| other", true), ("is T", true), ("in xs", true), ("as T", true),
+        ("!is T", true), ("!in xs", true), ("!flag", false), ("-1", false), ("+1", false),
+    ])
     func whenConditionNewlinePreservesCompoundOperators(source: String, expected: Bool) {
         let lexed = lex(source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
