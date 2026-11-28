@@ -776,7 +776,9 @@ final class JVMFunctionBuilder {
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
         if let mask = try beginComposableBody() {
             let inputs = declaration.valueParams.map { scopes[0][$0.name]!.value }
-            scopes[0].removeAll()
+            for parameter in declaration.valueParams {
+                scopes[0].removeValue(forKey: parameter.name)
+            }
             try program.applyDefaults(self, parameters: declaration.valueParams, inputs: inputs, masks: [mask])
         }
         try prepareTailrec()

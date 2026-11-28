@@ -18,8 +18,17 @@ extension JVMFunctionBuilder {
 
     func importedContextArguments(_ binding: CallBinding?, method: JVMForeignMethod, id: ExprID) throws -> [JVMValue] {
         guard let function = method.kotlinFunction, !function.contextParameters.isEmpty else { return [] }
-        guard let binding, let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),
-              signature.contextParameterTypes.count == function.contextParameters.count,
+        guard let binding, let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee) else {
+            throw fail("Imported JVM context functions require implicit context arguments.", id)
+        }
+        if signature.contextParameterTypes.isEmpty {
+            let explicitContextCount = function.contextParameters.count + (function.receiver == nil ? 0 : 1)
+            guard signature.parameterTypes.count == function.parameters.count + explicitContextCount else {
+                throw fail("Imported JVM context functions require implicit context arguments.", id)
+            }
+            return []
+        }
+        guard signature.contextParameterTypes.count == function.contextParameters.count,
               binding.contextParameterArgumentMapping.isEmpty else {
             throw fail("Imported JVM context functions require implicit context arguments.", id)
         }

@@ -77,7 +77,7 @@ extension JVMBackendTests {
         }
     }
     @Test
-    func importedPlainCallbackOverloadDoesNotBindToComposableSibling() throws {
+    func importedPlainCallbackOverloadDoesNotBindToComposableSiblingWhenComposableMethodComesFirst() throws {
         let stdlib = try ownStdlibLibrary()
         try withWorkspace { root in
             let runtime = try composeJVMFixture(root, stdlib: stdlib)
@@ -89,21 +89,24 @@ extension JVMBackendTests {
             //     fun render(content: @Composable (Int) -> Unit)
             // }
             let renderer = try #require(Data(base64Encoded: """
-            yv66vgAAADQAIgEAEGZpeHR1cmUvUmVuZGVyZXIHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAGcmVuZGVyAQA0KExrb3Rs
-            aW4vanZtL2Z1bmN0aW9ucy9GdW5jdGlvbjE7KUxqYXZhL2xhbmcvU3RyaW5nOwEAVihMa290bGluL2p2bS9mdW5jdGlvbnMv
-            RnVuY3Rpb24xPC1MamF2YS9sYW5nL1N0cmluZztMa290bGluL1VuaXQ7PjspTGphdmEvbGFuZy9TdHJpbmc7AQAjTG9yZy9q
-            ZXRicmFpbnMvYW5ub3RhdGlvbnMvTm90TnVsbDsBACMoTGtvdGxpbi9qdm0vZnVuY3Rpb25zL0Z1bmN0aW9uMzspVgEAfihM
-            a290bGluL2p2bS9mdW5jdGlvbnMvRnVuY3Rpb24zPC1MamF2YS9sYW5nL0ludGVnZXI7LUxhbmRyb2lkeC9jb21wb3NlL3J1
-            bnRpbWUvQ29tcG9zZXI7LUxqYXZhL2xhbmcvSW50ZWdlcjtMa290bGluL1VuaXQ7PjspVgEAEUxrb3RsaW4vTWV0YWRhdGE7
-            AQACbXYDAAAAAgMAAAAEAwAAAAABAAFrAwAAAAEBAAJ4aQMAAAAwAQACZDEBAH7AgCIKAhgCCgIQwIAKwIAKAhAOCsCACgIY
-            AgoCEAIKAhAICgIYAgrAgAhmGMCAMgIwAUocEAIaAjADMhIQBBoOEgQSAjADEgQSAjAGMAVIJkomEAIaAjAGMhcQBBoTEgQS
-            AjAHEgQSAjAGMAXCogYCCAhIJsKiBgIQCcOABgMBAAJkMgEAEkxmaXh0dXJlL1JlbmRlcmVyOwEAAAEAB2NvbnRlbnQBABJM
-            a290bGluL0Z1bmN0aW9uMTsBACVMYW5kcm9pZHgvY29tcG9zZS9ydW50aW1lL0NvbXBvc2FibGU7AQALUmVuZGVyZXIua3QB
-            AAlTaWduYXR1cmUBABtSdW50aW1lSW52aXNpYmxlQW5ub3RhdGlvbnMBACRSdW50aW1lSW52aXNpYmxlUGFyYW1ldGVyQW5u
-            b3RhdGlvbnMBAApTb3VyY2VGaWxlAQAZUnVudGltZVZpc2libGVBbm5vdGF0aW9ucwYBAAIABAAAAAAAAgQBAAUABgADAB0A
-            AAACAAcAHgAAAAYAAQAIAAAAHwAAAAcBAAEACAAABAEABQAJAAIAHQAAAAIACgAfAAAABwEAAQAIAAAAAgAgAAAAAgAcACEA
-            AABJAAEACwAFAAxbAANJAA1JAA5JAA8AEEkAEQASSQATABRbAAFzABUAFlsACnMAF3MAGHMABXMAGHMAGXMAGnMAGHMAGHMA
-            G3MACQ==
+            yv66vgAAADQAIgEAEGZpeHR1cmUvUmVuZGVyZXIHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAG
+            cmVuZGVyAQA0KExrb3RsaW4vanZtL2Z1bmN0aW9ucy9GdW5jdGlvbjE7KUxqYXZhL2xhbmcvU3Ry
+            aW5nOwEAVihMa290bGluL2p2bS9mdW5jdGlvbnMvRnVuY3Rpb24xPC1MamF2YS9sYW5nL1N0cmlu
+            ZztMa290bGluL1VuaXQ7PjspTGphdmEvbGFuZy9TdHJpbmc7AQAjTG9yZy9qZXRicmFpbnMvYW5u
+            b3RhdGlvbnMvTm90TnVsbDsBACMoTGtvdGxpbi9qdm0vZnVuY3Rpb25zL0Z1bmN0aW9uMzspVgEA
+            fihMa290bGluL2p2bS9mdW5jdGlvbnMvRnVuY3Rpb24zPC1MamF2YS9sYW5nL0ludGVnZXI7LUxh
+            bmRyb2lkeC9jb21wb3NlL3J1bnRpbWUvQ29tcG9zZXI7LUxqYXZhL2xhbmcvSW50ZWdlcjtMa290
+            bGluL1VuaXQ7PjspVgEAEUxrb3RsaW4vTWV0YWRhdGE7AQACbXYDAAAAAgMAAAAEAwAAAAABAAFr
+            AwAAAAEBAAJ4aQMAAAAwAQACZDEBAH7AgCIKAhgCCgIQwIAKwIAKAhAOCsCACgIYAgoCEAIKAhAI
+            CgIYAgrAgAhmGMCAMgIwAUocEAIaAjADMhIQBBoOEgQSAjADEgQSAjAGMAVIJkomEAIaAjAGMhcQ
+            BBoTEgQSAjAHEgQSAjAGMAXCogYCCAhIJsKiBgIQCcOABgMBAAJkMgEAEkxmaXh0dXJlL1JlbmRl
+            cmVyOwEAAAEAB2NvbnRlbnQBABJMa290bGluL0Z1bmN0aW9uMTsBACVMYW5kcm9pZHgvY29tcG9z
+            ZS9ydW50aW1lL0NvbXBvc2FibGU7AQALUmVuZGVyZXIua3QBAAlTaWduYXR1cmUBABtSdW50aW1l
+            SW52aXNpYmxlQW5ub3RhdGlvbnMBACRSdW50aW1lSW52aXNpYmxlUGFyYW1ldGVyQW5ub3RhdGlv
+            bnMBAApTb3VyY2VGaWxlAQAZUnVudGltZVZpc2libGVBbm5vdGF0aW9ucwYBAAIABAAAAAAAAgQB
+            AAUACQACAB0AAAACAAoAHwAAAAcBAAEACAAABAEABQAGAAMAHQAAAAIABwAeAAAABgABAAgAAAAf
+            AAAABwEAAQAIAAAAAgAgAAAAAgAcACEAAABJAAEACwAFAAxbAANJAA1JAA5JAA8AEEkAEQASSQAT
+            ABRbAAFzABUAFlsACnMAF3MAGHMABXMAGHMAGXMAGnMAGHMAGHMAG3MACQ==
             """, options: .ignoreUnknownCharacters))
             let provider = root.appendingPathComponent("provider/fixture")
             try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
@@ -179,6 +182,70 @@ extension JVMBackendTests {
             let runClasspath = ([app.path] + classpath).joined(separator: ":")
             let bytecode = try javap(["-c", "-p", "-classpath", runClasspath, "ScreenKt"])
             #expect(bytecode.stdout.contains("InterfaceMethod fixture/Marker.render:(Lkotlin/Unit;Lkotlin/jvm/functions/Function2;)V"))
+        }
+    }
+    @Test
+    func importedNullableComposableCallbackAcceptsLambdaAndNull() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let runtime = try composeJVMFixture(root, stdlib: stdlib)
+            let panel = try #require(Data(base64Encoded: """
+            yv66vgAAADQAHwEADWZpeHR1cmUvUGFuZWwHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAKc2V0
+            Q29udGVudAEAIyhMa290bGluL2p2bS9mdW5jdGlvbnMvRnVuY3Rpb24yOylWAQBqKExrb3RsaW4v
+            anZtL2Z1bmN0aW9ucy9GdW5jdGlvbjI8LUxhbmRyb2lkeC9jb21wb3NlL3J1bnRpbWUvQ29tcG9z
+            ZXI7LUxqYXZhL2xhbmcvSW50ZWdlcjtMa290bGluL1VuaXQ7PjspVgEAJExvcmcvamV0YnJhaW5z
+            L2Fubm90YXRpb25zL051bGxhYmxlOwEAEUxrb3RsaW4vTWV0YWRhdGE7AQACbXYDAAAAAgMAAAAE
+            AwAAAAABAAFrAwAAAAEBAAJ4aQMAAAAwAQACZDEBAEvAgBgKAhgCCgIQwIAKwIAKAhACCsCACgIY
+            AgoCGAIIZhjAgDICMAFKHRACGgIwAzITEAQaDxIEEgIwAxgBMAXCogYCCAZIJsOABgMBAAJkMgEA
+            D0xmaXh0dXJlL1BhbmVsOwEAAAEAB2NvbnRlbnQBABJMa290bGluL0Z1bmN0aW9uMDsBACVMYW5k
+            cm9pZHgvY29tcG9zZS9ydW50aW1lL0NvbXBvc2FibGU7AQAIUGFuZWwua3QBAAlTaWduYXR1cmUB
+            ACRSdW50aW1lSW52aXNpYmxlUGFyYW1ldGVyQW5ub3RhdGlvbnMBAApTb3VyY2VGaWxlAQAZUnVu
+            dGltZVZpc2libGVBbm5vdGF0aW9ucwYBAAIABAAAAAAAAQQBAAUABgACABsAAAACAAcAHAAAAAcB
+            AAEACAAAAAIAHQAAAAIAGgAeAAAAQwABAAkABQAKWwADSQALSQAMSQANAA5JAA8AEEkAEQASWwAB
+            cwATABRbAAhzABVzABZzAAVzABZzABdzABhzABlzAAY=
+            """, options: .ignoreUnknownCharacters))
+            let provider = root.appendingPathComponent("provider/fixture")
+            try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
+            try panel.write(to: provider.appendingPathComponent("Panel.class"))
+            let consumer = """
+            import fixture.Panel
+
+            fun Panel.Show() {
+                setContent { }
+                setContent(null)
+            }
+            """
+            let classpath = [root.appendingPathComponent("provider").path, runtime.path, stdlib.path]
+            let (app, exit, diagnostics) = try m22Build(
+                root: root, sources: [("Screen.kt", consumer)], name: "app.jar", classpath: classpath
+            )
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            try """
+            import fixture.Panel;
+            import kotlin.jvm.functions.Function2;
+
+            public final class Driver {
+                private static final class PanelImpl implements Panel {
+                    public void setContent(Function2 content) {
+                        System.out.println(content == null ? "null" : "lambda");
+                    }
+                }
+
+                public static void main(String[] args) {
+                    ScreenKt.Show(new PanelImpl());
+                }
+            }
+            """.write(to: root.appendingPathComponent("Driver.java"), atomically: true, encoding: .utf8)
+            let runClasspath = ([app.path] + classpath).joined(separator: ":")
+            let driver = root.appendingPathComponent("driver")
+            try FileManager.default.createDirectory(at: driver, withIntermediateDirectories: true)
+            let compiled = try jvmTool(
+                "javac", ["-cp", runClasspath, "-d", driver.path, "Driver.java"], root: root
+            )
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let run = try java(["-cp", runClasspath + ":" + driver.path, "Driver"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "lambda\nnull\n")
         }
     }
     @Test
