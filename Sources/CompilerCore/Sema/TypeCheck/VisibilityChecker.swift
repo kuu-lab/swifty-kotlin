@@ -24,7 +24,9 @@ struct VisibilityChecker {
         _ symbol: SemanticSymbol,
         fromFile accessFileID: FileID,
         enclosingClass: SymbolID?,
-        usageRange: SourceRange? = nil
+        usageRange: SourceRange? = nil,
+        receiverClass: SymbolID? = nil,
+        receiverIsExplicit: Bool = false
     ) -> Bool {
         if symbol.flags.contains(.objectLiteralType) {
             guard !symbol.flags.contains(.importedLibrary),
@@ -136,6 +138,17 @@ struct VisibilityChecker {
             while let candidate = useSiteClass, visited.insert(candidate).inserted {
                 if candidate == protectedScopeOwner
                     || (!companionScopeIsLexicalOnly && isSubclass(candidate, of: protectedScopeOwner)) {
+                    let declarationFile = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
+                    let isClasspathStub = declarationFile.map {
+                        sourceManager?.path(of: $0).hasPrefix("<kswiftk-jvm-import>/") == true
+                    } == true
+                    if isClasspathStub && receiverIsExplicit {
+                        guard let receiverClass,
+                              receiverClass == enclosingClass || isSubclass(receiverClass, of: enclosingClass)
+                        else {
+                            return false
+                        }
+                    }
                     return true
                 }
                 useSiteClass = symbols.parentSymbol(for: candidate)

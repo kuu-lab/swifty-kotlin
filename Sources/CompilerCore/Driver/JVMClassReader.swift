@@ -33,6 +33,7 @@ struct JVMClassInfo {
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, setter: JVMForeignMethod?, sourceType: String)] = [:]
     var kotlinMovedInterfaceCompanionProperties: Set<String> = []
+    var kotlinFieldProperties: [String: JVMKotlinFieldProperty] = [:]
     var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
@@ -53,8 +54,9 @@ struct JVMClassInfo {
     }
 
     func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
-        isKotlinFileFacade == nil && (field.isPublic || field.isPackagePrivate)
-            && !field.isStatic && field.access & 0x1000 == 0
+        isKotlinFileFacade != true && !field.isStatic && field.access & 0x1000 == 0
+            && (field.isPublic || field.isPackagePrivate || field.isProtected)
+            && kotlinMemberProperties[field.name] == nil
     }
 }
 
@@ -77,6 +79,7 @@ struct JVMForeignField {
     var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
+    var isProtected: Bool { access & 0x0007 == 0x0004 }
     var isPackagePrivate: Bool { access & 0x0007 == 0 }
     var isFinal: Bool { access & 16 != 0 }
 }
@@ -905,7 +908,14 @@ struct JVMClassReader {
             info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
         }
         if let metadata = classAttributes.kotlinMetadata,
-           hasReadOnlyMapSupertype || isKotlinObject || flags & 0x0200 != 0 || name.hasSuffix("$Companion") || methods.contains(where: {
+           hasReadOnlyMapSupertype || isKotlinObject || flags & 0x0200 != 0 || name.hasSuffix("$Companion")
+               || fields.contains(where: {
+                   ($0.isPublic || $0.isProtected) && !$0.isStatic && $0.access & 0x1000 == 0
+               })
+               || methods.contains(where: {
+                   $0.isProtected && $0.parameters.isEmpty && $0.result != .unit
+               })
+               || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
                    || !$0.isStatic && $0.composePropertyABI(hasReceiver: false)
@@ -914,15 +924,17 @@ struct JVMClassReader {
            }),
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
             for property in properties {
-                var getter = methods.first(where: {
-                    !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
-                })
+                var getter = property.hasGetterSignature ? methods.first(where: {
+                    (!$0.isProtected || property.isProtected)
+                        && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) : nil
                 let physicalField = property.fieldName.flatMap { fieldName in
                     fields.first { $0.name == fieldName && $0.descriptor == property.fieldDescriptor }
                 }
                 let physicalConstant = physicalField?.constantValue != nil
                 let isExposedField = physicalField.map { $0.access & 2 == 0 } ?? true
-                if getter == nil, !physicalConstant, isExposedField, property.fieldName != nil, let fieldDescriptor = property.fieldDescriptor,
+                if getter == nil, !physicalConstant, isExposedField, property.fieldName != nil,
+                   let fieldDescriptor = property.fieldDescriptor,
                    let result = try? JVMDescriptor.parse("()" + fieldDescriptor).1 {
                     // @JvmField properties have no accessor method, but their
                     // metadata still carries the Kotlin property and type.
@@ -931,12 +943,40 @@ struct JVMClassReader {
                         isStatic: false, isInterface: false, isAbstract: false)
                     syntheticGetter.isFinal = true
                     syntheticGetter.isAccessorlessField = true
+                    syntheticGetter.isProtected = physicalField?.isProtected == true
                     getter = syntheticGetter
                 }
-                if property.isMovedFromInterfaceCompanion { info.kotlinMovedInterfaceCompanionProperties.insert(property.name) }
+                if property.isMovedFromInterfaceCompanion {
+                    info.kotlinMovedInterfaceCompanionProperties.insert(property.name)
+                }
                 guard let getter else { continue }
-                // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
-                let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
+                let hasVisibleField = fields.contains(where: {
+                    $0.name == property.name && !$0.isStatic && $0.access & 0x1000 == 0
+                        && ($0.isPublic || $0.isProtected || $0.isPackagePrivate)
+                })
+                let setter = methods.first {
+                    !$0.isStatic && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
+                }
+                let isHiddenByDeprecation = Self.isHiddenByDeprecation(
+                    propertyGetter: getter,
+                    annotationsMethodName: property.annotationsMethodName,
+                    annotationsMethodDescriptor: property.annotationsMethodDescriptor,
+                    methods: methods
+                )
+                if isHiddenByDeprecation {
+                    let accessors = Set([
+                        getter.name + getter.descriptor,
+                        property.setterName.flatMap { name in
+                            property.setterDescriptor.map { name + $0 }
+                        },
+                    ].compactMap { $0 })
+                    info.methods.removeAll { accessors.contains($0.name + $0.descriptor) }
+                    continue
+                }
+                let hasHiddenSetter = setter?.isHiddenByDeprecation == true
+                if hasHiddenSetter, let setter {
+                    info.methods.removeAll { $0.name == setter.name && $0.descriptor == setter.descriptor }
+                }
                 let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
@@ -947,6 +987,8 @@ struct JVMClassReader {
                               || isKotlinObject && property.isSourceVisible && !property.isVar
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
+                              || hasVisibleField && property.isSourceVisible
+                              || getter.isProtected && property.isSourceVisible
                               || !getter.isStatic && property.isSourceVisible && !property.isVar
                                   && getter.composePropertyABI(hasReceiver: false)
                               || getter.isFinal && property.isSourceVisible
@@ -954,20 +996,36 @@ struct JVMClassReader {
                                       || !property.isVar && getter.name == property.name)),
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
-                    let setter = methods.first {
-                        !$0.isProtected && !$0.isStatic
-                            && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
-                    }
-                    info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
+                    info.kotlinMemberProperties[property.name] = (getter, hasHiddenSetter ? nil : setter, sourceType)
                 }
+            }
+        }
+        if let metadata = classAttributes.kotlinMetadata,
+           fields.contains(where: {
+               ($0.isPublic || $0.isProtected) && !$0.isStatic && $0.access & 0x1000 == 0
+           }),
+           let properties = try? metadata.classFieldPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties where property.isSourceVisible {
+                let isAccessorlessMemberProperty = info.kotlinMemberProperties[property.name]?.getter.isAccessorlessField == true
+                guard fields.contains(where: {
+                    $0.name == property.name && ($0.isPublic || $0.isProtected) && !$0.isStatic
+                }), info.kotlinMemberProperties[property.name] == nil || isAccessorlessMemberProperty else { continue }
+                info.kotlinFieldProperties[property.name] = property
             }
         }
         return info
     }
 
-    private static func isHiddenByDeprecation(propertyGetter getter: JVMForeignMethod, methods: [JVMForeignMethod]) -> Bool {
-        getter.isHiddenByDeprecation || methods.contains {
-            $0.name == getter.name + "$annotations" && $0.isHiddenByDeprecation
+    private static func isHiddenByDeprecation(
+        propertyGetter getter: JVMForeignMethod,
+        annotationsMethodName: String?,
+        annotationsMethodDescriptor: String?,
+        methods: [JVMForeignMethod]
+    ) -> Bool {
+        if getter.isHiddenByDeprecation { return true }
+        guard let annotationsMethodName, let annotationsMethodDescriptor else { return false }
+        return methods.contains {
+            $0.name == annotationsMethodName && $0.descriptor == annotationsMethodDescriptor && $0.isHiddenByDeprecation
         }
     }
 

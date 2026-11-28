@@ -68,6 +68,9 @@ struct JVMKotlinClassProperty {
     let name: String
     let getterName: String
     let getterDescriptor: String
+    let hasGetterSignature: Bool
+    let annotationsMethodName: String?
+    let annotationsMethodDescriptor: String?
     let fieldName: String?
     let fieldDescriptor: String?
     let isNullable: Bool
@@ -75,8 +78,17 @@ struct JVMKotlinClassProperty {
     let setterName: String?
     let setterDescriptor: String?
     let isSourceVisible: Bool
+    let isProtected: Bool
     let sourceType: String?
     let isMovedFromInterfaceCompanion: Bool
+}
+
+struct JVMKotlinFieldProperty {
+    let name: String
+    let isVar: Bool
+    let isSourceVisible: Bool
+    let isProtected: Bool
+    let sourceType: String?
 }
 
 struct JVMKotlinTopLevelProperty {
@@ -384,29 +396,68 @@ struct JVMKotlinMetadataPayload {
             let fieldDescriptor = encodedFieldDescriptor ?? (field != nil ? metadataFieldType?.descriptor : nil)
             let getterName: String
             let descriptor: String
+            let hasGetterSignature: Bool
             if let getter = try signature.message(3),
                let encodedName = try names.resolve(getter.int32(1)),
                let encodedDescriptor = try names.resolve(getter.int32(2)) {
                 getterName = encodedName
                 descriptor = encodedDescriptor
+                hasGetterSignature = true
             } else {
                 guard let fieldDescriptor else { return nil }
                 getterName = "get" + String(name.prefix(1)).uppercased() + name.dropFirst()
                 descriptor = "()" + fieldDescriptor
+                hasGetterSignature = false
             }
             let setter = try signature.message(4)
             let setterName = try names.resolve(setter?.int32(1))
             let setterDescriptor = try names.resolve(setter?.int32(2))
+            let annotationsMethod = try signature.message(2)
+            let annotationsMethodName = try names.resolve(annotationsMethod?.int32(1))
+            let encodedAnnotationsMethodDescriptor = try names.resolve(annotationsMethod?.int32(2))
+            let annotationsMethodDescriptor: String?
+            if let encodedAnnotationsMethodDescriptor {
+                annotationsMethodDescriptor = encodedAnnotationsMethodDescriptor
+            } else if annotationsMethodName != nil, let closingParenthesis = descriptor.firstIndex(of: ")") {
+                annotationsMethodDescriptor = String(descriptor[...closingParenthesis]) + "V"
+            } else {
+                annotationsMethodDescriptor = nil
+            }
             let flags = property.int32(11) ?? 6
             let visibility = (flags >> 1) & 7
             let sourceType = try Self.sourceType(type, types: types, names: names)
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+                                           hasGetterSignature: hasGetterSignature,
+                                           annotationsMethodName: annotationsMethodName,
+                                           annotationsMethodDescriptor: annotationsMethodDescriptor,
                                            fieldName: fieldName, fieldDescriptor: fieldDescriptor,
                                            isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
                                            setterName: setterName, setterDescriptor: setterDescriptor,
                                            isSourceVisible: visibility == 2 || visibility == 3,
+                                           isProtected: visibility == 2,
                                            sourceType: sourceType,
                                            isMovedFromInterfaceCompanion: property.int32(101) == 1)
+        }
+    }
+
+    func classFieldPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinFieldProperty] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        return try declaration.messages(10).compactMap { property in
+            guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  let type = try types.resolve(property, inline: 3, indexed: 9) else { return nil }
+            let signature = try property.message(100)
+            guard try signature?.message(3) == nil else { return nil }
+            let setter = try signature?.message(4)
+            let flags = property.int32(11) ?? 6
+            let visibility = (flags >> 1) & 7
+            return JVMKotlinFieldProperty(name: name,
+                                          isVar: flags & (1 << 8) != 0 || setter != nil,
+                                          isSourceVisible: visibility == 2 || visibility == 3,
+                                          isProtected: visibility == 2,
+                                          sourceType: try Self.sourceType(type, types: types, names: names))
         }
     }
 

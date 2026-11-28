@@ -118,8 +118,21 @@ extension ExprTypeChecker {
                 range: range,
                 diagnostics: sema.diagnostics
             )
+            let isSuperReceiver: Bool = if case .superRef = ctx.ast.arena.expr(receiver) {
+                true
+            } else {
+                false
+            }
+            let receiverClass = isSuperReceiver
+                ? ctx.enclosingClassSymbol
+                : driver.helpers.jvmProtectedReceiverClass(
+                    of: memberWriteReceiverType, types: sema.types, symbols: sema.symbols
+                )
             if let property = sema.symbols.symbol(writeSymbol) {
-                if !ctx.visibilityChecker.isAccessible(property, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol) {
+                if !ctx.visibilityChecker.isAccessible(
+                    property, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol,
+                    receiverClass: receiverClass, receiverIsExplicit: classNameOwnerNominal == nil
+                ) {
                     driver.helpers.emitVisibilityError(
                         for: property, name: ctx.interner.resolve(name), range: range, diagnostics: sema.diagnostics
                     )
@@ -148,7 +161,10 @@ extension ExprTypeChecker {
                             id: property.id, kind: property.kind, name: property.name, fqName: property.fqName,
                             declSite: property.declSite, visibility: visibility, flags: property.flags
                         )
-                        if !ctx.visibilityChecker.isAccessible(setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol) {
+                        if !ctx.visibilityChecker.isAccessible(
+                            setter, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol,
+                            receiverClass: receiverClass, receiverIsExplicit: classNameOwnerNominal == nil
+                        ) {
                             driver.helpers.emitVisibilityError(
                                 for: setter, name: ctx.interner.resolve(name), range: range, diagnostics: sema.diagnostics
                             )
