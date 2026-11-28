@@ -46,7 +46,7 @@ extension JVMFunctionBuilder {
             }
         }
 
-        let collection = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
+        let collection = try convert(requireValue(receiverID), to: .reference("java/lang/Iterable", nullable: false))
         let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
         guard let iterator = try jdkCall("java/lang/Iterable", "iterator", [], iteratorType, receiver: collection, interface: true) else { return nil }
         let accumulator = try value(accumulatorType)

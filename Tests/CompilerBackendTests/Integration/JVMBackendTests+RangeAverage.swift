@@ -14,6 +14,8 @@ extension JVMBackendTests {
                 println(range.take(3))
                 println(range.drop(7))
                 println((1..5).average())
+                println((5 downTo 1).average())
+                println((5..1).average())
                 println((1..5).sorted())
             }
             """
@@ -27,7 +29,7 @@ extension JVMBackendTests {
 
             let artifact = root.appendingPathComponent("hello.jar").path
             let execution = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
-            #expect(execution.stdout == "[1, 2, 3]\n[8, 9, 10]\n3.0\n[1, 2, 3, 4, 5]\n")
+            #expect(execution.stdout == "[1, 2, 3]\n[8, 9, 10]\n3.0\n3.0\nNaN\n[1, 2, 3, 4, 5]\n")
             #expect(execution.stderr.isEmpty)
 
             let referenceCompile = try jvmTool("kotlinc", ["hello.kt", "-cp", runtime, "-d", "reference.jar"], root: root)
