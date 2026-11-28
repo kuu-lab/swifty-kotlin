@@ -1472,7 +1472,7 @@ package struct KnownCompilerNames {
             "associate", "associateBy", "associateWith",
             "associateTo", "associateByTo", "associateWithTo",
             "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
-            "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
+            "sortedBy", "sortedByDescending", "sortedWith", "sortBy", "sortWith", "joinTo",
             "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
             // copyOf/copyOfRange/copyInto/contains have bundled kotlin.collections
             // declarations for every array-like receiver. Leaving them out let the

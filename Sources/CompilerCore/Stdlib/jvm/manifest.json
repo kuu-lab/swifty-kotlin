@@ -549,6 +549,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "kotlin/collections/ArraySortBy.kt",
+      "virtualPath": "<kswiftk-jvm>/array-sort-by.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "kotlin/collections/ListMutations.kt",
       "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
       "excludeFromStdlibBuild": true,
