@@ -71,6 +71,29 @@ extension JVMProgramBuilder {
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }
                 let name = context.interner.resolve(p.name), type = try type(semantic)
+                if owner == "kotlin/time/Duration$Companion", ["ZERO", "INFINITE"].contains(name) {
+                    let getter = "get" + name + "-UwyO8pc"
+                    textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "()" + type.descriptor, parameters: [], result: type, isStatic: false, isInterface: interface, isAbstract: false)
+                    continue
+                }
+                if owner == "kotlin/time/Duration",
+                   name == "absoluteValue" || name.hasPrefix("inWhole") {
+                    let getter = name == "absoluteValue"
+                        ? "getAbsoluteValue-UwyO8pc"
+                        : "get" + name.prefix(1).uppercased() + name.dropFirst() + "-impl"
+                    let result: JVMValueType = name == "absoluteValue" ? .long : type
+                    textLibraryProperties[symbol] = JVMForeignMethod(
+                        owner: owner,
+                        name: getter,
+                        descriptor: "(J)" + result.descriptor,
+                        parameters: [.long],
+                        result: result,
+                        isStatic: true,
+                        isInterface: false,
+                        isAbstract: false
+                    )
+                    continue
+                }
                 let jvmName = owner.hasPrefix("java/util/") && ["size", "keys", "values"].contains(name) ? ["size": "size", "keys": "keySet", "values": "values"][name] ?? "get" + name.prefix(1).uppercased() + name.dropFirst() : ["java/lang/StringBuilder", "kotlin/text/MatchGroupCollection", "java/util/Collection"].contains(owner) && ["length", "size"].contains(name) ? name : "get" + name.prefix(1).uppercased() + name.dropFirst()
                 let result: JVMValueType = owner == "kotlin/ranges/IntRange" && ["start", "endInclusive"].contains(name) ? .reference("java/lang/Integer", nullable: false) : type
                 textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "()" + result.descriptor, parameters: [], result: result, isStatic: false, isInterface: interface, isAbstract: false)
@@ -206,15 +229,6 @@ extension JVMProgramBuilder {
                         default:
                             break
                         }
-                    }
-                    for member in duration.memberProperties {
-                        guard case let .propertyDecl(property) = ast.arena.decl(member),
-                              let symbol = sema.bindings.declSymbol(for: member),
-                              let semantic = sema.symbols.propertyType(for: symbol) else { continue }
-                        let name = context.interner.resolve(property.name)
-                        guard name.hasPrefix("inWhole") else { continue }
-                        let getter = "get" + name.prefix(1).uppercased() + name.dropFirst() + "-impl"
-                        textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "(J)" + (try type(semantic)).descriptor, parameters: [.long], result: try type(semantic), isStatic: true, isInterface: false, isAbstract: false)
                     }
                 }
             }
@@ -533,7 +547,8 @@ extension JVMFunctionBuilder {
                 return try jdkCall("java/lang/Math", "ulp", method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
             }
             let receiverArgument = method.owner == "kotlin/time/Duration" && method.isStatic ? try durationRawValue(extensionReceiver) : extensionReceiver
-            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiverArgument], resolved: program.expressionType(id))
+            let resolved = method.owner == "kotlin/time/Duration" ? nil : try program.expressionType(id)
+            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiverArgument], resolved: resolved)
         }
         let object = try receiver.map(requireValue) ?? instance(id)
         return try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface, resolved: program.expressionType(id))

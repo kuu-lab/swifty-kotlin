@@ -14,6 +14,7 @@ public value class Duration internal constructor(private val rawValue: Long) : C
     public fun isPositive(): Boolean = false
     public fun isInfinite(): Boolean = false
     public fun isFinite(): Boolean = false
+    public val absoluteValue: Duration get() = null!!
     public override fun compareTo(other: Duration): Int = 0
     public operator fun plus(other: Duration): Duration = null!!
     public operator fun minus(other: Duration): Duration = null!!

@@ -132,6 +132,12 @@ final class JVMProgramBuilder {
            sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
         }
+        if usesLegacyDurationLongMapping(),
+           case let .classType(type) = sema.types.kind(of: actual),
+           type.nullability == .nullable,
+           sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
+            return .reference("kotlin/time/Duration", nullable: true)
+        }
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
@@ -155,6 +161,12 @@ final class JVMProgramBuilder {
            type.nullability == .nonNull,
            sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
+        }
+        if usesLegacyDurationLongMapping(),
+           case let .classType(type) = sema.types.kind(of: id),
+           type.nullability == .nullable,
+           sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
+            return .reference("kotlin/time/Duration", nullable: true)
         }
         return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
     }
@@ -654,12 +666,12 @@ final class JVMFunctionBuilder {
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
         if !context.options.stdlibOnly {
-            if source.type.referenceName == "kotlin/time/Duration", !source.type.isNullable, type == .long {
+            if source.type.referenceName == "kotlin/time/Duration", type == .long {
                 let result = try value(.long)
                 instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "unbox-impl", descriptor: "()J", parameters: [], result: .long, isStatic: false, isInterface: false, isAbstract: false), receiver: source, arguments: [], result: result))
                 return result
             }
-            if source.type == .long, type.referenceName == "kotlin/time/Duration", !type.isNullable {
+            if source.type == .long, type.referenceName == "kotlin/time/Duration" {
                 let result = try value(type)
                 instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "box-impl", descriptor: "(J)Lkotlin/time/Duration;", parameters: [.long], result: type, isStatic: true, isInterface: false, isAbstract: false), receiver: nil, arguments: [source], result: result))
                 return result
