@@ -91,8 +91,8 @@ extension JVMClasspathIndex {
 
     /// Recover Java source types for simple parameterized signatures. The
     /// classfile descriptor remains the source of truth for invocation.
-    func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, typeParameters: [String], bounds: [(name: String, type: String)], referencedClasses: Set<String>)? {
-        guard let owner = classes[method.owner], owner.isKotlinFileFacade == nil,
+    func javaGenericTypes(_ method: JVMForeignMethod, forceJavaSignature: Bool = false) -> (parameters: [String], result: String, typeParameters: [String], bounds: [(name: String, type: String)], referencedClasses: Set<String>)? {
+        guard let owner = classes[method.owner], forceJavaSignature || owner.isKotlinFileFacade == nil,
               let signature = method.genericSignature
         else { return nil }
 

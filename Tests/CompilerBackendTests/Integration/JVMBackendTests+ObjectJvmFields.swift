@@ -259,6 +259,295 @@ extension JVMBackendTests {
     }
 
     @Test
+    func interfaceCompanionJvmFieldsAreInitializedOnTheOwnerInterface() throws {
+        let source = """
+        interface ITest {
+            companion object {
+                @JvmField val first: Int = 10
+                @JvmField val x: Int = foo() + first
+                @JvmField val y: Int = x + 1
+                @JvmField val items: List<String> = listOf("a")
+                @JvmField val maybeItems: List<String>? = listOf("b")
+                init { foo() }
+                private fun foo(): Int = 3
+            }
+        }
+        fun main() {}
+        """
+        let javaSource = #"""
+        import java.lang.reflect.Field;
+        import java.lang.reflect.Modifier;
+
+        public class Probe {
+            private static String modifiers(Field field) {
+                int modifiers = field.getModifiers();
+                return Modifier.isPublic(modifiers) + ":" + Modifier.isStatic(modifiers) + ":" + Modifier.isFinal(modifiers);
+            }
+
+            public static void main(String[] args) throws Exception {
+                Class<?> owner = Class.forName("ITest");
+                Field first = owner.getDeclaredField("first");
+                Field x = owner.getDeclaredField("x");
+                Field y = owner.getDeclaredField("y");
+                Field items = owner.getDeclaredField("items");
+                Field maybeItems = owner.getDeclaredField("maybeItems");
+                System.out.println("first=" + modifiers(first) + ":" + first.getInt(null));
+                System.out.println("x=" + modifiers(x) + ":" + x.getInt(null));
+                System.out.println("y=" + modifiers(y) + ":" + y.getInt(null));
+                System.out.println("items=" + items.getGenericType().getTypeName() + ":" + ((java.util.List<?>) items.get(null)).size());
+                System.out.println("maybeItems=" + maybeItems.getGenericType().getTypeName() + ":" + ((java.util.List<?>) maybeItems.get(null)).size());
+
+                Class<?> companion = Class.forName("ITest$Companion");
+                boolean companionHasExposedField = false;
+                for (String name : new String[] {"first", "x", "y", "items", "maybeItems"}) {
+                    try {
+                        companion.getDeclaredField(name);
+                        companionHasExposedField = true;
+                    } catch (NoSuchFieldException expected) {
+                    }
+                }
+                boolean companionHasAccessors = false;
+                for (String name : new String[] {"getFirst", "getX", "getY", "getItems", "getMaybeItems"}) {
+                    try {
+                        companion.getDeclaredMethod(name);
+                        companionHasAccessors = true;
+                    } catch (NoSuchMethodException expected) {
+                    }
+                }
+                System.out.println("companionHasExposedField=" + companionHasExposedField);
+                System.out.println("companionHasAccessors=" + companionHasAccessors);
+            }
+        }
+        """#
+
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let interfaceArtifact = root.appendingPathComponent("interface.jar")
+            try FileManager.default.copyItem(atPath: artifact, toPath: interfaceArtifact.path)
+            let runtime = try m11Runtime()
+
+            _ = try jvmTool("kotlinc", ["-nowarn", "-include-runtime", "hello.kt", "-d", "reference.jar"], root: root)
+            try javaSource.write(to: root.appendingPathComponent("Probe.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["Probe.java"], root: root)
+
+            let referenceClasspath = root.path + ":" + root.appendingPathComponent("reference.jar").path + ":" + runtime
+            let reference = try java(["-cp", referenceClasspath, "Probe"])
+            let candidate = try java(["-cp", root.path + ":" + artifact + ":" + runtime, "Probe"])
+            #expect(candidate.stdout == reference.stdout)
+            #expect(candidate.stdout == """
+            first=true:true:true:10
+            x=true:true:true:13
+            y=true:true:true:14
+            items=java.util.List<java.lang.String>:1
+            maybeItems=java.util.List<java.lang.String>:1
+            companionHasExposedField=false
+            companionHasAccessors=false
+            """ + "\n")
+
+            let consumer = try compile("""
+            fun main() {
+                println(ITest.x)
+                println(ITest.Companion.x)
+                val items: List<String> = ITest.items
+                println(items.size)
+                println(ITest.Companion.items.first())
+                val maybeItems: List<String>? = ITest.maybeItems
+                println(maybeItems?.size)
+            }
+            """, root: root, mode: .jvmJar, classpath: [interfaceArtifact.path])
+            #expect(consumer.0 == 0, "\(consumer.1.map(\.message))")
+            let consumerExecution = try java(["-cp", artifact + ":" + interfaceArtifact.path + ":" + runtime, "HelloKt"])
+            #expect(consumerExecution.stdout == "13\n13\n1\na\n1\n")
+            #expect(consumerExecution.stderr.isEmpty)
+
+            let nonNullConsumer = try compile("""
+            fun main() {
+                val items: List<String> = ITest.maybeItems
+                println(items.size)
+            }
+            """, root: root, mode: .jvmJar, classpath: [interfaceArtifact.path])
+            #expect(nonNullConsumer.0 == 1, "\(nonNullConsumer.1.map(\.message))")
+            #expect(nonNullConsumer.1.contains { $0.severity == .error && $0.message.contains("type mismatch") }, "\(nonNullConsumer.1.map(\.message))")
+
+            #expect(reference.stderr.isEmpty)
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func interfaceCompanionJvmFieldInitializerSupportsInterfaceSuperCalls() throws {
+        let source = """
+        interface Base {
+            fun seed(): Int = 4
+            var slot: Int
+                get() = 0
+                set(value) {}
+        }
+        interface ITest {
+            companion object : Base {
+                @JvmField val x: Int = run {
+                    super<Base>.slot = 4
+                    super<Base>.seed()
+                }
+            }
+        }
+        fun main() { println(ITest.x) }
+        """
+
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            _ = try jvmTool("kotlinc", ["-nowarn", "-include-runtime", "hello.kt", "-d", "reference.jar"], root: root)
+
+            let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path, "HelloKt"])
+            let candidate = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == reference.stdout)
+            #expect(candidate.stdout == "4\n")
+            #expect(reference.stderr.isEmpty)
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func interfaceCompanionJvmFieldPropertyReferencesReadOwnerFields() throws {
+        let source = """
+        interface ITest {
+            companion object {
+                @JvmField val x: Int = 3
+            }
+        }
+        fun main() {
+            val reference = ITest.Companion::x
+            println(reference.get())
+        }
+        """
+
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            let candidate = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == "3\n")
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func importedAccessorlessJvmFieldsBindToPhysicalFields() throws {
+        let library = """
+        class C {
+            @JvmField val x: String? = null
+            val y: Int
+                get() = 1
+        }
+        open class ProtectedBase {
+            protected val protectedValue: String? = null
+            val y: Int
+                get() = 1
+        }
+        open class ProtectedFieldBase {
+            @JvmField protected val exposedValue: String? = null
+            val y: Int
+                get() = 1
+        }
+        object Factory {
+            fun makeC(): C = C()
+        }
+        object O {
+            const val answer: Int = 3
+        }
+        """
+        let consumer = """
+        fun main() {
+            println(Factory.makeC().x?.length ?: 4)
+            println(O.answer)
+        }
+        """
+
+        try withWorkspace { root in
+            try library.write(to: root.appendingPathComponent("lib.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["-nowarn", "lib.kt", "-d", "lib.jar"], root: root)
+            let libraryArtifact = root.appendingPathComponent("lib.jar").path
+            let archive = try ZipArchive(data: Data(contentsOf: root.appendingPathComponent("lib.jar")))
+            let publicEntry = try #require(archive.entries.first { $0.name == "C.class" })
+            var publicReader = JVMClassReader(bytes: Array(try archive.contents(of: publicEntry)))
+            #expect(try publicReader.read().kotlinMemberProperties["x"]?.getter.isAccessorlessField == true)
+            let protectedEntry = try #require(archive.entries.first { $0.name == "ProtectedBase.class" })
+            var protectedReader = JVMClassReader(bytes: Array(try archive.contents(of: protectedEntry)))
+            let protectedProperty = try #require(protectedReader.read().kotlinMemberProperties["protectedValue"])
+            #expect(protectedProperty.getter.isProtected)
+            let protectedFieldEntry = try #require(archive.entries.first { $0.name == "ProtectedFieldBase.class" })
+            var protectedFieldReader = JVMClassReader(bytes: Array(try archive.contents(of: protectedFieldEntry)))
+            #expect(try protectedFieldReader.read().kotlinMemberProperties["exposedValue"]?.getter.isAccessorlessField == true)
+            let compiled = try compile(consumer, root: root, mode: .jvmJar, classpath: [libraryArtifact])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            let candidate = try java(["-cp", artifact + ":" + libraryArtifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == "4\n3\n")
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func interfaceCompanionMovedMetadataIsScopedToInterfaceCompanions() throws {
+        let source = """
+        interface InterfaceHolder {
+            companion object {
+                @JvmField val x: Int = 3
+            }
+        }
+        class ClassHolder {
+            companion object {
+                @JvmField val x: Int = 4
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let archive = try ZipArchive(data: Data(contentsOf: root.appendingPathComponent("hello.jar")))
+            func moved(_ entryName: String) throws -> Bool {
+                let entry = try #require(archive.entries.first { $0.name == entryName })
+                var reader = JVMClassReader(bytes: Array(try archive.contents(of: entry)))
+                return try reader.read().kotlinMovedInterfaceCompanionProperties.contains("x")
+            }
+            #expect(try moved("InterfaceHolder$Companion.class"))
+            #expect(try !moved("ClassHolder$Companion.class"))
+        }
+    }
+
+    @Test
+    func rejectsInvalidInterfaceCompanionJvmFieldShapes() throws {
+        for (name, members) in [
+            ("var", "@JvmField var x: Int = 3"),
+            ("private", "@JvmField private val x: Int = 3"),
+            ("const", "@JvmField const val x: Int = 3"),
+            ("custom accessor", "@JvmField val x: Int = 3\n            get() = field"),
+            ("mixed ordinary property", "@JvmField val x: Int = 3\n            val ordinary: Int = 4"),
+        ] {
+            try withWorkspace { root in
+                let compiled = try compile("""
+                interface ITest {
+                    companion object {
+                        \(members)
+                    }
+                }
+                fun main() {}
+                """, root: root, mode: .jvmJar)
+                #expect(compiled.0 == 1, "\(name): \(compiled.1.map(\.message))")
+                #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("interface companions") }, "\(name): \(compiled.1.map(\.message))")
+            }
+        }
+    }
+
+    @Test
     func rejectsJvmFieldOnPropertyWithoutBackingField() throws {
         let source = """
         object Obj {
