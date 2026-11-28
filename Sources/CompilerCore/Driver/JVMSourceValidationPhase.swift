@@ -22,8 +22,9 @@ private struct JVMSourceGrammar {
     var whenBranchBodyDepth = 0
     struct Unsupported: Error {}
 
-    var kind: TokenKind { tokens[min(index, tokens.count - 1)].kind }
-    var currentRange: SourceRange { tokens[min(index, tokens.count - 1)].range }
+    var currentToken: Token { tokens[min(index, tokens.count - 1)] }
+    var kind: TokenKind { currentToken.kind }
+    var currentRange: SourceRange { currentToken.range }
     mutating func take(_ expected: TokenKind) -> Bool {
         guard kind == expected else { return false }
         index += 1
@@ -530,7 +531,10 @@ private struct JVMSourceGrammar {
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary(allowNewlines: allowNewlines)
-        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() || ParserBoundaryPolicy.continuesExpressionBeforeNewline(kind) {
+        while let level = precedence(), level >= minimum,
+              allowNewlines || !newlineBeforeCurrent()
+                  || LeanParser.continuesExpressionBeforeNewline(currentToken, diagnostics: context.diagnostics)
+        {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {

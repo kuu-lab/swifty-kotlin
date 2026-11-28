@@ -135,7 +135,8 @@ extension BuildASTPhase {
                 shouldMergeWithPrevious = Self.isContinuationBoundary(
                     previousTail: previousFiltered,
                     nextHead: filtered[...],
-                    allowsContextualAnonymousFunctionContinuation: false
+                    allowsContextualAnonymousFunctionContinuation: false,
+                    diagnostics: diagnostics
                 )
             } else {
                 shouldMergeWithPrevious = false
@@ -154,7 +155,8 @@ extension BuildASTPhase {
     static func isContinuationBoundary<Prev: BidirectionalCollection, Next: Collection>(
         previousTail: Prev,
         nextHead: Next,
-        allowsContextualAnonymousFunctionContinuation: Bool = true
+        allowsContextualAnonymousFunctionContinuation: Bool = true,
+        diagnostics: DiagnosticEngine? = nil
     ) -> Bool where Prev.Element == Token, Next.Element == Token {
         guard let last = previousTail.last else {
             return false
@@ -212,7 +214,7 @@ extension BuildASTPhase {
            nextHead.dropFirst().first?.kind == .symbol(.at) {
             return false
         }
-        if ParserBoundaryPolicy.continuesExpressionBeforeNewline(first.kind)
+        if LeanParser.continuesExpressionBeforeNewline(first, diagnostics: diagnostics)
             || first.kind == .symbol(.comma)
             || first.kind == .symbol(.rParen)
             || first.kind == .symbol(.rBracket)
@@ -712,7 +714,7 @@ extension BuildASTPhase {
                     return false
                 }
                 if hasNewline, !current.isEmpty,
-                   !Self.isContinuationBoundary(previousTail: current, nextHead: tokens[idx...])
+                   !Self.isContinuationBoundary(previousTail: current, nextHead: tokens[idx...], diagnostics: diagnostics)
                 {
                     groups.append(current)
                     current = []
