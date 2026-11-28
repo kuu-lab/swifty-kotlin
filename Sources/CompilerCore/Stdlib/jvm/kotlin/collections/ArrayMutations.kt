@@ -154,20 +154,3 @@ public fun BooleanArray.copyOfRange(fromIndex: Int, toIndex: Int): BooleanArray 
 public fun <T> Array<T>.sortWith(comparator: Comparator<in T>, fromIndex: Int = 0, toIndex: Int = size) {
     java.util.Arrays.sort<T>(this, fromIndex, toIndex, comparator as java.util.Comparator<T>)
 }
-
-public inline fun <T, R : Comparable<R>> Array<out T>.sortBy(crossinline selector: (T) -> R?) {
-    @Suppress("UNCHECKED_CAST")
-    val array = this as Array<T>
-    array.sortWith(Comparator { first, second ->
-        kotlin.comparisons.compareValues(selector(first), selector(second))
-    })
-}
-
-public inline fun <T, R : Comparable<R>> Array<out T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
-    @Suppress("UNCHECKED_CAST")
-    val result = java.util.Arrays.copyOf(this, size) as Array<T>
-    result.sortWith(Comparator { first, second ->
-        kotlin.comparisons.compareValues(selector(second), selector(first))
-    })
-    return result.toList()
-}
