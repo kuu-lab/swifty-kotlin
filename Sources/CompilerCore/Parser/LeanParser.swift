@@ -425,18 +425,6 @@ enum LeanParser {
         lookahead(parser, offset: 0, operation: .objectExpression) == 1
     }
 
-    static func isDeclarationStart(_ parser: KotlinParser, kind: TokenKind) -> Bool {
-        isBareDeclarationStart(parser, kind: kind)
-    }
-
-    static func whenConditionContinuesAfterLineBreak(_ parser: KotlinParser, kind _: TokenKind) -> Bool {
-        whenConditionContinuesAfterLineBreak(parser)
-    }
-
-    static func isObjectExpressionStart(_ parser: KotlinParser, kind _: TokenKind) -> Bool {
-        isObjectExpressionStart(parser)
-    }
-
     static func isAmbiguousDeclarationPrefix(_ parser: KotlinParser, kind: TokenKind) -> Bool {
         lookahead(
             parser, offset: 0, operation: .ambiguousDeclarationPrefix,

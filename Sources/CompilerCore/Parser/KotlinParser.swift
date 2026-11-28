@@ -54,120 +54,9 @@ final class KotlinParser {
     }
 
     func parseFile() -> (arena: SyntaxArena, root: NodeID) {
-        var children: [SyntaxChild] = []
-        var range = RangeAccumulator()
-        var sawTopLevelStatement = false
-        var sawFileBody = false
-        var sawPackageHeader = false
-
-        var pendingImports: [SyntaxChild] = []
-        var importRange = RangeAccumulator()
-        func flushPendingImportsIfNeeded() {
-            guard !pendingImports.isEmpty else {
-                return
-            }
-            let importListNode = arena.appendNode(
-                kind: .importList,
-                range: importRange.value ?? invalidRange,
-                pendingImports
-            )
-            children.append(.node(importListNode))
-            pendingImports.removeAll(keepingCapacity: true)
-            importRange = RangeAccumulator()
-        }
-
-        func parseTopLevelStatement() -> NodeID {
-            let before = stream.index
-            var statement = parseStatement(inBlock: false)
-            if stream.index == before {
-                var skipChildren: [SyntaxChild] = []
-                var skipRange = RangeAccumulator()
-                skipToSynchronizationPoint(inBlock: false, into: &skipChildren, range: &skipRange)
-                if stream.index == before, !stream.atEOF() {
-                    _ = consumeToken(into: &skipChildren, range: &skipRange)
-                }
-                statement = arena.appendNode(kind: .statement, range: skipRange.value ?? invalidRange, skipChildren)
-            }
-            sawTopLevelStatement = true
-            return statement
-        }
-
-        while !stream.atEOF() {
-            let token = stream.peek()
-            if token.kind == .eof {
-                break
-            }
-
-            var node: NodeID
-            switch token.kind {
-            case .keyword(.package):
-                node = parsePackageHeader()
-                sawPackageHeader = true
-            case .keyword(.import):
-                node = parseImportHeader()
-            case _ where isDeclarationStart(token.kind):
-                if case .softKeyword(.context) = token.kind {
-                    switch declarationPrefixVerdict(at: 0) {
-                    case .declaration:
-                        node = parseDeclaration()
-                    case .notDeclaration, .overBudget:
-                        node = parseTopLevelStatement()
-                    }
-                } else if isAmbiguousDeclarationPrefix(token),
-                          declarationPrefixVerdict(at: 0) == .overBudget {
-                    node = parseTopLevelStatement()
-                } else {
-                    node = parseDeclaration()
-                }
-            default:
-                node = parseTopLevelStatement()
-            }
-
-            let nodeKind = arena.node(node).kind
-            if nodeKind == .importHeader {
-                if sawFileBody {
-                    diagnostics.error(
-                        "KSWIFTK-PARSE-0017",
-                        "Imports are only allowed in the beginning of file.",
-                        range: token.range
-                    )
-                }
-                pendingImports.append(.node(node))
-                importRange.append(arena.node(node).range)
-                range.append(arena.node(node).range)
-                continue
-            }
-            if nodeKind != .packageHeader {
-                sawFileBody = true
-            }
-
-            flushPendingImportsIfNeeded()
-
-            children.append(.node(node))
-            range.append(arena.node(node).range)
-
-            // Braced declarations can leave their separator unconsumed.
-            // Treating it as a statement would incorrectly select script mode.
-            while stream.peek().kind == .symbol(.semicolon) {
-                _ = consumeToken(into: &children, range: &range)
-            }
-        }
-
-        flushPendingImportsIfNeeded()
-
-        let rootKind: SyntaxKind = if sawTopLevelStatement, !sawPackageHeader {
-            .script
-        } else {
-            .kotlinFile
-        }
-
-        return (
-            arena: arena,
-            root: arena.appendNode(
-                kind: rootKind,
-                range: range.value ?? invalidRange, children
-            )
-        )
+        let file = FileAssembly(self)
+        let end = LeanParser.parseFile(self, assembly: file)
+        return (arena, file.finish(end))
     }
 
     final class FileAssembly {
@@ -250,17 +139,7 @@ final class KotlinParser {
             guard let recovery = LeanParser.topLevelRecovery(parser, before: before) else { return statement }
             var skipped: [SyntaxChild] = []
             var skipRange = RangeAccumulator()
-            let skippedStart = parser.stream.peek().range
-            for _ in 0..<recovery.skippedCount {
-                _ = parser.consumeToken(into: &skipped, range: &skipRange)
-            }
-            if recovery.skippedCount > 0 {
-                parser.diagnostics.error(
-                    "KSWIFTK-PARSE-0006",
-                    "Skipped \(recovery.skippedCount) unexpected token(s).",
-                    range: skippedStart
-                )
-            }
+            parser.consumeSkippedTokens(recovery.skippedCount, into: &skipped, range: &skipRange)
             if recovery.forceAdvance {
                 _ = parser.consumeToken(into: &skipped, range: &skipRange)
             }

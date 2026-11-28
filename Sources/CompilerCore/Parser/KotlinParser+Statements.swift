@@ -851,14 +851,6 @@ extension KotlinParser {
         )
     }
 
-    func isObjectExpressionStart(_ token: Token) -> Bool {
-        LeanParser.isObjectExpressionStart(self)
-    }
-
-    func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
-        LeanParser.isAmbiguousDeclarationPrefix(self, kind: token.kind)
-    }
-
     func offsetPastBalancedGroup(from offset: Int, maxDistance: Int? = nil) -> Int {
         LeanParser.offsetPastParens(self, from: offset, maxDistance: maxDistance)
     }
