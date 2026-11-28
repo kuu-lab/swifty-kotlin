@@ -12,13 +12,13 @@ extension JVMForeignMethod {
     /// distinguish this entry point from ordinary Kotlin functions.
     func composeABI(for function: JVMKotlinFunction) -> (changes: Int, defaults: Int)? {
         guard !function.isSuspend, function.descriptor == descriptor,
-              annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }),
-              function.parameters.count <= 31 else { return nil }
+              annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) else { return nil }
         let firstHidden = function.parameters.count + function.leadingParameterCount
         guard parameters.indices.contains(firstHidden), parameters[firstHidden].referenceName == JVMCompose.composer
         else { return nil }
         let masks = parameters.dropFirst(firstHidden + 1)
-        let defaults = function.parameters.contains(where: \.hasDefaultValue) ? 1 : 0
+        let defaults = function.parameters.contains(where: \.hasDefaultValue)
+            ? (function.parameters.count + 30) / 31 : 0
         guard defaults == 0 || function.contextParameters.isEmpty,
               masks.count > defaults, masks.allSatisfy({ $0 == .int }) else { return nil }
         return (changes: masks.count - defaults, defaults: defaults)
@@ -96,11 +96,16 @@ extension JVMFunctionBuilder {
         let composableParameters = binding.flatMap { context.jvmImports?.importedComposableParameters[$0.chosenCallee] } ?? []
         let explicit = try arguments(args, binding: binding, parameters: parameters, declarations: nil, id: id,
                                      composableParameters: composableParameters,
-                                     importedDefaults: signature.parameters.map(\.hasDefaultValue))
+                                     importedDefaults: signature.parameters.map(\.hasDefaultValue), maskBitWidth: 31)
         let unchanged = try constant(.int(0), .int)
         var hidden = [composer] + Array(repeating: unchanged, count: abi.changes)
         if abi.defaults != 0 {
-            hidden.append(try constant(.int(Int32(bitPattern: explicit.masks[0])), .int))
+            guard explicit.masks.count >= abi.defaults else {
+                throw fail("Invalid JVM Compose default mask count.", id)
+            }
+            hidden += try explicit.masks.prefix(abi.defaults).map {
+                try constant(.int(Int32(bitPattern: $0)), .int)
+            }
         }
         let resultType = try expectedResult ?? program.expressionType(id)
         // A generic composable specialized to Unit still returns an

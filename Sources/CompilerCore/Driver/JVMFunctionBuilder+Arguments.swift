@@ -47,7 +47,8 @@ extension JVMFunctionBuilder {
         contextParameterTypes: [JVMValueType] = [],
         id: ExprID? = nil,
         composableParameters: Set<Int> = [],
-        importedDefaults: [Bool]? = nil
+        importedDefaults: [Bool]? = nil,
+        maskBitWidth: Int = 32
     ) throws -> (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let importedFunction = binding.flatMap { context.jvmImports?.methods[$0.chosenCallee]?.kotlinFunction }
@@ -140,7 +141,7 @@ extension JVMFunctionBuilder {
             guard !arg.isSpread else { throw fail("JVM vararg spreading is unsupported.", id) }
             supplied[index] = try convert(source, to: parameters[index])
         }
-        var values: [JVMValue] = [], masks = Array(repeating: UInt32(0), count: (parameters.count + 31) / 32)
+        var values: [JVMValue] = [], masks = Array(repeating: UInt32(0), count: (parameters.count + maskBitWidth - 1) / maskBitWidth)
         for (i, type) in parameters.enumerated() {
             if i == varargIndex {
                 values.append(try textVararg(varargValues, element: varargElement!))
@@ -150,7 +151,7 @@ extension JVMFunctionBuilder {
                     ?? (signature.map { $0.valueParameterHasDefaultValues.indices.contains(i) && $0.valueParameterHasDefaultValues[i] } ?? false)
                 let importedDefault = importedDefaults?.indices.contains(i) == true && importedDefaults![i]
                 guard sourceDefault || importedDefault else { throw fail("Missing JVM argument without a default.", id) }
-                masks[i / 32] |= UInt32(1) << UInt32(i % 32)
+                masks[i / maskBitWidth] |= UInt32(1) << UInt32(i % maskBitWidth)
                 values.append(try zero(type))
             }
         }

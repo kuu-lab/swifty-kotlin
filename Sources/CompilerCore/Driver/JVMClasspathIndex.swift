@@ -1887,7 +1887,7 @@ final class JVMClasspathIndex {
                         continue
                     }
                     let composeABI = method.kotlinComposeABI
-                    let defaults = composeABI?.defaults == 1
+                    let defaults = (composeABI?.defaults ?? 0) > 0
                         || info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
                     let annotation = composeABI == nil ? "" : "@androidx.compose.runtime.Composable "
                     source += annotation + "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
@@ -2351,7 +2351,7 @@ final class JVMClasspathIndex {
             source += functionDeclaration(
                 method,
                 acceptsDefaults: !usesErasedOverride
-                    && (composeABI?.defaults == 1 || defaultArgumentMethod(for: method, in: info) != nil),
+                    && ((composeABI?.defaults ?? 0) > 0 || defaultArgumentMethod(for: method, in: info) != nil),
                 usesKotlinMetadata: usesKotlinMetadata,
                 forcedResult: javaTypeParameterResult
             )

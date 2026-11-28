@@ -90,5 +90,41 @@ extension JVMBackendTests {
             #expect(run.stdout == "context-ok\n42\n")
         }
     }
+
+    @Test
+    func importedContextFunctionsKeepTopLevelAndFacadeCallsAligned() throws {
+        let own = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let provider = """
+            @file:JvmName("ContextApi")
+            package fixture
+
+            context(prefix: String)
+            fun append(suffix: String): String = prefix + suffix
+            """
+            try provider.write(to: root.appendingPathComponent("ContextApi.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("provider.jar")
+            let compiled = try jvmTool("kotlinc", ["-Xcontext-parameters", "ContextApi.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let source = """
+                import fixture.ContextApi
+                import fixture.append
+
+                fun main() {
+                    println(with("top-") { append("level") })
+                    println(ContextApi.append("facade-", "member"))
+                }
+                """
+            let classpath = [library.path, own.path]
+            let (app, exit, diagnostics) = try m22Build(
+                root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath
+            )
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "top-level\nfacade-member\n")
+        }
+    }
 }
 #endif
