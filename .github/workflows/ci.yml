@@ -161,10 +161,7 @@ jobs:
       - name: Build Swift test bundle
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Check bundled Lean parser
-        run: |
-          oracle="$RUNNER_TEMP/type-arguments.json"
-          (cd Sources/LeanParser && lake env lean --run ../../Tests/Formal/TypeArguments.lean) > "$oracle"
-          KSWIFTK_TYPE_ARGUMENTS_ORACLE="$oracle" bash Scripts/swift_test.sh --skip-build --no-parallel --filter '^CompilerCoreFrontendTests\.TypeArgumentsLeanParityTests/' $SWIFT_XSWIFTC_FLAGS
+        run: bash Scripts/check_lean.sh --skip-build $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
         run: |
@@ -177,7 +174,9 @@ jobs:
             echo 'export KSWIFTK_OPTIMIZE_COMPILER_CORE=1'
             echo 'export KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_ENABLE_CACHE_REMARKS=1'
             echo 'export SWIFT_CAS_PATH="$PWD/.build/out/CompilationCache.noindex"'
+            echo 'bash Scripts/build_lean.sh'
             echo "bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
+            echo "bash Scripts/check_lean.sh --skip-build $SWIFT_XSWIFTC_FLAGS"
             echo ')'
             echo '```'
             echo

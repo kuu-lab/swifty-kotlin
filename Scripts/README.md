@@ -4,6 +4,8 @@
 
 | Script | CI | Purpose |
 |---|---|---|
+| `build_lean.sh` | ✓ | Build the Lean parser resource bundled by SwiftPM |
+| `check_lean.sh` | ✓ | Check Lean proofs and run the Swift parser against the 791-case oracle |
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `swift_build.sh` | – | Coordinate focused local `swift build` invocations with test builds across worktrees |
 | `summarize_stdlib_timings.py` | – | Summarize opt-in stdlib artifact build durations and overlap across processes |
