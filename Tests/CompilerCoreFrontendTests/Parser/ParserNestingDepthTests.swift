@@ -13,15 +13,30 @@ struct ParserNestingDepthTests {
         #expect(!parsed.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0013" })
     }
 
-    @Test("Nesting-limit recovery consumes a synchronization point")
-    func nestingLimitRecoveryConsumesSynchronizationPoint() {
-        let lexed = lex(";")
+    @Test(arguments: [
+        ("", false, 0),
+        ("", true, 0),
+        (";", true, 1),
+        ("; next", true, 1),
+        ("} next", true, 1),
+        ("val next", false, 1),
+        ("\nnext val value", true, 1),
+        ("junk\nnext", true, 1),
+        ("junk\nnext", false, 2),
+        ("junk } next", true, 1),
+        ("junk catch next", true, 1),
+        ("} junk val next", false, 2),
+    ])
+    func nestingLimitRecoveryStopsAtExpectedToken(source: String, inBlock: Bool, skipped: Int) {
+        let lexed = lex(source)
         let parser = KotlinParser(tokens: lexed.tokens, interner: lexed.interner, diagnostics: lexed.diagnostics)
-        let beforeRecovery = parser.stream.index
+        let node = parser.recoverFromNestingLimit(inBlock: inBlock, kind: .block)
 
-        _ = parser.recoverFromNestingLimit(inBlock: true)
-
-        #expect(parser.stream.index == beforeRecovery + 1)
+        #expect(parser.stream.index == skipped)
+        #expect(parser.stream.peek() == lexed.tokens[skipped])
+        #expect(parser.arena.node(node).kind == .block)
+        #expect(parser.arena.children(of: node).count == skipped)
+        #expect(lexed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0013"])
     }
 
     @Test("Excess structured nesting reports once and resumes at the next declaration")

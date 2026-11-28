@@ -43,13 +43,11 @@ final class KotlinParser {
             )
         }
 
-        let recoveryStartIndex = stream.index
+        let skippedCount = LeanParser.recoverySkipCount(self, inBlock: inBlock, fromNestingLimit: true)
+            ?? (stream.atEOF() ? 0 : 1)
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
-        while !stream.atEOF(), !isSynchronizationPoint(stream.peek(), inBlock: inBlock) {
-            _ = consumeToken(into: &children, range: &range)
-        }
-        if stream.index == recoveryStartIndex, !stream.atEOF() {
+        for _ in 0..<skippedCount {
             _ = consumeToken(into: &children, range: &range)
         }
         return arena.appendNode(kind: kind, range: range.value ?? start, children)
